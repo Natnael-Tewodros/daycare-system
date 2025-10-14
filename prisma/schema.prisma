@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+}
+
+model Child {
+  id             Int       @id @default(autoincrement())
+  fullName       String
+  parentName     String
+  option         String
+  relationship   String
+  dateOfBirth    DateTime
+  gender         String
+  profileImage   String?
+  medicalReport  String?
+  roomId         Int?
+  servantId      Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  room           Room?     @relation(fields: [roomId], references: [id])
+  servant        Servant?  @relation(fields: [servantId], references: [id])
+
+  attendances    Attendance[]
+  
+  reports        Report[]
+
+}
+
+model Servant {
+  id             Int       @id @default(autoincrement())
+  fullName       String
+  email          String
+  phone          String
+  medicalReport  String?
+  assignedRoomId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  canTransferRooms Boolean @default(false) // Option for caregivers to transfer children between rooms
+
+  assignedRoom   Room?     @relation(fields: [assignedRoomId], references: [id])
+  children       Child[]
+}   
+
+model Organization {
+  id        Int      @id @default(autoincrement())
+  name      String
+  rooms     Room[]   // relation to Room
+  createdAt DateTime @default(now())
+}
+
+model Room {
+  id             Int          @id @default(autoincrement())
+  name           String
+  ageRange       String
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  servants       Servant[]
+  children       Child[]
+}
+
+model Attendance {
+  id           Int       @id @default(autoincrement())
+  childId      Int
+  status       String    // present, absent, late
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  broughtBy    String?
+  takenBy      String?
+  createdAt    DateTime  @default(now())
+
+  child        Child     @relation(fields: [childId], references: [id])
+}
+model Report {
+  id        Int      @id @default(autoincrement())
+  childId   Int
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  child     Child    @relation(fields: [childId], references: [id])
+}
+
+model EnrollmentRequest {
+  id                  Int       @id @default(autoincrement())
+  parentName          String
+  childName           String
+  childAge            Int
+  email               String    @unique
+  phone               String?
+  preferredStartDate  DateTime?
+  status              String    @default("pending") // e.g., "pending", "approved", "rejected"
+  notes               String?   // Optional notes from parent
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
