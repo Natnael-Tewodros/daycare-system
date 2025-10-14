@@ -210,8 +210,6 @@ export default function ChildrenPage({ employeeId }: { employeeId?: string }) {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Child Registration</h1>
-      {/* Optional: Show the employee ID for reference */}
-      <p className="text-sm text-muted-foreground mb-4">Registering children for Employee ID: {idOneToMoney}</p>
 
       {/* Toggle Button for Form */}
       <Button onClick={() => setShowForm(!showForm)} className="mb-6">

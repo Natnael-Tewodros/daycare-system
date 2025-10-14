@@ -1,8 +1,10 @@
 "use client";
 
+"use client";
+
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useState } from 'react';
-import {}
+
 type EnrollmentFormData = {
   parentName: string;
   childName: string;

@@ -171,7 +171,7 @@ export default function OverviewPage() {
 
   // Navigation handlers
   const navigateToChildren = () => router.push('/dashboard/children');
-  const navigateToCaregivers = () => router.push('/dashboard/servants');
+  const navigateToCaregivers = () => router.push('/dashboard/caregiver');
   const navigateToOrganizations = () => router.push('/dashboard/organizations');
   const navigateToTodaysAttendance = () => router.push('/dashboard/attendance?date=today');
   const navigateToTotalAttendance = () => router.push('/dashboard/attendance');

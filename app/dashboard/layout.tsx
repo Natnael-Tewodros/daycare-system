@@ -22,7 +22,7 @@ const sidebarItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Children", href: "/dashboard/children", icon: Users },
   { name: "Attendance", href: "/dashboard/attendance", icon: ClipboardList },
-  { name: "Servants", href: "/dashboard/servants", icon: UserCog },
+  { name: "Caregiver", href: "/dashboard/caregiver", icon: UserCog },
   { name: "Rooms", href: "/dashboard/rooms", icon: Home },
   { name: "Organizations", href: "/dashboard/organizations", icon: Building2 },
   { name: "Reports", href: "/dashboard/reports", icon: FileText },
