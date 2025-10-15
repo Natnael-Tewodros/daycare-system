@@ -218,7 +218,7 @@ export default function OverviewPage() {
           </CardHeader>
           <CardContent className="pt-0">
             <p className="text-sm text-muted-foreground font-medium flex items-center gap-1">
-              servants <ArrowRight className="h-3 w-3 opacity-70" />
+              caregiver <ArrowRight className="h-3 w-3 opacity-70" />
             </p>
           </CardContent>
         </Card>

@@ -50,18 +50,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside className={cn(
-        "bg-blue-900 text-white border-r border-blue-800 transition-all duration-300",
+        "bg-gradient-to-b from-blue-900 to-blue-800 text-white border-r border-blue-800 transition-all duration-300 shadow-lg",
         isCollapsed ? "w-16" : "w-64"
       )}>
         <div className={cn(
-          "p-4 border-b border-blue-800 flex items-center",
-          isCollapsed ? "justify-center" : "justify-center"
+          "p-4 border-b border-blue-700 flex items-center",
+          isCollapsed ? "justify-center px-2 py-3" : "px-4 py-3"
         )}>
-          {!isCollapsed && (
-            <h2 className="text-lg font-semibold text-white">Daycare Admin</h2>
-          )}
+          <div className={cn("flex items-center", isCollapsed ? "hidden" : "flex")}>
+            <h2 className="text-xl font-bold tracking-tight text-white">Daycare Admin</h2>
+          </div>
         </div>
-        <nav className="p-4 flex flex-col gap-2">
+        <nav className="p-4 flex flex-col gap-1">
           {sidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname.startsWith(item.href);
@@ -70,53 +70,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center rounded-md transition-colors",
-                  isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-4 py-2",
-                  isActive ? "bg-blue-800 text-white" : "text-blue-100 hover:bg-blue-800 hover:text-white"
+                  "group flex items-center rounded-lg px-3 py-2.5 transition-all duration-200",
+                  isCollapsed ? "justify-center px-2" : "gap-3",
+                  isActive
+                    ? "bg-blue-700 text-white shadow-md"
+                    : "text-blue-200 hover:bg-blue-800/50 hover:text-white"
                 )}
               >
-                <Icon className="w-5 h-5" />
-                {!isCollapsed && <span>{item.name}</span>}
+                <Icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-white" : "group-hover:text-white")} />
+                {!isCollapsed && (
+                  <span className="text-sm font-medium truncate">{item.name}</span>
+                )}
               </Link>
             );
           })}
         </nav>
-        <div className="mt-auto p-4 border-t border-blue-800">
-          <button
-            type="button"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={() => setIsCollapsed((v) => !v)}
-            className={cn(
-              "w-full flex items-center justify-center rounded-md",
-              "bg-blue-800/50 hover:bg-blue-800 text-white transition-colors",
-              isCollapsed ? "h-10" : "gap-2 px-3 py-2"
-            )}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4" />
-                <span className="text-sm">Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col pt-4">
-        <div className="flex justify-between items-center px-6 pb-4">
-          <h1 className="text-xl font-semibold">Dashboard</h1>
+      <main className="flex-1 flex flex-col">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={() => setIsCollapsed((v) => !v)}
+              className="flex items-center justify-center rounded-lg p-2 transition-all duration-200 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+            >
+              {isCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5 text-gray-600" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5 text-gray-600" />
+              )}
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleLogout}
               disabled={isPending}
               className={cn(
-                "flex items-center gap-1 rounded-md px-3 py-2 transition text-sm font-medium",
+                "flex items-center gap-2 rounded-md px-6 py-3 transition-all duration-200 text-md font-semibold shadow-sm",
                 isPending
-                  ? "bg-muted text-muted-foreground cursor-not-allowed"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  ? "bg-blue-700/30 text-blue-400 cursor-not-allowed"
+                  : "bg-blue-900 text-white hover:bg-blue-600 hover:text-white hover:shadow-md  shadow-sm  "
               )}
             >
               <LogOut className="w-4 h-4" />
@@ -125,7 +122,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <div className="flex-1 px-6 pb-6">{children}</div>
+        <div className="flex-1 p-6 overflow-auto">{children}</div>
       </main>
     </div>
   );
