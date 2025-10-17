@@ -15,13 +15,15 @@ import Link from 'next/link';
 interface Servant {
   id: number;
   fullName: string;
-  email: string;
+  email: string | null;
   phone: string;
   medicalReport?: string | null;
   assignedRoomId?: number | null;
   createdAt: Date;
   updatedAt: Date;
   canTransferRooms: boolean;
+  site: 'INSA' | 'OPERATION';
+  organizationType: 'INSA' | 'AI' | 'MINISTRY_OF_PEACE' | 'FINANCE_SECURITY';
   assignedRoom?: {
     id: number;
     name: string; // Assuming Room has a name field
@@ -48,6 +50,9 @@ export default function ServantsPage() {
     assignedRoomId: 'none',
     canTransferRooms: false,
     medicalReportFile: null as File | null,
+    site: '' as '' | 'INSA' | 'OPERATION',
+    organizationType: '' as '' | 'INSA' | 'AI' | 'MINISTRY_OF_PEACE' | 'FINANCE_SECURITY',
+    assignedByChildIds: [] as number[],
   });
 
   useEffect(() => {
@@ -85,13 +90,16 @@ export default function ServantsPage() {
     e.preventDefault();
     const fd = new FormData();
     fd.append('fullName', formData.fullName);
-    fd.append('email', formData.email);
+    if (formData.email) fd.append('email', formData.email);
     fd.append('phone', formData.phone);
     if (formData.medicalReportFile) {
       fd.append('medicalReport', formData.medicalReportFile);
     }
     fd.append('assignedRoomId', formData.assignedRoomId);
     fd.append('canTransferRooms', formData.canTransferRooms.toString());
+    fd.append('site', formData.site);
+    fd.append('organizationType', formData.organizationType);
+    formData.assignedByChildIds.forEach((id) => fd.append('assignedByChildIds', String(id)));
     try {
       const response = await fetch('/api/servants', {
         method: 'POST',
@@ -118,13 +126,16 @@ export default function ServantsPage() {
     if (!selectedServant) return;
     const fd = new FormData();
     fd.append('fullName', formData.fullName);
-    fd.append('email', formData.email);
+    if (formData.email) fd.append('email', formData.email);
     fd.append('phone', formData.phone);
     if (formData.medicalReportFile) {
       fd.append('medicalReport', formData.medicalReportFile);
     }
     fd.append('assignedRoomId', formData.assignedRoomId);
     fd.append('canTransferRooms', formData.canTransferRooms.toString());
+    fd.append('site', formData.site);
+    fd.append('organizationType', formData.organizationType);
+    formData.assignedByChildIds.forEach((id) => fd.append('assignedByChildIds', String(id)));
     try {
       const response = await fetch(`/api/servants/${selectedServant.id}`, {
         method: 'PUT',
@@ -159,11 +170,14 @@ export default function ServantsPage() {
     setCurrentMedicalReport(servant.medicalReport || null);
     setFormData({
       fullName: servant.fullName,
-      email: servant.email,
+      email: servant.email || '',
       phone: servant.phone,
       assignedRoomId: servant.assignedRoomId ? servant.assignedRoomId.toString() : 'none',
       canTransferRooms: servant.canTransferRooms,
       medicalReportFile: null,
+      site: servant.site,
+      organizationType: servant.organizationType,
+      assignedByChildIds: [],
     });
     setShowEditDialog(true);
   };
@@ -213,10 +227,10 @@ export default function ServantsPage() {
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
-                      type="email"
+                    type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      required
+                    placeholder="optional"
                     />
                   </div>
                   <div className="space-y-2">
@@ -228,6 +242,32 @@ export default function ServantsPage() {
                       required
                     />
                   </div>
+                <div className="space-y-2">
+                  <Label htmlFor="site">Assigned Site</Label>
+                  <Select value={formData.site} onValueChange={(value) => handleInputChange('site', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INSA">INSA</SelectItem>
+                      <SelectItem value="OPERATION">OPERATION</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="organizationType">Assigned Organization Type</Label>
+                  <Select value={formData.organizationType} onValueChange={(value) => handleInputChange('organizationType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INSA">INSA</SelectItem>
+                      <SelectItem value="AI">AI</SelectItem>
+                      <SelectItem value="MINISTRY_OF_PEACE">MINISTRY_OF_PEACE</SelectItem>
+                      <SelectItem value="FINANCE_SECURITY">FINANCE_SECURITY</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                   <div className="space-y-2">
                     <Label htmlFor="medicalReport">Medical Report</Label>
                     <Input
@@ -350,7 +390,7 @@ export default function ServantsPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  required
+                    placeholder="optional"
                 />
               </div>
               <div className="space-y-2">
@@ -362,6 +402,32 @@ export default function ServantsPage() {
                   required
                 />
               </div>
+                <div className="space-y-2">
+                  <Label htmlFor="site">Assigned Site</Label>
+                  <Select value={formData.site} onValueChange={(value) => handleInputChange('site', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INSA">INSA</SelectItem>
+                      <SelectItem value="OPERATION">OPERATION</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="organizationType">Assigned Organization Type</Label>
+                  <Select value={formData.organizationType} onValueChange={(value) => handleInputChange('organizationType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INSA">INSA</SelectItem>
+                      <SelectItem value="AI">AI</SelectItem>
+                      <SelectItem value="MINISTRY_OF_PEACE">MINISTRY_OF_PEACE</SelectItem>
+                      <SelectItem value="FINANCE_SECURITY">FINANCE_SECURITY</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               <div className="space-y-2">
                 <Label htmlFor="medicalReport">Medical Report</Label>
                 {currentMedicalReport && (

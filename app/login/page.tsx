@@ -19,19 +19,34 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setMessage("");
     try {
+      const payload = {
+        email: (data.email || "").trim(), // can be email or username
+        password: (data.password || "").trim(),
+      };
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
+      let result: any = null;
+      const contentType = res.headers.get('content-type') || '';
+      try {
+        result = contentType.includes('application/json') ? await res.json() : await res.text();
+      } catch (_) {
+        // ignore parse errors
+      }
+
       if (!res.ok) {
-        console.error('Login failed:', result);
-        setMessage(result.error || "Invalid credentials");
+        const errorMsg = typeof result === 'string' ? result : (result?.error || "Invalid credentials");
+        console.error('Login failed:', result || {});
+        setMessage(errorMsg);
       } else {
         setMessage(`Welcome back!`);
-        // Redirect to dashboard after successful login
+        // Store user id for profile calls (demo). Replace with real auth/session later.
+        if (typeof result === 'object' && result?.user?.id) {
+          localStorage.setItem('userId', String(result.user.id));
+        }
         router.push("/dashboard");
       }
     } catch (error) {
@@ -50,8 +65,8 @@ export default function LoginPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
-              <Label>Email</Label>
-              <Input {...register("email")} type="email" placeholder="you@example.com" required />
+              <Label>Email or Username</Label>
+              <Input {...register("email")} type="text" placeholder="you@example.com or yourusername" required />
             </div>
             <div>
               <Label>Password</Label>

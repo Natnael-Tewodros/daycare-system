@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -73,6 +75,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
+  const [me, setMe] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(true);
 
@@ -128,6 +131,14 @@ export default function OverviewPage() {
     fetchOverview();
     fetchChildren();
     fetchAttendances();
+    // Fetch current user (demo via localStorage userId)
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    if (userId) {
+      fetch('/api/users/me', { headers: { 'x-user-id': userId }})
+        .then(r => r.json())
+        .then(setMe)
+        .catch(() => {});
+    }
   }, []);
 
   if (error) return <p className="text-center mt-10 text-destructive">{error}</p>;
@@ -213,8 +224,25 @@ export default function OverviewPage() {
         <p className="text-muted-foreground">Real-time insights into daycare operations</p>
       </div>
 
-      {/* Stats Row - Clickable Cards */}
+      {/* Top row: Profile + Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        {/* Profile Card */}
+        <Card className="bg-card shadow-lg border-0 overflow-hidden lg:col-span-2">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
+                <User className="h-5 w-5" /> My Profile
+              </CardTitle>
+              <Link href="/dashboard/profile" className="text-sm text-primary underline">View</Link>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 text-sm text-muted-foreground grid grid-cols-2 gap-2">
+            <div><span className="text-foreground">Name:</span> {me?.name || '-'}</div>
+            <div><span className="text-foreground">Email:</span> {me?.email || '-'}</div>
+            <div><span className="text-foreground">Username:</span> {me?.username || '-'}</div>
+            <div><span className="text-foreground">Role:</span> {me?.role || '-'}</div>
+          </CardContent>
+        </Card>
         <Card 
           className="bg-card shadow-lg hover:shadow-xl transition-all cursor-pointer border-0 hover:bg-accent hover:text-accent-foreground"
           onClick={navigateToChildren}

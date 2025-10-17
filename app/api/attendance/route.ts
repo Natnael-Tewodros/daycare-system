@@ -2,22 +2,39 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 // GET all attendance records with child info (filtered to today for better performance/UX)
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { searchParams } = new URL(req.url);
+    const startParam = searchParams.get('start');
+    const endParam = searchParams.get('end');
+
+    let start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let end: Date | undefined = undefined;
+
+    if (startParam) {
+      const d = new Date(startParam);
+      if (!isNaN(d.getTime())) start = d;
+    }
+    if (endParam) {
+      const d = new Date(endParam);
+      if (!isNaN(d.getTime())) end = d;
+    }
+
+    const dateFilter: any = { gte: start };
+    if (end) dateFilter.lte = end;
 
     const attendances = await prisma.attendance.findMany({
       where: {
-        createdAt: {
-          gte: today,
-        },
+        createdAt: dateFilter,
       },
       include: { 
         child: {
           select: {
             id: true,
-            fullName: true, // Assuming Child model has fullName field
+            fullName: true,
+            parentName: true,
+            relationship: true,
           },
         },
       },
@@ -33,17 +50,17 @@ export async function GET() {
 // POST new check-in
 export async function POST(req: Request) {
   try {
-    const { childId, status, broughtBy, checkInTime } = await req.json();
+    const { childId, broughtBy, checkInTime } = await req.json();
 
     // Validation
-    if (!childId || !status || !["present", "absent", "late"].includes(status)) {
-      return NextResponse.json({ error: "Invalid input: childId and valid status required" }, { status: 400 });
+    if (!childId) {
+      return NextResponse.json({ error: "Invalid input: childId required" }, { status: 400 });
     }
 
     const attendance = await prisma.attendance.create({
       data: {
         childId: Number(childId),
-        status,
+        status: 'present',
         broughtBy: broughtBy || null,
         checkInTime: checkInTime ? new Date(checkInTime) : new Date(),
       },
@@ -52,6 +69,8 @@ export async function POST(req: Request) {
           select: {
             id: true,
             fullName: true,
+            parentName: true,
+            relationship: true,
           },
         },
       },
@@ -93,6 +112,8 @@ export async function PUT(req: Request) {
           select: {
             id: true,
             fullName: true,
+            parentName: true,
+            relationship: true,
           },
         },
       },

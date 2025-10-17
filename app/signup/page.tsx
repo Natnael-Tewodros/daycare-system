@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useState } from "react";
 import Link from "next/link";
 
-type FormData = { name: string; email: string; password: string };
+type FormData = { id: string; name: string; username?: string; email: string; password: string };
 
 export default function SignupPage() {
   const { register, handleSubmit } = useForm<FormData>();
@@ -17,15 +17,37 @@ export default function SignupPage() {
   const onSubmit = async (data: FormData) => {
     setMessage("");
     try {
+      const payload = {
+        id: (data.id || '').trim(),
+        name: (data.name || '').trim(),
+        username: (data.username || '').trim() || undefined,
+        email: (data.email || '').trim(),
+        password: (data.password || '').trim(),
+      };
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
-      if (!res.ok) setMessage(result.error || "Something went wrong");
-      else setMessage(`User ${result.name} created successfully!`);
+      let result: any = null;
+      const contentType = res.headers.get('content-type') || '';
+      try {
+        result = contentType.includes('application/json') ? await res.json() : await res.text();
+      } catch (_) {
+        // ignore parse errors
+      }
+
+      if (!res.ok) {
+        const errorMsg = typeof result === 'string' ? result : (result?.error || "Something went wrong");
+        setMessage(errorMsg);
+      } else {
+        const createdName = typeof result === 'object' ? result.name : 'User';
+        setMessage(`User ${createdName} created successfully! Redirecting to login...`);
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 800);
+      }
     } catch {
       setMessage("Network error, try again");
     }
@@ -41,9 +63,17 @@ export default function SignupPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
+              <Label>User ID</Label>
+              <Input {...register("id")} placeholder="Choose your ID (letters, numbers, - or _)" required />
+            </div>
+            <div>
               <Label>Name</Label>
               <Input {...register("name")} placeholder="Your full name" required />
             </div>
+          <div>
+            <Label>Username (optional)</Label>
+            <Input {...register("username")} placeholder="Choose a username" />
+          </div>
             <div>
               <Label>Email</Label>
               <Input {...register("email")} type="email" placeholder="you@example.com" required />

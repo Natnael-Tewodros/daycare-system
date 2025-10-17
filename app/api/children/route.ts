@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
-import { OrganizationType } from '@prisma/client';
+import { OrganizationType, Gender, Relationship, Site } from '@prisma/client';
 
 async function processFileUpload(file: File | null): Promise<string | null> {
   if (!file || file.size === 0) return null;
@@ -22,9 +22,15 @@ async function processFileUpload(file: File | null): Promise<string | null> {
 }
 
 // List children (used by dashboard children page)
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const parentName = searchParams.get('parentName');
+
     const children = await prisma.child.findMany({
+      where: parentName
+        ? { parentName: { equals: parentName, mode: 'insensitive' } }
+        : undefined,
       include: { organization: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -39,6 +45,8 @@ export async function GET() {
       organization: c.organization?.name ?? '',
       dateOfBirth: c.dateOfBirth,
       createdAt: c.createdAt,
+      profilePic: c.profilePic,
+      childInfoFile: c.childInfoFile,
     }));
 
     return NextResponse.json(mapped);
@@ -160,10 +168,10 @@ export async function POST(req: Request) {
         const childData = {
           parentName,
           fullName,
-          relationship,
-          gender,
+          relationship: relationship as Relationship,
+          gender: gender as Gender,
           dateOfBirth,
-          site,
+          site: site as Site,
           organizationId: organization.id,
           servantId,
           roomId,

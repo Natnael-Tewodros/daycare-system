@@ -8,12 +8,15 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("admin")
-  createdAt DateTime @default(now())
+  id           String   @id
+  name         String
+  username     String?  @unique
+  email        String   @unique
+  password     String
+  role         String   @default("admin")
+  profileImage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 model Child {
@@ -72,13 +75,15 @@ enum OrganizationType {
 model Servant {
   id               Int      @id @default(autoincrement())
   fullName         String
-  email            String
+  email            String?
   phone            String
   medicalReport    String?
   assignedRoomId   Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   canTransferRooms Boolean  @default(false)
+  site             Site
+  organizationType OrganizationType
 
   assignedRoom Room?   @relation(fields: [assignedRoomId], references: [id])
   children     Child[] // inverse relation for Child.servant
