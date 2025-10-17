@@ -26,14 +26,17 @@ export default function LoginPage() {
       });
 
       const result = await res.json();
-      if (!res.ok) setMessage(result.error || "Invalid credentials");
-      else {
+      if (!res.ok) {
+        console.error('Login failed:', result);
+        setMessage(result.error || "Invalid credentials");
+      } else {
         setMessage(`Welcome back!`);
         // Redirect to dashboard after successful login
         router.push("/dashboard");
       }
-    } catch {
-      setMessage("Network error, try again");
+    } catch (error) {
+      console.error('Login error:', error);
+      setMessage("An error occurred during login. Please try again.");
     }
   };
 

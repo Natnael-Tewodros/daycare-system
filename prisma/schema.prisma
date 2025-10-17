@@ -17,73 +17,105 @@ model User {
 }
 
 model Child {
-  id             Int       @id @default(autoincrement())
-  fullName       String
-  parentName     String
-  option         String
-  relationship   String
-  dateOfBirth    DateTime
-  gender         String
-  profileImage   String?
-  medicalReport  String?
-  roomId         Int?
-  servantId      Int?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id           Int          @id @default(autoincrement())
+  profilePic   String?
+  fullName     String
+  dateOfBirth  DateTime
+  gender       Gender
+  relationship Relationship
+  parentName   String
+  site         Site
 
-  room           Room?     @relation(fields: [roomId], references: [id])
-  servant        Servant?  @relation(fields: [servantId], references: [id])
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
-  attendances    Attendance[]
-  
-  reports        Report[]
+  servantId Int?
+  servant   Servant? @relation(fields: [servantId], references: [id])
 
+  roomId Int?
+  room   Room? @relation(fields: [roomId], references: [id])
+
+  childInfoFile String?
+  option        String
+
+  attendances Attendance[]
+  reports     Report[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Relationship {
+  FATHER
+  MOTHER
+  OTHER
+}
+
+enum Site {
+  INSA
+  OPERATION
+}
+
+enum OrganizationType {
+  INSA
+  AI
+  MINISTRY_OF_PEACE
+  FINANCE_SECURITY
 }
 
 model Servant {
-  id             Int       @id @default(autoincrement())
-  fullName       String
-  email          String
-  phone          String
-  medicalReport  String?
-  assignedRoomId Int?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  canTransferRooms Boolean @default(false) // Option for caregivers to transfer children between rooms
+  id               Int      @id @default(autoincrement())
+  fullName         String
+  email            String
+  phone            String
+  medicalReport    String?
+  assignedRoomId   Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  canTransferRooms Boolean  @default(false)
 
-  assignedRoom   Room?     @relation(fields: [assignedRoomId], references: [id])
-  children       Child[]
-}   
+  assignedRoom Room?   @relation(fields: [assignedRoomId], references: [id])
+  children     Child[] // inverse relation for Child.servant
+}
 
 model Organization {
-  id        Int      @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   name      String
-  rooms     Room[]   // relation to Room
-  createdAt DateTime @default(now())
+  type      OrganizationType
+  rooms     Room[]
+  children  Child[] // inverse relation for Child.organization
+  createdAt DateTime         @default(now())
 }
 
 model Room {
-  id             Int          @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   name           String
   ageRange       String
   organizationId Int?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   servants       Servant[]
-  children       Child[]
+  children       Child[] // inverse relation for Child.room
 }
 
 model Attendance {
   id           Int       @id @default(autoincrement())
   childId      Int
-  status       String    // present, absent, late
+  status       String // present, absent, late
   checkInTime  DateTime?
   checkOutTime DateTime?
   broughtBy    String?
   takenBy      String?
   createdAt    DateTime  @default(now())
 
-  child        Child     @relation(fields: [childId], references: [id])
+  child Child @relation(fields: [childId], references: [id])
 }
+
 model Report {
   id        Int      @id @default(autoincrement())
   childId   Int
@@ -94,15 +126,15 @@ model Report {
 }
 
 model EnrollmentRequest {
-  id                  Int       @id @default(autoincrement())
-  parentName          String
-  childName           String
-  childAge            Int
-  email               String    @unique
-  phone               String?
-  preferredStartDate  DateTime?
-  status              String    @default("pending") // e.g., "pending", "approved", "rejected"
-  notes               String?   // Optional notes from parent
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 Int       @id @default(autoincrement())
+  parentName         String
+  childName          String
+  childAge           Int
+  email              String    @unique
+  phone              String?
+  preferredStartDate DateTime?
+  status             String    @default("pending")
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

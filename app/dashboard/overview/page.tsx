@@ -58,10 +58,21 @@ type Child = {
   createdAt: string;
 };
 
+type AttendanceItem = {
+  id: number;
+  status: string;
+  createdAt: string;
+  broughtBy: string | null;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  child: { id: number; fullName: string };
+};
+
 export default function OverviewPage() {
   const router = useRouter();
   const [data, setData] = useState<OverviewData | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
+  const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(true);
 
@@ -100,8 +111,23 @@ export default function OverviewPage() {
       }
     };
 
+    const fetchAttendances = async () => {
+      try {
+        const res = await fetch("/api/attendance");
+        if (!res.ok) {
+          throw new Error(`Attendance API error: ${res.status}`);
+        }
+        const json = await res.json();
+        setAttendances(json);
+      } catch (err) {
+        console.error("Fetch attendance error:", err);
+        // Non-fatal for overview
+      }
+    };
+
     fetchOverview();
     fetchChildren();
+    fetchAttendances();
   }, []);
 
   if (error) return <p className="text-center mt-10 text-destructive">{error}</p>;
@@ -275,6 +301,64 @@ export default function OverviewPage() {
         </Card>
       </div>
 
+      {/* Key lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Recent Children */}
+        <Card className="bg-card shadow-lg border-0 overflow-hidden">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-semibold text-foreground">Recent Children</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {children.length === 0 ? (
+              <p className="text-muted-foreground">No children yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {children.slice(0, 5).map((c) => (
+                  <div key={c.id} className="flex items-center justify-between border-b pb-2 last:border-b-0">
+                    <div>
+                      <p className="font-medium">{c.fullName}</p>
+                      <p className="text-xs text-muted-foreground">Parent: {c.parentName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm">{new Date(c.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">Registered</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Today's Attendance */}
+        <Card className="bg-card shadow-lg border-0 overflow-hidden">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-semibold text-foreground">Today's Attendance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {attendances.length === 0 ? (
+              <p className="text-muted-foreground">No attendance yet today.</p>
+            ) : (
+              <div className="space-y-3">
+                {attendances.slice(0, 5).map((a) => (
+                  <div key={a.id} className="flex items-center justify-between border-b pb-2 last:border-b-0">
+                    <div>
+                      <p className="font-medium">{a.child.fullName}</p>
+                      <p className={`text-xs ${a.status === 'present' ? 'text-green-600' : a.status === 'late' ? 'text-yellow-600' : 'text-red-600'}`}>{a.status}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm">{new Date(a.createdAt).toLocaleTimeString()}</p>
+                      <p className="text-xs text-muted-foreground">Recorded</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Children by Gender - Pie Chart */}
         <Card className="bg-card shadow-lg border-0 overflow-hidden">
