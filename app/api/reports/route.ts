@@ -6,18 +6,20 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const childId = searchParams.get('childId');
 
-    if (!childId || isNaN(Number(childId))) {
-      return NextResponse.json({ error: 'childId is required' }, { status: 400 });
-    }
+    // Build where clause based on whether childId is provided
+    const whereClause = childId && !isNaN(Number(childId)) 
+      ? { childId: Number(childId) } 
+      : {};
 
     const reports = await prisma.report.findMany({
-      where: { childId: Number(childId) },
+      where: whereClause,
       include: { child: true },
       orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(reports);
   } catch (error) {
+    console.error('Error fetching reports:', error);
     return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
   }
 }

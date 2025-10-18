@@ -13,10 +13,18 @@ model User {
   username     String?  @unique
   email        String   @unique
   password     String
-  role         String   @default("admin")
+  role         UserRole @default(ADMIN)
   profileImage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
+  
+  // Parent relationship
+  children     Child[]  @relation("ParentChildren")
+}
+
+enum UserRole {
+  ADMIN
+  PARENT
 }
 
 model Child {
@@ -28,6 +36,10 @@ model Child {
   relationship Relationship
   parentName   String
   site         Site
+
+  // Parent relationship
+  parentId     String?
+  parent       User?        @relation("ParentChildren", fields: [parentId], references: [id])
 
   organizationId Int
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -142,4 +154,20 @@ model EnrollmentRequest {
   notes              String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  type      AnnouncementType @default(GENERAL)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AnnouncementType {
+  GENERAL
+  IMPORTANT
+  EVENT
 }

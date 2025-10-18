@@ -7,9 +7,10 @@ import path from 'path';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
     const servant = await prisma.servant.findUnique({
       where: { id },
       include: {
@@ -41,9 +42,10 @@ async function handleFileUpload(file: File) {
   return filename;
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
     const formData = await request.formData();
     const fullName = (formData.get('fullName') as string || '').trim();
     const email = ((formData.get('email') as string) || '').trim() || null;
@@ -113,9 +115,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
     const servant = await prisma.servant.findUnique({ where: { id } });
     if (!servant) {
       return NextResponse.json({ error: 'Servant not found' }, { status: 404 });

@@ -66,10 +66,11 @@ export async function POST(req: Request) {
 
     // Required fields with validation
     const parentName = (formData.get("parentName") as string)?.trim();
+    const parentEmail = (formData.get("parentEmail") as string)?.trim();
     const fullName = (formData.get("fullName") as string)?.trim();
     const relationship = formData.get("relationship") as string;
     const gender = formData.get("gender") as string;
-    const dateOfBirthStr = formData.get("dateOfBirth") as string;
+    const dateOfBirthStr = (formData.get("dateOfBirth") as string) || '';
     const site = formData.get("site") as string;
     // Accept either organizationId (numeric) or organization (name)
     const organizationIdStr = (formData.get("organizationId") as string) || '';
@@ -163,6 +164,20 @@ export async function POST(req: Request) {
         throw new Error(`Organization not found${organizationIdStr ? ` with ID ${organizationIdStr}` : organizationName ? ` with name "${organizationName}"` : ''}`);
       }
 
+      // Look up parent by email if provided
+      let parentId: string | null = null;
+      if (parentEmail) {
+        const parent = await prisma.user.findFirst({
+          where: { 
+            email: { equals: parentEmail, mode: 'insensitive' },
+            role: 'PARENT'
+          }
+        });
+        if (parent) {
+          parentId = parent.id;
+        }
+      }
+
       // Create the child record
       const child = await prisma.$transaction(async (tx) => {
         const childData = {
@@ -173,6 +188,7 @@ export async function POST(req: Request) {
           dateOfBirth,
           site: site as Site,
           organizationId: organization.id,
+          parentId, // Link to parent account if found
           servantId,
           roomId,
           option,

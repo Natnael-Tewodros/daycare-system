@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         username,
         email,
         password: hashedPassword,
-        role: "admin", // default role
+        role: body.role || "ADMIN", // default to ADMIN, allow PARENT role
       },
     });
 

@@ -43,11 +43,20 @@ export default function LoginPage() {
         setMessage(errorMsg);
       } else {
         setMessage(`Welcome back!`);
-        // Store user id for profile calls (demo). Replace with real auth/session later.
+        // Store user id and role for profile calls (demo). Replace with real auth/session later.
         if (typeof result === 'object' && result?.user?.id) {
           localStorage.setItem('userId', String(result.user.id));
+          localStorage.setItem('userRole', result.user.role);
+          
+          // Redirect based on role
+          if (result.user.role === 'ADMIN') {
+            router.push("/dashboard");
+          } else if (result.user.role === 'PARENT') {
+            router.push("/parent-dashboard");
+          } else {
+            router.push("/dashboard"); // fallback
+          }
         }
-        router.push("/dashboard");
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -60,7 +69,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your credentials</CardDescription>
+          <CardDescription>Enter your credentials to access admin dashboard or parent portal</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>

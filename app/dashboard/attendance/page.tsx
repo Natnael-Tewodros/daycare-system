@@ -250,7 +250,7 @@ export default function AttendancePage() {
                 <Label>Brought By</Label>
                 <Input
                   value={checkInData.broughtBy || ""}
-                  onChange={(e) => setCheckInData({ ...checkInData, broughtBy: e.target.value || null })}
+                  onChange={(e) => setCheckInData({ ...checkInData, broughtBy: e.target.value || "" })}
                   placeholder="Optional"
                 />
               </div>
@@ -287,7 +287,7 @@ export default function AttendancePage() {
                 <Label>Taken By</Label>
                 <Input
                   value={checkOutData.takenBy || ""}
-                  onChange={(e) => setCheckOutData({ ...checkOutData, takenBy: e.target.value || null })}
+                  onChange={(e) => setCheckOutData({ ...checkOutData, takenBy: e.target.value || "" })}
                   placeholder={`Optional${selectedAttendance?.child?.parentName ? ` (e.g., ${selectedAttendance.child.parentName} - ${selectedAttendance.child.relationship?.toLowerCase()})` : ''}`}
                 />
               </div>

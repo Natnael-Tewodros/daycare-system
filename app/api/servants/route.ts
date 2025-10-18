@@ -1,11 +1,9 @@
 // app/api/servants/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { writeFile } from 'fs/promises';
 import { mkdir } from 'fs/promises';
 import path from 'path';
-
-const prisma = new PrismaClient();
 
 export async function GET() {
   try {

@@ -1,53 +1,71 @@
-// app/api/children/route.ts
-import { prisma } from "@/lib/prisma";
+// app/api/organization/route.ts
 import { NextResponse } from "next/server";
 
+export async function GET() {
+  try {
+    // Return mock data for now to test the frontend
+    const mockOrganizations = [
+      {
+        id: 1,
+        name: "INSA",
+        type: "INSA",
+        childrenCount: 3,
+        children: [],
+        rooms: [],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        name: "AI",
+        type: "AI", 
+        childrenCount: 4,
+        children: [],
+        rooms: [],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 3,
+        name: "Ministry of Peace",
+        type: "MINISTRY_OF_PEACE",
+        childrenCount: 2,
+        children: [],
+        rooms: [],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 4,
+        name: "Finance Security",
+        type: "FINANCE_SECURITY",
+        childrenCount: 1,
+        children: [],
+        rooms: [],
+        createdAt: new Date().toISOString(),
+      }
+    ];
+
+    return NextResponse.json(mockOrganizations);
+  } catch (error) {
+    console.error('Error fetching organizations:', error);
+    return NextResponse.json({ error: 'Failed to fetch organizations' }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
-  const {
-    fullName,
-    dateOfBirth,
-    gender,
-    relationship,
-    parentName,
-    organizationId,
-    servantId,
-    option,
-    childInfoFile,
-    site,
-  } = await req.json();
-
-  // Calculate age in months
-  const birthDate = new Date(dateOfBirth);
-  const now = new Date();
-  const ageInMonths = (now.getFullYear() - birthDate.getFullYear()) * 12 + (now.getMonth() - birthDate.getMonth());
-
-  // Determine room based on age
-  let roomName = "";
-  if (ageInMonths >= 0 && ageInMonths <= 12) roomName = "Room 1";      // 0-1 year
-  else if (ageInMonths > 12 && ageInMonths <= 24) roomName = "Room 2"; // 1-2 years
-  else if (ageInMonths > 24 && ageInMonths <= 48) roomName = "Room 3"; // 2-4 years
-  else roomName = "Unassigned";
-
-  // Find the room id
-  const room = await prisma.room.findFirst({
-    where: { name: roomName, organizationId },
-  });
-
-  const child = await prisma.child.create({
-    data: {
-      fullName,
-      dateOfBirth: birthDate,
-      gender,
-      relationship,
-      parentName,
-      organizationId,
-      servantId,
-      option,
-      childInfoFile,
-      site,
-      roomId: room?.id,
-    },
-  });
-
-  return NextResponse.json(child);
+  try {
+    const { name, type } = await req.json();
+    
+    // For now, just return success
+    return NextResponse.json({ 
+      id: Date.now(), 
+      name, 
+      type, 
+      childrenCount: 0,
+      children: [],
+      rooms: [],
+      createdAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error creating organization:', error);
+    return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 });
+  }
 }

@@ -6,12 +6,12 @@ import { mkdir, writeFile } from 'fs/promises';
 export async function POST(request: NextRequest) {
   try {
     const userIdHeader = request.headers.get('x-user-id');
-    let userId = userIdHeader ? Number(userIdHeader) : NaN;
-    if (!userId || isNaN(userId)) {
+    let userId = userIdHeader || null;
+    if (!userId) {
       const cookieUserId = request.cookies.get('userId')?.value;
-      userId = cookieUserId ? Number(cookieUserId) : NaN;
+      userId = cookieUserId || null;
     }
-    if (!userId || isNaN(userId)) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

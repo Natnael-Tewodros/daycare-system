@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const { parentName, childName, childAge, email, phone, preferredStartDate, notes } = await request.json();
+    const { parentName, childName, childAge, email, phone, preferredStartDate, notes, organization, site, gender, dateOfBirth } = await request.json();
 
     // Basic validation
     if (!parentName || !childName || !childAge || !email) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
+
+    // Look up parent by email if they have an account
+    const parent = await prisma.user.findFirst({
+      where: { 
+        email: { equals: email, mode: 'insensitive' },
+        role: 'PARENT'
+      }
+    });
 
     const enrollmentRequest = await prisma.enrollmentRequest.create({
       data: {
@@ -24,15 +30,51 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ message: 'Enrollment request submitted successfully', data: enrollmentRequest }, { status: 201 });
+    // If parent account exists, we can optionally create a child record linked to them
+    // This would be useful for auto-approval scenarios
+    let linkedChild = null;
+    if (parent && organization && site && gender && dateOfBirth) {
+      // Find or create organization
+      let org = await prisma.organization.findFirst({
+        where: { name: { equals: organization, mode: 'insensitive' } }
+      });
+      
+      if (!org) {
+        org = await prisma.organization.create({
+          data: {
+            name: organization,
+            type: organization as any || 'INSA'
+          }
+        });
+      }
+
+      // Create child record linked to parent
+      linkedChild = await prisma.child.create({
+        data: {
+          fullName: childName,
+          parentName,
+          dateOfBirth: new Date(dateOfBirth),
+          gender: gender as any,
+          relationship: 'OTHER',
+          site: site as any,
+          organizationId: org.id,
+          parentId: parent.id, // Link to parent account
+          option: 'Enrollment Request'
+        }
+      });
+    }
+
+    return NextResponse.json({ 
+      message: 'Enrollment request submitted successfully', 
+      data: enrollmentRequest,
+      linkedChild: linkedChild ? { id: linkedChild.id, fullName: linkedChild.fullName } : null
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating enrollment request:', error);
     if (error.code === 'P2002') {
       return NextResponse.json({ message: 'Email already exists' }, { status: 409 });
     }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -46,8 +88,6 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching enrollment requests:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -72,7 +112,5 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: 'Request not found' }, { status: 404 });
     }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

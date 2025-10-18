@@ -95,7 +95,9 @@ export default function ServantsPage() {
     if (formData.medicalReportFile) {
       fd.append('medicalReport', formData.medicalReportFile);
     }
-    fd.append('assignedRoomId', formData.assignedRoomId);
+    if (formData.assignedRoomId !== 'none') {
+      fd.append('assignedRoomId', formData.assignedRoomId);
+    }
     fd.append('canTransferRooms', formData.canTransferRooms.toString());
     fd.append('site', formData.site);
     fd.append('organizationType', formData.organizationType);
@@ -131,7 +133,9 @@ export default function ServantsPage() {
     if (formData.medicalReportFile) {
       fd.append('medicalReport', formData.medicalReportFile);
     }
-    fd.append('assignedRoomId', formData.assignedRoomId);
+    if (formData.assignedRoomId !== 'none') {
+      fd.append('assignedRoomId', formData.assignedRoomId);
+    }
     fd.append('canTransferRooms', formData.canTransferRooms.toString());
     fd.append('site', formData.site);
     fd.append('organizationType', formData.organizationType);
@@ -279,7 +283,10 @@ export default function ServantsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="assignedRoomId">Assigned Room</Label>
-                    <Select value={formData.assignedRoomId} onValueChange={(value) => handleInputChange('assignedRoomId', value)}>
+                    <Select value={formData.assignedRoomId} onValueChange={(value) => {
+                      console.log('Room selected:', value);
+                      handleInputChange('assignedRoomId', value);
+                    }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a room" />
                       </SelectTrigger>
@@ -442,7 +449,10 @@ export default function ServantsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="assignedRoomId">Assigned Room</Label>
-                <Select value={formData.assignedRoomId} onValueChange={(value) => handleInputChange('assignedRoomId', value)}>
+                <Select value={formData.assignedRoomId} onValueChange={(value) => {
+                  console.log('Room selected in edit:', value);
+                  handleInputChange('assignedRoomId', value);
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a room" />
                   </SelectTrigger>

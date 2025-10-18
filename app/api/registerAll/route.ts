@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 type Body = {
   organization: {
     name: string;
+    type?: string;
   };
   user: {
     name: string;
@@ -56,7 +57,10 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(async (tx) => {
       // 1) create organization
       const org = await tx.organization.create({
-        data: { name: body.organization.name },
+        data: { 
+          name: body.organization.name,
+          type: (body.organization.type as any) || 'INSA' // Default to INSA if not provided
+        },
       });
 
       // 2) create a default room for this organization (so we can link servants/children)
@@ -71,6 +75,7 @@ export async function POST(req: Request) {
       // 3) create user (employee)
       const user = await tx.user.create({
         data: {
+          id: crypto.randomUUID(),
           name: body.user.name,
           email: body.user.email,
           password: hashed,
@@ -84,9 +89,10 @@ export async function POST(req: Request) {
           fullName: body.servant.fullName,
           email: body.servant.email ?? `${body.servant.fullName.replace(/\s+/g, "").toLowerCase()}@example.com`,
           phone: body.servant.phone ?? "",
-          relationship: body.servant.relationship ?? "",
           medicalReport: body.servant.medicalReport ?? null,
           assignedRoomId: defaultRoom.id,
+          site: 'INSA', // Default site
+          organizationType: 'INSA', // Default organization type
         },
       });
 
@@ -96,13 +102,15 @@ export async function POST(req: Request) {
           fullName: body.child.fullName,
           parentName: body.child.parentName ?? "",
           option: body.child.option ?? "",
-          relationship: body.child.relationship ?? "",
+          relationship: (body.child.relationship as any) ?? "OTHER",
           dateOfBirth: body.child.dateOfBirth ? new Date(body.child.dateOfBirth) : new Date(),
-          gender: body.child.gender ?? "",
-          profileImage: body.child.profileImage ?? null,
-          medicalReport: body.child.medicalReport ?? null,
+          gender: (body.child.gender as any) ?? "OTHER",
+          profilePic: body.child.profileImage ?? null,
+          childInfoFile: body.child.medicalReport ?? null,
+          organizationId: org.id,
           roomId: defaultRoom.id,
           servantId: servant.id,
+          site: 'INSA', // Default site
         },
       });
 

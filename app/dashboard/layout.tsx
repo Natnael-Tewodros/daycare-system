@@ -14,14 +14,15 @@ import {
   UserCheck,
   PanelLeftClose,
   PanelLeftOpen,
-  Search,
-  X,
   DoorOpen,
   Briefcase,
   MapPin,
   User,
   Settings,
+  BarChart3,
+  Bell,
 } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
 
 // Sidebar items definition
@@ -38,7 +39,9 @@ const sidebarItems: SidebarItem[] = [
   { name: "Attendance", href: "/dashboard/attendance", icon: UserCheck },
   { name: "Rooms", href: "/dashboard/rooms", icon: DoorOpen },
   { name: "Organization", href: "/dashboard/organization", icon: Briefcase },
-  { name: "Site", href: "/dashboard/site", icon: MapPin },
+  { name: "Sites", href: "/dashboard/sites", icon: MapPin },
+  { name: "Announcements", href: "/dashboard/announcements", icon: Bell },
+  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Report", href: "/dashboard/report", icon: FileText },
   { name: "Status", href: "/dashboard/status", icon: Activity },
 ];
@@ -52,9 +55,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -74,75 +74,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    
-    if (query.trim() === "") {
-      setShowSearchResults(false);
-      setSearchResults([]);
-      return;
-    }
 
-    // Placeholder for fetching data from pages
-    try {
-      const results = await fetchDataFromPage(query);
-      setSearchResults(results);
-      setShowSearchResults(true);
-    } catch (error) {
-      console.error("Search error:", error);
-      setSearchResults([]);
-      setShowSearchResults(true);
-    }
-  };
-
-  // Placeholder function to fetch data from pages
-  const fetchDataFromPage = async (query: string): Promise<any[]> => {
-    // TODO: Implement actual data fetching logic here
-    // This could involve API calls to endpoints for each page (children, caregiver, etc.)
-    // Example: 
-    // const childrenData = await fetch(`/api/children?search=${query}`).then(res => res.json());
-    // const caregiverData = await fetch(`/api/caregiver?search=${query}`).then(res => res.json());
-    // Combine and return results
-    console.log(`Fetching data for query: ${query}`);
-    return []; // Return empty array as placeholder
-  };
-
-  const clearSearch = () => {
-    setSearchQuery("");
-    setShowSearchResults(false);
-    setSearchResults([]);
-  };
-
-  const getSearchResultIcon = (type: string) => {
-    switch (type) {
-      case 'child': return Users;
-      case 'caregiver': return UserCog;
-      case 'activity': return Activity;
-      case 'report': return FileText;
-      default: return Search;
-    }
-  };
-
-  const handleResultClick = (result: any) => {
-    // Navigate based on result type
-    switch (result.type) {
-      case 'child':
-        router.push('/dashboard/children');
-        break;
-      case 'caregiver':
-        router.push('/dashboard/caregiver');
-        break;
-      case 'activity':
-        router.push('/dashboard/activities');
-        break;
-      case 'report':
-        router.push('/dashboard/report');
-        break;
-      default:
-        router.push('/dashboard');
-    }
-    clearSearch();
-  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -155,8 +87,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           "p-4 border-b border-gray-700 flex items-center",
           isCollapsed ? "justify-center" : "justify-between"
         )}>
-          {!isCollapsed && (
-            <h2 className="text-xl font-bold text-white">Daycare Admin</h2>
+          {!isCollapsed ? (
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1">
+                <Image
+                  src="/Logo_of_Ethiopian_INSA.png"
+                  alt="INSA Logo"
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Daycare Admin</h2>
+                <p className="text-xs text-gray-400">INSA Daycare Management System</p>
+              </div>
+            </div>
+          ) : (
+            <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1">
+              <Image
+                src="/Logo_of_Ethiopian_INSA.png"
+                alt="INSA Logo"
+                width={40}
+                height={40}
+                className="object-contain"
+              />
+            </div>
           )}
         </div>
 
@@ -207,60 +163,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </h1>
             </div>
             
-            {/* Center - Search Bar */}
-            <div className="flex-1 max-w-2xl mx-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search by name, date, type, room, role..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-                
-                {/* Search Results Dropdown */}
-                {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
-                    {searchResults.map((result) => {
-                      const ResultIcon = getSearchResultIcon(result.type);
-                      return (
-                        <button
-                          key={result.id}
-                          onClick={() => handleResultClick(result)}
-                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-3"
-                        >
-                          <ResultIcon className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{result.name}</div>
-                            <div className="text-xs text-gray-500 capitalize">
-                              {result.type} • {result.date || 'No date'}
-                              {result.room && ` • ${result.room}`}
-                              {result.role && ` • ${result.role}`}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                {/* No Results Message */}
-                {showSearchResults && searchResults.length === 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4 text-center text-gray-500">
-                    No results found for "{searchQuery}"
-                  </div>
-                )}
-              </div>
-            </div>
             
             {/* Right Side - Logout */}
             <div className="relative">
