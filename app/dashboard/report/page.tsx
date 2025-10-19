@@ -1,183 +1,331 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Users, 
-  UserCheck, 
-  Building, 
-  Calendar, 
-  Clock, 
+  BarChart3, 
+  PieChart, 
   TrendingUp, 
-  AlertCircle,
-  CheckCircle,
+  Calendar,
+  Users,
+  Building2,
   Activity,
-  FileText,
   Download,
-  Plus,
-  Eye
+  Filter,
+  RefreshCw,
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
-import Image from "next/image";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  LineElement,
+  PointElement,
+} from 'chart.js';
+import { Bar, Pie, Line } from 'react-chartjs-2';
 
-// Types
-interface Child {
-  id: number;
-  fullName: string;
-  dateOfBirth: string | Date;
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+interface AttendanceReport {
+  date: string;
+  present: number;
+  absent: number;
+  late: number;
+  total: number;
+}
+
+interface ChildrenByGender {
   gender: string;
-  profilePic?: string;
-  parentName?: string;
-  relationship?: string;
-  organization?: string;
-  site?: string;
+  count: number;
+  percentage: number;
 }
 
-interface Attendance {
-  id: number;
-  childId: number;
-  status: string;
-  checkInTime?: string | Date;
-  checkOutTime?: string | Date;
-  broughtBy?: string;
-  takenBy?: string;
-  createdAt: string | Date;
-  child: {
-    id: number;
-    fullName: string;
-    parentName?: string;
-  };
+interface ChildrenByOrganization {
+  organization: string;
+  count: number;
+  percentage: number;
 }
 
-interface Servant {
-  id: number;
-  fullName: string;
-  email?: string;
-  phone: string;
-  site: string;
-  organizationType: string;
-  assignedRoom?: {
-    id: number;
-    name: string;
-  };
+interface ChildrenByEvent {
+  event: string;
+  registered: number;
+  attended: number;
+  absent: number;
+  total: number;
 }
-
-interface Organization {
-  id: number;
-  name: string;
-  type: string;
-  childrenCount?: number;
-}
-
-// Age calculation
-const calculateAge = (dateOfBirth: string | Date): number => {
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
-};
 
 export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Data states
-  const [children, setChildren] = useState<Child[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [servants, setServants] = useState<Servant[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [stats, setStats] = useState({
-    totalChildren: 0,
-    presentToday: 0,
-    absentToday: 0,
-    totalServants: 0,
-    totalOrganizations: 0,
-    attendanceRate: 0
-  });
+  // Report data
+  const [attendanceData, setAttendanceData] = useState<AttendanceReport[]>([]);
+  const [childrenByGender, setChildrenByGender] = useState<ChildrenByGender[]>([]);
+  const [childrenByOrganization, setChildrenByOrganization] = useState<ChildrenByOrganization[]>([]);
+  const [childrenByEvent, setChildrenByEvent] = useState<ChildrenByEvent[]>([]);
+  
+  // Filters
+  const [attendancePeriod, setAttendancePeriod] = useState('daily');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
 
-  // Fetch all data
-  const fetchAllData = async () => {
+  useEffect(() => {
+    fetchAllReports();
+  }, [attendancePeriod, selectedDate, selectedYear, selectedMonth]);
+
+  const fetchAllReports = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch data individually to handle partial failures
-      const fetchData = async (url: string, name: string) => {
-        try {
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            console.log(`${name} data loaded successfully`);
-            return data;
-          } else {
-            console.error(`Failed to fetch ${name}:`, res.status, res.statusText);
-            return []; // Return empty array as fallback
-          }
-        } catch (err) {
-          console.error(`Error fetching ${name}:`, err);
-          return []; // Return empty array as fallback
-        }
-      };
-
-      // Fetch all data in parallel
-      const [childrenData, attendanceData, servantsData, organizationsData] = await Promise.all([
-        fetchData('/api/children', 'Children'),
-        fetchData('/api/attendance', 'Attendance'),
-        fetchData('/api/servants', 'Servants'),
-        fetchData('/api/organization', 'Organizations')
+      // Fetch all reports in parallel
+      const [
+        attendanceRes,
+        genderRes,
+        organizationRes,
+        eventRes
+      ] = await Promise.all([
+        fetch(`/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}`),
+        fetch('/api/reports/children-by-gender'),
+        fetch('/api/reports/children-by-organization'),
+        fetch('/api/reports/children-by-event')
       ]);
 
-      // If servants data failed, show a message but don't break the page
-      if (servantsData.length === 0) {
-        console.warn('Servants data could not be loaded - this section will be empty');
+      if (attendanceRes.ok) {
+        const data = await attendanceRes.json();
+        setAttendanceData(data);
       }
 
-      // Set the data
-      setChildren(childrenData);
-      setAttendance(attendanceData);
-      setServants(servantsData);
-      setOrganizations(organizationsData);
+      if (genderRes.ok) {
+        const data = await genderRes.json();
+        setChildrenByGender(data);
+      }
 
-      // Calculate statistics
-      const today = new Date().toISOString().split('T')[0];
-      const todayAttendance = attendanceData.filter((a: Attendance) => 
-        new Date(a.createdAt).toISOString().split('T')[0] === today
-      );
-      
-      const presentToday = todayAttendance.filter((a: Attendance) => a.status === 'present').length;
-      const absentToday = todayAttendance.filter((a: Attendance) => a.status === 'absent').length;
-      const attendanceRate = childrenData.length > 0 ? (presentToday / childrenData.length) * 100 : 0;
+      if (organizationRes.ok) {
+        const data = await organizationRes.json();
+        setChildrenByOrganization(data);
+      }
 
-      setStats({
-        totalChildren: childrenData.length,
-        presentToday,
-        absentToday,
-        totalServants: servantsData.length,
-        totalOrganizations: organizationsData.length,
-        attendanceRate
-      });
+      if (eventRes.ok) {
+        const data = await eventRes.json();
+        setChildrenByEvent(data);
+      }
 
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load daycare information');
+      console.error('Error fetching reports:', err);
+      setError('Failed to load reports. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+  const getAttendanceChartData = () => {
+    const labels = attendanceData.map(item => {
+      const date = new Date(item.date);
+      if (attendancePeriod === 'daily') {
+        return date.toLocaleDateString();
+      } else if (attendancePeriod === 'weekly') {
+        return `Week ${Math.ceil(date.getDate() / 7)}`;
+      } else if (attendancePeriod === 'monthly') {
+        return date.toLocaleDateString('en-US', { month: 'short' });
+      } else {
+        return date.getFullYear().toString();
+      }
+    });
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Present',
+          data: attendanceData.map(item => item.present),
+          backgroundColor: '#10B981',
+          borderColor: '#059669',
+          borderWidth: 1,
+        },
+        {
+          label: 'Absent',
+          data: attendanceData.map(item => item.absent),
+          backgroundColor: '#EF4444',
+          borderColor: '#DC2626',
+          borderWidth: 1,
+        },
+        {
+          label: 'Late',
+          data: attendanceData.map(item => item.late),
+          backgroundColor: '#F59E0B',
+          borderColor: '#D97706',
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const getGenderChartData = () => {
+    return {
+      labels: childrenByGender.map(item => item.gender),
+      datasets: [
+        {
+          label: 'Children by Gender',
+          data: childrenByGender.map(item => item.count),
+          backgroundColor: ['#3B82F6', '#EC4899', '#10B981'],
+          borderColor: ['#2563EB', '#DB2777', '#059669'],
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const getOrganizationChartData = () => {
+    return {
+      labels: childrenByOrganization.map(item => item.organization),
+      datasets: [
+        {
+          label: 'Children by Organization',
+          data: childrenByOrganization.map(item => item.count),
+          backgroundColor: [
+            '#8B5CF6',
+            '#06B6D4',
+            '#F59E0B',
+            '#EF4444',
+            '#10B981',
+            '#F97316'
+          ],
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const getEventChartData = () => {
+    return {
+      labels: childrenByEvent.map(item => item.event),
+      datasets: [
+        {
+          label: 'Registered',
+          data: childrenByEvent.map(item => item.registered),
+          backgroundColor: '#3B82F6',
+          borderColor: '#2563EB',
+          borderWidth: 1,
+        },
+        {
+          label: 'Attended',
+          data: childrenByEvent.map(item => item.attended),
+          backgroundColor: '#10B981',
+          borderColor: '#059669',
+          borderWidth: 1,
+        },
+        {
+          label: 'Absent',
+          data: childrenByEvent.map(item => item.absent),
+          backgroundColor: '#EF4444',
+          borderColor: '#DC2626',
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        labels: {
+          usePointStyle: true,
+          padding: 20,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+            return `${context.label}: ${context.parsed} (${percentage}%)`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          color: '#e5e7eb',
+          drawBorder: false,
+        },
+        ticks: {
+          color: '#6b7280',
+        },
+      },
+      y: {
+        grid: {
+          color: '#e5e7eb',
+          drawBorder: false,
+        },
+        beginAtZero: true,
+        ticks: {
+          color: '#6b7280',
+        },
+      },
+    },
+  };
+
+  const pieChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: {
+          usePointStyle: true,
+          padding: 20,
+          font: { size: 12 },
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+            return `${context.label}: ${context.parsed} (${percentage}%)`;
+          },
+        },
+      },
+    },
+  };
+
+  const exportReport = () => {
+    // This would implement PDF/Excel export functionality
+    console.log('Exporting report...');
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading daycare information...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading reports...</p>
         </div>
       </div>
     );
@@ -185,293 +333,284 @@ export default function ReportPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <Card className="border-destructive">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="h-5 w-5" />
-              <p>{error}</p>
-            </div>
-            <Button onClick={fetchAllData} className="mt-4">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="text-center py-12">
+        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Reports</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={fetchAllReports}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Daycare Report Dashboard</h1>
-          <p className="text-muted-foreground">Comprehensive overview of all daycare operations</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add New
-          </Button>
-        </div>
-      </div>
-
-      {/* Key Statistics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Children</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalChildren}</div>
-            <p className="text-xs text-muted-foreground">
-              Enrolled children
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Present Today</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.presentToday}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.attendanceRate.toFixed(1)}% attendance rate
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Absent Today</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.absentToday}</div>
-            <p className="text-xs text-muted-foreground">
-              Not present today
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Staff Members</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalServants}</div>
-            <p className="text-xs text-muted-foreground">
-              Active caregivers
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Attendance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Today's Attendance
-            </CardTitle>
-            <CardDescription>Latest check-ins and check-outs</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {attendance.slice(0, 5).map((record) => (
-                <div key={record.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      record.status === 'present' ? 'bg-green-500' : 
-                      record.status === 'absent' ? 'bg-red-500' : 'bg-yellow-500'
-                    }`} />
-                    <div>
-                      <p className="font-medium">{record.child.fullName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {record.status === 'present' ? 'Present' : 
-                         record.status === 'absent' ? 'Absent' : 'Late'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(record.createdAt).toLocaleTimeString()}
-                    </p>
-                    {record.broughtBy && (
-                      <p className="text-xs text-muted-foreground">
-                        Brought by: {record.broughtBy}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {attendance.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  No attendance records for today
-                </p>
-              )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+                Reports & Analytics
+              </h1>
+              <p className="text-lg text-muted-foreground">Comprehensive insights into your daycare operations</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Children Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Children Overview
-            </CardTitle>
-            <CardDescription>Recent children registrations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {children.slice(0, 5).map((child) => (
-                <div key={child.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                  {child.profilePic ? (
-                    <Image
-                      src={child.profilePic}
-                      alt={child.fullName}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                      <Users className="h-5 w-5 text-gray-500" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <p className="font-medium">{child.fullName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {calculateAge(child.dateOfBirth)} years • {child.gender}
-                    </p>
-                    {child.parentName && (
-                      <p className="text-xs text-muted-foreground">
-                        Parent: {child.parentName}
-                      </p>
-                    )}
-                  </div>
-                  <Badge variant="outline">
-                    {child.organization || 'N/A'}
-                  </Badge>
-                </div>
-              ))}
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={fetchAllReports}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button onClick={exportReport}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Organizations & Staff */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Organizations */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building className="h-5 w-5" />
-              Organizations
-            </CardTitle>
-            <CardDescription>Children by organization</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {organizations.map((org) => (
-                <div key={org.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{org.name}</p>
-                    <p className="text-sm text-muted-foreground capitalize">
-                      {org.type.toLowerCase().replace('_', ' ')}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">
-                    {org.childrenCount || 0} children
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Staff Members */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" />
-              Staff Members
-            </CardTitle>
-            <CardDescription>Active caregivers and staff</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {servants.length > 0 ? (
-                servants.slice(0, 5).map((servant) => (
-                  <div key={servant.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{servant.fullName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {servant.phone} • {servant.site}
-                      </p>
-                      {servant.assignedRoom && (
-                        <p className="text-xs text-muted-foreground">
-                          Room: {servant.assignedRoom.name}
-                        </p>
-                      )}
-                    </div>
-                    <Badge variant="outline">
-                      {servant.organizationType}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-muted-foreground">Staff data unavailable</p>
-                  <p className="text-sm text-muted-foreground">Check console for details</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Quick Actions
-          </CardTitle>
-          <CardDescription>Common tasks and operations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <Button variant="outline" className="h-20 flex flex-col gap-2">
-              <UserCheck className="h-6 w-6" />
-              <span>Check In/Out</span>
-            </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2">
-              <Users className="h-6 w-6" />
-              <span>Add Child</span>
-            </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2">
-              <FileText className="h-6 w-6" />
-              <span>Create Report</span>
-            </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2">
-              <Eye className="h-6 w-6" />
-              <span>View Analytics</span>
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Filters */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Report Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Attendance Period</label>
+                <Select value={attendancePeriod} onValueChange={setAttendancePeriod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {attendancePeriod === 'daily' && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+              
+              {attendancePeriod === 'monthly' && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Month</label>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">Year</label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const year = new Date().getFullYear() - i;
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Attendance Report */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              Attendance Report ({attendancePeriod.charAt(0).toUpperCase() + attendancePeriod.slice(1)})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96">
+              {attendanceData.length > 0 ? (
+                <Bar data={getAttendanceChartData()} options={chartOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                    <p className="text-muted-foreground">No attendance data available for the selected period</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Children Reports Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Children by Gender */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChart className="h-5 w-5 text-pink-600" />
+                Children by Gender
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                {childrenByGender.length > 0 ? (
+                  <Pie data={getGenderChartData()} options={pieChartOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No gender data available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Children by Organization */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-purple-600" />
+                Children by Organization
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                {childrenByOrganization.length > 0 ? (
+                  <Pie data={getOrganizationChartData()} options={pieChartOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No organization data available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Children by Event */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-green-600" />
+              Children by Event
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96">
+              {childrenByEvent.length > 0 ? (
+                <Bar data={getEventChartData()} options={chartOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Activity className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                    <p className="text-muted-foreground">No event data available</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Summary Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Total Children</p>
+                  <p className="text-2xl font-bold">
+                    {childrenByGender.reduce((sum, item) => sum + item.count, 0)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Avg Attendance</p>
+                  <p className="text-2xl font-bold">
+                    {attendanceData.length > 0 
+                      ? Math.round(attendanceData.reduce((sum, item) => sum + (item.present / item.total) * 100, 0) / attendanceData.length)
+                      : 0}%
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Building2 className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Organizations</p>
+                  <p className="text-2xl font-bold">{childrenByOrganization.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Activity className="h-6 w-6 text-orange-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Active Events</p>
+                  <p className="text-2xl font-bold">{childrenByEvent.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useState } from "react";
 import Link from "next/link";
@@ -14,6 +13,7 @@ type FormData = { id: string; name: string; username?: string; email: string; pa
 export default function SignupPage() {
   const { register, handleSubmit, setValue, watch } = useForm<FormData>();
   const [message, setMessage] = useState("");
+  // Set default role to ADMIN - this can be changed based on your requirements
   const [selectedRole, setSelectedRole] = useState("ADMIN");
 
   const onSubmit = async (data: FormData) => {
@@ -61,7 +61,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>Create your account - Admin or Parent</CardDescription>
+          <CardDescription>Create your admin account</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
@@ -80,20 +80,6 @@ export default function SignupPage() {
             <div>
               <Label>Email</Label>
               <Input {...register("email")} type="email" placeholder="you@example.com" required />
-            </div>
-            <div>
-              <Label>Account Type</Label>
-              <Select value={selectedRole} onValueChange={(value) => {
-                setSelectedRole(value);
-                setValue("role", value);
-              }}>
-                <SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="PARENT">Parent</SelectItem>
-                  </SelectContent>
-                </SelectTrigger>
-              </Select>
             </div>
             <div>
               <Label>Password</Label>

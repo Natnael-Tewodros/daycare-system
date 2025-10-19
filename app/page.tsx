@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 import { 
   HeartHandshake, 
   Utensils, 
@@ -89,36 +91,36 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-                <HeartHandshake className="h-10 w-10" />
-              </div>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Welcome to Our Daycare
-            </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
-              Nurturing, Caring, and Growing Together
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/login">
-                <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50">
-                  Login to Portal
-                </Button>
-              </Link>
-              <Link href="/signup">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                  Create Account
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-orange-50 to-yellow-50">
+      {/* Navigation */}
+      <Navigation />
+      
+      {/* Hero Section with Caregiver Image */}
+      <div className="relative h-[500px] overflow-hidden">
+        <Image
+          src="/caregiver.jpg"
+          alt="Professional Caregivers"
+          fill
+          className="object-cover"
+          priority
+        />
+        
+         {/* Content Overlay */}
+         <div className="relative h-full flex items-center justify-center">
+           <div className="text-center text-white z-10">
+             <div className="flex justify-center mb-6">
+               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                 <HeartHandshake className="h-10 w-10" />
+               </div>
+             </div>
+             <h1 className="text-4xl md:text-6xl font-bold mb-6">
+               Welcome to Our Daycare
+             </h1>
+             <p className="text-xl md:text-2xl mb-8 text-blue-800">
+               Nurturing, Caring, and Growing Together
+             </p>
+           </div>
+         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -151,63 +153,63 @@ export default function HomePage() {
         )}
 
         {/* About Section */}
-        <div className="mb-12">
+        <div id="about" className="mb-12">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">About Our Daycare</h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            <h2 className="text-3xl font-bold text-blue-800 mb-4">About Our Daycare</h2>
+            <p className="text-lg text-gray-700 max-w-3xl mx-auto">
               We are committed to providing a safe, nurturing, and educational environment where children can grow, learn, and thrive. Our experienced caregivers and comprehensive programs ensure every child receives the best care possible.
             </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card className="text-center">
+            <Card className="text-center hover:shadow-lg transition-shadow duration-200 border-2 border-blue-100">
               <CardContent className="pt-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="h-8 w-8 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Experienced Staff</h3>
-                <p className="text-gray-600">Our team of qualified caregivers and educators are dedicated to your child's well-being and development.</p>
+                <h3 className="text-xl font-semibold mb-2 text-blue-800">Experienced Staff</h3>
+                <p className="text-gray-700">Our team of qualified caregivers and educators are dedicated to your child's well-being and development.</p>
               </CardContent>
             </Card>
 
-            <Card className="text-center">
+            <Card className="text-center hover:shadow-lg transition-shadow duration-200 border-2 border-orange-100">
               <CardContent className="pt-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Building className="h-8 w-8 text-green-600" />
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Building className="h-8 w-8 text-orange-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Safe Environment</h3>
-                <p className="text-gray-600">State-of-the-art facilities with security measures and child-friendly spaces designed for learning and play.</p>
+                <h3 className="text-xl font-semibold mb-2 text-orange-800">Safe Environment</h3>
+                <p className="text-gray-700">State-of-the-art facilities with security measures and child-friendly spaces designed for learning and play.</p>
               </CardContent>
             </Card>
 
-            <Card className="text-center">
+            <Card className="text-center hover:shadow-lg transition-shadow duration-200 border-2 border-yellow-100">
               <CardContent className="pt-6">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Star className="h-8 w-8 text-purple-600" />
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Star className="h-8 w-8 text-yellow-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Quality Care</h3>
-                <p className="text-gray-600">Comprehensive programs that focus on physical, emotional, and intellectual development of each child.</p>
+                <h3 className="text-xl font-semibold mb-2 text-yellow-800">Quality Care</h3>
+                <p className="text-gray-700">Comprehensive programs that focus on physical, emotional, and intellectual development of each child.</p>
               </CardContent>
             </Card>
           </div>
         </div>
 
         {/* Services Section */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Our Services</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="hover:shadow-lg transition-shadow">
+        <div id="services" className="mb-12">
+          <h2 className="text-3xl font-bold text-blue-800 mb-8 text-center">Our Services</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-orange-100 hover:border-orange-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-lg flex items-center justify-center">
                     <Utensils className="h-6 w-6 text-orange-600" />
                   </div>
-                  <CardTitle className="text-lg">Nutritious Meals</CardTitle>
+                  <CardTitle className="text-lg text-orange-800">Nutritious Meals</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Healthy, balanced meals and snacks prepared fresh daily to support your child's growth and development.</p>
-                <ul className="mt-3 text-sm text-gray-600 space-y-1">
+                <p className="text-gray-700">Healthy, balanced meals and snacks prepared fresh daily to support your child's growth and development.</p>
+                <ul className="mt-3 text-sm text-gray-600 space-x-6 space-y-6">
                   <li>• Breakfast, lunch, and snacks</li>
                   <li>• Special dietary accommodations</li>
                   <li>• Fresh fruits and vegetables</li>
@@ -215,17 +217,17 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-blue-100 hover:border-blue-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
                     <Gamepad2 className="h-6 w-6 text-blue-600" />
                   </div>
-                  <CardTitle className="text-lg">Educational Games</CardTitle>
+                  <CardTitle className="text-lg text-blue-800">Educational Games</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Age-appropriate games and activities that promote learning, creativity, and social skills.</p>
+                <p className="text-gray-700">Age-appropriate games and activities that promote learning, creativity, and social skills.</p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• Interactive learning games</li>
                   <li>• Creative arts and crafts</li>
@@ -234,17 +236,17 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-yellow-100 hover:border-yellow-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Bed className="h-6 w-6 text-green-600" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-lg flex items-center justify-center">
+                    <Bed className="h-6 w-6 text-yellow-600" />
                   </div>
-                  <CardTitle className="text-lg">Comfortable Rest</CardTitle>
+                  <CardTitle className="text-lg text-yellow-800">Comfortable Rest</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Safe and comfortable sleeping areas with proper bedding and quiet time for rest and relaxation.</p>
+                <p className="text-gray-700">Safe and comfortable sleeping areas with proper bedding and quiet time for rest and relaxation.</p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• Individual sleeping spaces</li>
                   <li>• Clean, comfortable bedding</li>
@@ -253,17 +255,17 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-blue-100 hover:border-blue-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <GraduationCap className="h-6 w-6 text-purple-600" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                    <GraduationCap className="h-6 w-6 text-blue-600" />
                   </div>
-                  <CardTitle className="text-lg">Life Skills Training</CardTitle>
+                  <CardTitle className="text-lg text-blue-800">Life Skills Training</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Essential life skills development including independence, problem-solving, and social interaction.</p>
+                <p className="text-gray-700">Essential life skills development including independence, problem-solving, and social interaction.</p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• Self-care and hygiene</li>
                   <li>• Communication skills</li>
@@ -272,17 +274,17 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-orange-100 hover:border-orange-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                    <Stethoscope className="h-6 w-6 text-red-600" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-lg flex items-center justify-center">
+                    <Stethoscope className="h-6 w-6 text-orange-600" />
                   </div>
-                  <CardTitle className="text-lg">Health Monitoring</CardTitle>
+                  <CardTitle className="text-lg text-orange-800">Health Monitoring</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Regular health checks, medication administration, and emergency care when needed.</p>
+                <p className="text-gray-700">Regular health checks, medication administration, and emergency care when needed.</p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• Daily health assessments</li>
                   <li>• Medication management</li>
@@ -291,17 +293,17 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-2 border-yellow-100 hover:border-yellow-200">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-lg flex items-center justify-center">
                     <HeartHandshake className="h-6 w-6 text-yellow-600" />
                   </div>
-                  <CardTitle className="text-lg">Emotional Support</CardTitle>
+                  <CardTitle className="text-lg text-yellow-800">Emotional Support</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Caring emotional support and guidance to help children develop confidence and emotional intelligence.</p>
+                <p className="text-gray-700">Caring emotional support and guidance to help children develop confidence and emotional intelligence.</p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• Individual attention</li>
                   <li>• Emotional guidance</li>
@@ -313,12 +315,12 @@ export default function HomePage() {
         </div>
 
         {/* Requirements Section */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Enrollment Requirements</h2>
+        <div id="requirements" className="mb-12">
+          <h2 className="text-3xl font-bold text-blue-800 mb-8 text-center">Enrollment Requirements</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card>
+            <Card className="border-2 border-blue-100 hover:border-blue-200 transition-all duration-200">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-blue-800">
                   <FileText className="h-5 w-5 text-blue-600" />
                   Required Documents
                 </CardTitle>
@@ -327,35 +329,35 @@ export default function HomePage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Medical Report (from licensed physician)</span>
+                    <span className="text-gray-700">Medical Report (from licensed physician)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Birth Certificate (original and copy)</span>
+                    <span className="text-gray-700">Birth Certificate (original and copy)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Vaccination Records (up-to-date)</span>
+                    <span className="text-gray-700">Vaccination Records (up-to-date)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Parent/Guardian ID (copy)</span>
+                    <span className="text-gray-700">Parent/Guardian ID (copy)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Emergency Contact Information</span>
+                    <span className="text-gray-700">Emergency Contact Information</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Recent Passport Photos (2 copies)</span>
+                    <span className="text-gray-700">Recent Passport Photos (2 copies)</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 border-orange-100 hover:border-orange-200 transition-all duration-200">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-orange-800">
                   <Utensils className="h-5 w-5 text-orange-600" />
                   Personal Items to Bring
                 </CardTitle>
@@ -364,27 +366,27 @@ export default function HomePage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Extra set of clothes (labeled)</span>
+                    <span className="text-gray-700">Extra set of clothes (labeled)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Comfortable blanket for nap time</span>
+                    <span className="text-gray-700">Comfortable blanket for nap time</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Diapers and wipes (if applicable)</span>
+                    <span className="text-gray-700">Diapers and wipes (if applicable)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Water bottle (labeled)</span>
+                    <span className="text-gray-700">Water bottle (labeled)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Comfort item (stuffed animal, etc.)</span>
+                    <span className="text-gray-700">Comfort item (stuffed animal, etc.)</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Weather-appropriate outerwear</span>
+                    <span className="text-gray-700">Weather-appropriate outerwear</span>
                   </div>
                 </div>
               </CardContent>
@@ -393,25 +395,28 @@ export default function HomePage() {
         </div>
 
         {/* Contact Section */}
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to Get Started?</h2>
-          <p className="text-lg text-gray-600 mb-8">
+        <div id="contact" className="text-center">
+          <h2 className="text-3xl font-bold text-blue-800 mb-4">Ready to Get Started?</h2>
+          <p className="text-lg text-gray-700 mb-8">
             Join our daycare family and give your child the best start in life.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/signup">
-              <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+              <Button size="lg" className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white shadow-lg hover:shadow-xl transition-all duration-200">
                 Enroll Your Child
               </Button>
             </Link>
             <Link href="/login">
-              <Button size="lg" variant="outline">
+              <Button size="lg" variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400">
                 Parent Portal
               </Button>
             </Link>
           </div>
         </div>
       </div>
+      
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

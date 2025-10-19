@@ -55,6 +55,7 @@ model Child {
 
   attendances Attendance[]
   reports     Report[]
+  eventParticipations EventParticipation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -170,4 +171,48 @@ enum AnnouncementType {
   GENERAL
   IMPORTANT
   EVENT
+}
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  eventDate   DateTime
+  eventType   EventType
+  location    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participations EventParticipation[]
+}
+
+enum EventType {
+  BIRTHDAY
+  HOLIDAY
+  EDUCATIONAL
+  SPORTS
+  CULTURAL
+  OTHER
+}
+
+model EventParticipation {
+  id        Int     @id @default(autoincrement())
+  childId   Int
+  eventId   Int
+  status    ParticipationStatus @default(REGISTERED)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  child Child @relation(fields: [childId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@unique([childId, eventId])
+}
+
+enum ParticipationStatus {
+  REGISTERED
+  ATTENDED
+  ABSENT
+  CANCELLED
 }

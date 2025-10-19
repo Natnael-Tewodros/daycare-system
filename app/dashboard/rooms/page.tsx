@@ -70,33 +70,33 @@ const organizeRoomsByAgeGroup = (rooms: any[]) => {
   
   rooms.forEach(room => {
     const childrenInRoom = room.children || [];
+    const ageGroupCounts: { [key: string]: number } = {};
     
-    // Group children by their actual age groups
-    const childrenByAgeGroup: { [key: string]: any[] } = {};
-    
+    // Count children in each age group
     childrenInRoom.forEach((child: any) => {
-      const childAgeGroup = getAgeGroup(child.dateOfBirth);
-      if (!childrenByAgeGroup[childAgeGroup.name]) {
-        childrenByAgeGroup[childAgeGroup.name] = [];
-      }
-      childrenByAgeGroup[childAgeGroup.name].push(child);
+      const ageGroup = getAgeGroup(child.dateOfBirth);
+      ageGroupCounts[ageGroup.name] = (ageGroupCounts[ageGroup.name] || 0) + 1;
     });
     
-    // Create separate room entries for each age group that has children
-    Object.keys(childrenByAgeGroup).forEach(ageGroupName => {
-      if (childrenByAgeGroup[ageGroupName].length > 0) {
-        const filteredRoom = {
-          ...room,
-          children: childrenByAgeGroup[ageGroupName],
-          ageGroupName: ageGroupName
-        };
-        
-        if (!organizedRooms[ageGroupName]) {
-          organizedRooms[ageGroupName] = [];
-        }
-        organizedRooms[ageGroupName].push(filteredRoom);
-      }
-    });
+    // Find the dominant age group for this room
+    const dominantAgeGroup = Object.keys(ageGroupCounts).reduce((a, b) => 
+      ageGroupCounts[a] > ageGroupCounts[b] ? a : b, ageGroups[0].name
+    );
+    
+    if (!organizedRooms[dominantAgeGroup]) {
+      organizedRooms[dominantAgeGroup] = [];
+    }
+    
+    // Filter children to only show those matching the age group
+    const filteredRoom = {
+      ...room,
+      children: childrenInRoom.filter((child: any) => {
+        const childAgeGroup = getAgeGroup(child.dateOfBirth);
+        return childAgeGroup.name === dominantAgeGroup;
+      })
+    };
+    
+    organizedRooms[dominantAgeGroup].push(filteredRoom);
   });
   
   return organizedRooms;

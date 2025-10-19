@@ -195,7 +195,7 @@ export default function SitesPage() {
                       <div className="flex items-center justify-center mb-2">
                         <Baby className="h-5 w-5 text-blue-600" />
                       </div>
-                      <div className="text-2xl font-bold text-blue-600">{siteData.totalChildren}</div>
+                      <div className="text-2xl font-bold text-blue-600">{siteData.totalChildren || 0}</div>
                       <div className="text-sm text-muted-foreground">Children</div>
                     </div>
                     
@@ -203,7 +203,7 @@ export default function SitesPage() {
                       <div className="flex items-center justify-center mb-2">
                         <HeartHandshake className="h-5 w-5 text-green-600" />
                       </div>
-                      <div className="text-2xl font-bold text-green-600">{siteData.totalServants}</div>
+                      <div className="text-2xl font-bold text-green-600">{siteData.totalServants || 0}</div>
                       <div className="text-sm text-muted-foreground">Caregivers</div>
                     </div>
                     
@@ -211,7 +211,7 @@ export default function SitesPage() {
                       <div className="flex items-center justify-center mb-2">
                         <Building2 className="h-5 w-5 text-purple-600" />
                       </div>
-                      <div className="text-2xl font-bold text-purple-600">{siteData.totalOrganizations}</div>
+                      <div className="text-2xl font-bold text-purple-600">{siteData.totalOrganizations || 0}</div>
                       <div className="text-sm text-muted-foreground">Organizations</div>
                     </div>
                     
@@ -219,7 +219,7 @@ export default function SitesPage() {
                       <div className="flex items-center justify-center mb-2">
                         <Home className="h-5 w-5 text-orange-600" />
                       </div>
-                      <div className="text-2xl font-bold text-orange-600">{siteData.totalRooms}</div>
+                      <div className="text-2xl font-bold text-orange-600">{siteData.totalRooms || 0}</div>
                       <div className="text-sm text-muted-foreground">Rooms</div>
                     </div>
                   </div>
@@ -231,26 +231,28 @@ export default function SitesPage() {
                       Recent Activity
                     </h4>
                     <div className="space-y-2">
-                      {siteData.children.slice(0, 3).map((child: any) => (
-                        <div key={child.id} className="flex items-center gap-3 p-2 bg-white rounded-lg">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <Baby className="h-4 w-4 text-blue-600" />
+                      {(siteData.children || []).length > 0 ? (
+                        (siteData.children || []).slice(0, 3).map((child: any) => (
+                          <div key={child.id} className="flex items-center gap-3 p-2 bg-white rounded-lg">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <Baby className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{child.fullName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {child.organization?.name || 'No organization'}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {new Date(child.createdAt).toLocaleDateString()}
+                            </Badge>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{child.fullName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {child.organization?.name || 'No organization'}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {new Date(child.createdAt).toLocaleDateString()}
-                          </Badge>
+                        ))
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <Baby className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No children data available</p>
                         </div>
-                      ))}
-                      {siteData.children.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No recent children registered
-                        </p>
                       )}
                     </div>
                   </div>
@@ -292,25 +294,25 @@ export default function SitesPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + site.totalChildren, 0)}
+                  {Object.values(sites).reduce((sum, site) => sum + (site.totalChildren || 0), 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Children</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + site.totalServants, 0)}
+                  {Object.values(sites).reduce((sum, site) => sum + (site.totalServants || 0), 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Caregivers</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-purple-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + site.totalOrganizations, 0)}
+                  {Object.values(sites).reduce((sum, site) => sum + (site.totalOrganizations || 0), 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Organizations</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-orange-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + site.totalRooms, 0)}
+                  {Object.values(sites).reduce((sum, site) => sum + (site.totalRooms || 0), 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Rooms</div>
               </div>

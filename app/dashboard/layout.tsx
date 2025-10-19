@@ -21,6 +21,7 @@ import {
   Settings,
   BarChart3,
   Bell,
+  Shield,
 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
@@ -41,8 +42,8 @@ const sidebarItems: SidebarItem[] = [
   { name: "Organization", href: "/dashboard/organization", icon: Briefcase },
   { name: "Sites", href: "/dashboard/sites", icon: MapPin },
   { name: "Announcements", href: "/dashboard/announcements", icon: Bell },
-  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Report", href: "/dashboard/report", icon: FileText },
+  { name: "User Management", href: "/dashboard/admin-management", icon: Shield },
   { name: "Status", href: "/dashboard/status", icon: Activity },
 ];
 
@@ -104,7 +105,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             </div>
           ) : (
-            <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1">
+            <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center p-1">
               <Image
                 src="/Logo_of_Ethiopian_INSA.png"
                 alt="INSA Logo"

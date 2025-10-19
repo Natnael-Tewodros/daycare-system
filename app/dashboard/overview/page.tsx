@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import {
   Users,
   Building2,
-  Users2,
   Activity,
   CalendarDays,
   ArrowRight,
@@ -20,8 +19,6 @@ import {
   Sparkles,
   Clock as ClockIcon,
   UserCheck,
-  BarChart3,
-  PieChart,
   Eye,
   Plus,
   Settings,
@@ -49,31 +46,6 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
 } from "lucide-react";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  LineElement,
-  PointElement,
-} from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend
-);
 
 type OverviewData = {
   totalChildren?: number;
@@ -81,14 +53,6 @@ type OverviewData = {
   totalOrganizations: number;
   totalAttendance: number;
   todaysAttendance: number;
-  caregiversByRoom?: Array<{ roomName: string; count: number }>;
-  attendanceRate?: number;
-  recentActivity?: Array<{
-    type: string;
-    description: string;
-    timestamp: string;
-    childName?: string;
-  }>;
 };
 
 type Child = {
@@ -233,13 +197,6 @@ export default function OverviewPage() {
     </div>
   );
 
-  // Compute childrenByGender from fetched children
-  const childrenByGender: Record<string, number> = children.reduce((acc, child) => {
-    const gender = child.gender.toLowerCase(); // Normalize to lowercase for consistency
-    acc[gender] = (acc[gender] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
   // Use computed totalChildren if not provided by overview
   const totalChildren = data.totalChildren || children.length;
 
@@ -270,93 +227,12 @@ export default function OverviewPage() {
     return Math.round((presentCount / attendances.length) * 100);
   };
 
-  const getRecentActivity = () => {
-    const activities = [];
-    
-    // Add recent children
-    children.slice(0, 3).forEach(child => {
-      activities.push({
-        type: 'child',
-        description: `New child registered: ${child.fullName}`,
-        timestamp: child.createdAt,
-        childName: child.fullName
-      });
-    });
-
-    // Add recent attendance
-    attendances.slice(0, 3).forEach(attendance => {
-      activities.push({
-        type: 'attendance',
-        description: `${attendance.status} - ${attendance.child.fullName}`,
-        timestamp: attendance.createdAt,
-        childName: attendance.child.fullName
-      });
-    });
-
-    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
-  };
-
-  // Chart data prep - Safe handling
-  const caregiversByRoomSafe = data.caregiversByRoom || [];
-  const caregiversChartData = {
-    labels: caregiversByRoomSafe.map(item => item.roomName),
-    datasets: [
-      {
-        label: 'Caregivers per Room',
-        data: caregiversByRoomSafe.map(item => item.count),
-        backgroundColor: '#36A2EB', // Simplified, or make theme-aware if needed
-      },
-    ],
-  };
-
-  const childrenGenderChartData = {
-    labels: Object.keys(childrenByGender),
-    datasets: [
-      {
-        label: 'Children by Gender',
-        data: Object.values(childrenByGender),
-        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'], // Red for female, blue for male, yellow for other
-      },
-    ],
-  };
-
-  // Enhanced chart options for better display
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { 
-        position: 'top' as const,
-        labels: {
-          usePointStyle: true,
-          padding: 20,
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
-            return `${context.label}: ${context.parsed} (${percentage}%)`;
-          },
-        },
-      },
-      datalabels: { // Optional: If you install chartjs-plugin-datalabels, uncomment and register
-        // color: 'white',
-        // font: { weight: 'bold' },
-        // formatter: (value: number, ctx: any) => value,
-      },
-    },
-  };
-
   // Navigation handlers
   const navigateToChildren = () => router.push('/dashboard/children');
   const navigateToCaregivers = () => router.push('/dashboard/caregiver');
   const navigateToOrganizations = () => router.push('/dashboard/organizations');
   const navigateToTodaysAttendance = () => router.push('/dashboard/attendance?date=today');
   const navigateToTotalAttendance = () => router.push('/dashboard/attendance');
-
-  // Fallback for empty gender data
-  const hasGenderData = Object.keys(childrenByGender).length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -666,108 +542,6 @@ export default function OverviewPage() {
           </Card>
         </div>
 
-        {/* Enhanced Analytics Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Children by Gender - Enhanced Pie Chart */}
-          <Card className="bg-white shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                  <PieChart className="h-5 w-5 text-blue-600" />
-                  Children by Gender
-                </CardTitle>
-                <Badge className="bg-blue-100 text-blue-800">
-                  Total: {totalChildren}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="h-80 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6">
-                {hasGenderData ? (
-                  <Pie 
-                    data={childrenGenderChartData} 
-                    options={{ 
-                      ...chartOptions, 
-                      plugins: { 
-                        title: { display: false },
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            usePointStyle: true,
-                            padding: 20,
-                            font: { size: 12 }
-                          }
-                        }
-                      }
-                    }} 
-                  />
-                ) : (
-                  <div className="text-center">
-                    <Users2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <p className="text-muted-foreground mb-4">No gender data available yet</p>
-                    <Button onClick={navigateToChildren}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Children
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Caregivers by Room - Enhanced Bar Chart */}
-          <Card className="bg-white shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-green-600" />
-                  Caregivers by Room
-                </CardTitle>
-                <Badge className="bg-green-100 text-green-800">
-                  {servants.length} Total
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="h-80 flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6">
-                {caregiversByRoomSafe.length > 0 ? (
-                  <Bar 
-                    data={caregiversChartData} 
-                    options={{ 
-                      ...chartOptions, 
-                      plugins: { 
-                        title: { display: false },
-                        legend: {
-                          display: false
-                        }
-                      },
-                      scales: { 
-                        x: { 
-                          grid: { color: '#e5e7eb', drawBorder: false },
-                          ticks: { color: '#6b7280' }
-                        },
-                        y: { 
-                          grid: { color: '#e5e7eb', drawBorder: false }, 
-                          beginAtZero: true,
-                          ticks: { color: '#6b7280' }
-                        }
-                      }
-                    }} 
-                  />
-                ) : (
-                  <div className="text-center">
-                    <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <p className="text-muted-foreground mb-4">No room assignments yet</p>
-                    <Button onClick={navigateToCaregivers}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Assign Rooms
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Quick Actions Section */}
         <div className="mt-8">
