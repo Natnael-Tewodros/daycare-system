@@ -251,24 +251,24 @@ export default function OverviewPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Children Card */}
           <Card 
-            className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border-0"
+            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-blue-100 hover:border-blue-200"
             onClick={navigateToChildren}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-white/20 rounded-full">
-                  <Users className="h-6 w-6" />
+                <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full">
+                  <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <Badge className="bg-white/20 text-white border-0">
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   +12%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1">{totalChildren}</div>
-              <div className="text-blue-100 text-sm">Total Children</div>
-              <div className="flex items-center gap-1 mt-2 text-blue-100 text-xs">
+              <div className="text-3xl font-bold mb-1 text-blue-800">{totalChildren}</div>
+              <div className="text-blue-600 text-sm font-medium">Total Children</div>
+              <div className="flex items-center gap-1 mt-2 text-blue-500 text-xs">
                 <ArrowRight className="h-3 w-3" />
                 View all children
               </div>
@@ -277,24 +277,24 @@ export default function OverviewPage() {
 
           {/* Caregivers Card */}
           <Card 
-            className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border-0"
+            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-orange-100 hover:border-orange-200"
             onClick={navigateToCaregivers}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-white/20 rounded-full">
-                  <HeartHandshake className="h-6 w-6" />
+                <div className="p-3 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-full">
+                  <HeartHandshake className="h-6 w-6 text-orange-600" />
                 </div>
-                <Badge className="bg-white/20 text-white border-0">
+                <Badge className="bg-orange-50 text-orange-700 border-orange-200">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   +8%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1">{data.totalServants}</div>
-              <div className="text-green-100 text-sm">Caregivers</div>
-              <div className="flex items-center gap-1 mt-2 text-green-100 text-xs">
+              <div className="text-3xl font-bold mb-1 text-orange-800">{data.totalServants}</div>
+              <div className="text-orange-600 text-sm font-medium">Caregivers</div>
+              <div className="flex items-center gap-1 mt-2 text-orange-500 text-xs">
                 <ArrowRight className="h-3 w-3" />
                 Manage caregivers
               </div>
@@ -303,23 +303,23 @@ export default function OverviewPage() {
 
           {/* Attendance Card */}
           <Card 
-            className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border-0"
+            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-yellow-100 hover:border-yellow-200"
             onClick={navigateToTodaysAttendance}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-white/20 rounded-full">
-                  <Activity className="h-6 w-6" />
+                <div className="p-3 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full">
+                  <Activity className="h-6 w-6 text-yellow-600" />
                 </div>
-                <Badge className="bg-white/20 text-white border-0">
+                <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">
                   {calculateAttendanceRate()}%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1">{data.todaysAttendance || 0}</div>
-              <div className="text-purple-100 text-sm">Today's Attendance</div>
-              <div className="flex items-center gap-1 mt-2 text-purple-100 text-xs">
+              <div className="text-3xl font-bold mb-1 text-yellow-800">{data.todaysAttendance || 0}</div>
+              <div className="text-yellow-600 text-sm font-medium">Today's Attendance</div>
+              <div className="flex items-center gap-1 mt-2 text-yellow-500 text-xs">
                 <ArrowRight className="h-3 w-3" />
                 View attendance
               </div>
@@ -328,24 +328,24 @@ export default function OverviewPage() {
 
           {/* Organizations Card */}
           <Card 
-            className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border-0"
+            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-orange-100 hover:border-orange-200"
             onClick={navigateToOrganizations}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-white/20 rounded-full">
-                  <Building2 className="h-6 w-6" />
+                <div className="p-3 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-full">
+                  <Building2 className="h-6 w-6 text-orange-600" />
                 </div>
-                <Badge className="bg-white/20 text-white border-0">
+                <Badge className="bg-orange-50 text-orange-700 border-orange-200">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   +5%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1">{data.totalOrganizations}</div>
-              <div className="text-orange-100 text-sm">Organizations</div>
-              <div className="flex items-center gap-1 mt-2 text-orange-100 text-xs">
+              <div className="text-3xl font-bold mb-1 text-orange-800">{data.totalOrganizations}</div>
+              <div className="text-orange-600 text-sm font-medium">Organizations</div>
+              <div className="flex items-center gap-1 mt-2 text-orange-500 text-xs">
                 <ArrowRight className="h-3 w-3" />
                 View organizations
               </div>

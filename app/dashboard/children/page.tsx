@@ -42,8 +42,18 @@ interface ChildForm {
   otherFile: File | null;
 }
 
+interface ParentInfo {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export default function AdminPage() {
-  const [parentName, setParentName] = useState("");
+  const [parentInfo, setParentInfo] = useState<ParentInfo>({
+    name: "",
+    email: "",
+    password: ""
+  });
   const [childrenForms, setChildrenForms] = useState<ChildForm[]>([]);
   const [childrenList, setChildrenList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Added for loading state
@@ -66,20 +76,12 @@ export default function AdminPage() {
   }, []);
 
   const addChildForm = () => {
-    if (!parentName) return alert("Enter parent name first!");
+    if (!parentInfo.name || !parentInfo.email || !parentInfo.password) {
+      return alert("Please fill in all parent information (name, email, password) first!");
+    }
     setChildrenForms([
       ...childrenForms,
-      {
-        fullName: "",
-        relationship: "",
-        gender: "",
-        dateOfBirth: "",
-        site: "",
-        organization: "",
-        profilePic: null,
-        childInfoFile: null,
-        otherFile: null,
-      },
+      emptyChildForm()
     ]);
   };
 
@@ -102,7 +104,9 @@ export default function AdminPage() {
         return;
       }
       const formData = new FormData();
-      formData.append("parentName", parentName);
+      formData.append("parentName", parentInfo.name);
+      formData.append("parentEmail", parentInfo.email);
+      formData.append("parentPassword", parentInfo.password);
       formData.append("fullName", child.fullName);
       formData.append("relationship", child.relationship);
       formData.append("gender", child.gender);
@@ -124,10 +128,12 @@ export default function AdminPage() {
         fetchChildren();
         // Clear this specific form by index
         setChildrenForms((prev) => prev.map((f, i) => i === index ? emptyChildForm() : f));
-        // If all forms are empty after clearing this one, clear parent name
+        // If all forms are empty after clearing this one, clear parent info
         setChildrenForms((prev) => {
           const allEmpty = prev.every(f => !f.fullName && !f.relationship && !f.gender && !f.dateOfBirth && !f.site && !f.organization && !f.profilePic && !f.childInfoFile && !f.otherFile);
-          if (allEmpty) setParentName("");
+          if (allEmpty) {
+            setParentInfo({ name: "", email: "", password: "" });
+          }
           return prev;
         });
       } else {
@@ -156,7 +162,9 @@ export default function AdminPage() {
   // Removed reference-based index finder; using index passed from render
 
   const handleRegisterAll = async () => {
-    if (!parentName) return alert("Enter parent name first!");
+    if (!parentInfo.name || !parentInfo.email || !parentInfo.password) {
+      return alert("Please fill in all parent information (name, email, password) first!");
+    }
     if (childrenForms.length === 0) return alert("Add at least one child form.");
     setIsLoading(true);
     try {
@@ -167,7 +175,9 @@ export default function AdminPage() {
           return;
         }
         const formData = new FormData();
-        formData.append("parentName", parentName);
+        formData.append("parentName", parentInfo.name);
+        formData.append("parentEmail", parentInfo.email);
+        formData.append("parentPassword", parentInfo.password);
         formData.append("fullName", child.fullName);
         formData.append("relationship", child.relationship);
         formData.append("gender", child.gender);
@@ -186,7 +196,7 @@ export default function AdminPage() {
       }
       alert("✅ All children registered successfully!");
       setChildrenForms([]);
-      setParentName("");
+      setParentInfo({ name: "", email: "", password: "" });
       fetchChildren();
     } catch (err) {
       console.error("Bulk register error:", err);
@@ -198,6 +208,11 @@ export default function AdminPage() {
 
   const removeChildForm = (index: number) => {
     setChildrenForms(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllForms = () => {
+    setParentInfo({ name: "", email: "", password: "" });
+    setChildrenForms([]);
   };
 
   return (
@@ -212,32 +227,69 @@ export default function AdminPage() {
             Enter the parent's name and add children details.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-4 items-end pt-6">
-          <div className="flex-1">
-            <Label className="text-sm font-medium text-slate-700">Parent Name</Label>
-            <Input
-              value={parentName}
-              onChange={(e) => setParentName(e.target.value)}
-              className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              placeholder="Enter parent's full name"
-            />
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label className="text-sm font-medium text-slate-700">Parent Name *</Label>
+              <Input
+                value={parentInfo.name}
+                onChange={(e) => setParentInfo(prev => ({ ...prev, name: e.target.value }))}
+                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                placeholder="Enter parent's full name"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-slate-700">Parent Email *</Label>
+              <Input
+                type="email"
+                value={parentInfo.email}
+                onChange={(e) => setParentInfo(prev => ({ ...prev, email: e.target.value }))}
+                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                placeholder="Enter parent's email"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-slate-700">Parent Password *</Label>
+              <Input
+                type="password"
+                value={parentInfo.password}
+                onChange={(e) => setParentInfo(prev => ({ ...prev, password: e.target.value }))}
+                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                placeholder="Enter parent's password"
+                required
+              />
+            </div>
           </div>
-          <Button
-            onClick={addChildForm}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-            disabled={isLoading}
-          >
-            ➕ Add Child
-          </Button>
-          {childrenForms.length > 1 && (
+          <div className="flex gap-4 items-end">
             <Button
-              onClick={handleRegisterAll}
-              className="bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+              onClick={addChildForm}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
               disabled={isLoading}
             >
-              🚀 Register All
+              ➕ Add Child
             </Button>
-          )}
+            {childrenForms.length > 1 && (
+              <Button
+                onClick={handleRegisterAll}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+                disabled={isLoading}
+              >
+                🚀 Register All
+              </Button>
+            )}
+            {(parentInfo.name || parentInfo.email || parentInfo.password || childrenForms.length > 0) && (
+              <Button
+                onClick={clearAllForms}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 font-medium transition-colors"
+                disabled={isLoading}
+              >
+                🗑️ Clear All
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

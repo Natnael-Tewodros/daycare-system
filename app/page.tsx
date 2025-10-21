@@ -108,17 +108,13 @@ export default function HomePage() {
          {/* Content Overlay */}
          <div className="relative h-full flex items-center justify-center">
            <div className="text-center text-white z-10">
-             <div className="flex justify-center mb-6">
-               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-                 <HeartHandshake className="h-10 w-10" />
-               </div>
-             </div>
-             <h1 className="text-4xl md:text-6xl font-bold mb-6">
+             
+             {/* <h1 className="text-4xl md:text-6xl font-bold mb-6">
                Welcome to Our Daycare
              </h1>
              <p className="text-xl md:text-2xl mb-8 text-blue-800">
                Nurturing, Caring, and Growing Together
-             </p>
+             </p> */}
            </div>
          </div>
       </div>
@@ -374,7 +370,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="text-gray-700">Diapers and wipes (if applicable)</span>
+                    <span className="text-gray-700">Diapers and wipes</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
@@ -394,21 +390,21 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Contact Section */}
+        {/* Actions Section */}
         <div id="contact" className="text-center">
           <h2 className="text-3xl font-bold text-blue-800 mb-4">Ready to Get Started?</h2>
           <p className="text-lg text-gray-700 mb-8">
-            Join our daycare family and give your child the best start in life.
+            Use the Apply button in the top navigation to submit your application.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/signup">
-              <Button size="lg" className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white shadow-lg hover:shadow-xl transition-all duration-200">
-                Enroll Your Child
+            <Link href="/login">
+              <Button variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400">
+                Login Portal
               </Button>
             </Link>
-            <Link href="/login">
-              <Button size="lg" variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400">
-                Parent Portal
+            <Link href="/application-status">
+              <Button variant="outline" className="border-2 border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
+                Check Application Status
               </Button>
             </Link>
           </div>

@@ -95,7 +95,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li className="text-gray-300 text-sm">Infant Care (0-2 years)</li>
               <li className="text-gray-300 text-sm">Toddler Program (2-3 years)</li>
-              <li className="text-gray-300 text-sm">Preschool (3-5 years)</li>
+              <li className="text-gray-300 text-sm">Preschool (3-4 years)</li>
               <li className="text-gray-300 text-sm">After School Care</li>
               <li className="text-gray-300 text-sm">Summer Programs</li>
               <li className="text-gray-300 text-sm">Educational Activities</li>

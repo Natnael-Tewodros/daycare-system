@@ -1,49 +1,46 @@
 // app/api/organization/route.ts
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // Return mock data for now to test the frontend
-    const mockOrganizations = [
-      {
-        id: 1,
-        name: "INSA",
-        type: "INSA",
-        childrenCount: 3,
-        children: [],
-        rooms: [],
-        createdAt: new Date().toISOString(),
+    const organizations = await prisma.organization.findMany({
+      include: {
+        children: {
+          select: {
+            id: true,
+            fullName: true,
+            dateOfBirth: true,
+            gender: true,
+            parentName: true,
+            parentEmail: true,
+            site: true,
+            createdAt: true
+          }
+        },
+        rooms: {
+          select: {
+            id: true,
+            name: true,
+            ageRange: true
+          }
+        }
       },
-      {
-        id: 2,
-        name: "AI",
-        type: "AI", 
-        childrenCount: 4,
-        children: [],
-        rooms: [],
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 3,
-        name: "Ministry of Peace",
-        type: "MINISTRY_OF_PEACE",
-        childrenCount: 2,
-        children: [],
-        rooms: [],
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 4,
-        name: "Finance Security",
-        type: "FINANCE_SECURITY",
-        childrenCount: 1,
-        children: [],
-        rooms: [],
-        createdAt: new Date().toISOString(),
-      }
-    ];
+      orderBy: { name: 'asc' }
+    });
 
-    return NextResponse.json(mockOrganizations);
+    // Transform the data to include counts
+    const organizationsWithCounts = organizations.map(org => ({
+      id: org.id,
+      name: org.name,
+      type: org.type,
+      childrenCount: org.children.length,
+      children: org.children,
+      rooms: org.rooms,
+      createdAt: org.createdAt.toISOString()
+    }));
+
+    return NextResponse.json(organizationsWithCounts);
   } catch (error) {
     console.error('Error fetching organizations:', error);
     return NextResponse.json({ error: 'Failed to fetch organizations' }, { status: 500 });

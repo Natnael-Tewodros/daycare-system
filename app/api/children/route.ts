@@ -67,6 +67,7 @@ export async function POST(req: Request) {
     // Required fields with validation
     const parentName = (formData.get("parentName") as string)?.trim();
     const parentEmail = (formData.get("parentEmail") as string)?.trim();
+    const parentPassword = (formData.get("parentPassword") as string)?.trim();
     const fullName = (formData.get("fullName") as string)?.trim();
     const relationship = formData.get("relationship") as string;
     const gender = formData.get("gender") as string;
@@ -85,6 +86,10 @@ export async function POST(req: Request) {
     if (!dateOfBirthStr) missingFields.push('dateOfBirth');
     if (!site) missingFields.push('site');
     if (!organizationIdStr && !organizationName) missingFields.push('organizationId or organization');
+    
+    // Parent email and password are optional for now (for backward compatibility)
+    // if (!parentEmail) missingFields.push('parentEmail');
+    // if (!parentPassword) missingFields.push('parentPassword');
     
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -164,31 +169,30 @@ export async function POST(req: Request) {
         throw new Error(`Organization not found${organizationIdStr ? ` with ID ${organizationIdStr}` : organizationName ? ` with name "${organizationName}"` : ''}`);
       }
 
-      // Look up parent by email if provided
-      let parentId: string | null = null;
-      if (parentEmail) {
-        const parent = await prisma.user.findFirst({
-          where: { 
-            email: { equals: parentEmail, mode: 'insensitive' },
-            role: 'PARENT'
-          }
-        });
-        if (parent) {
-          parentId = parent.id;
+      // Check if parent email already exists for another child
+      const existingChildWithEmail = await prisma.child.findFirst({
+        where: { 
+          parentEmail: { equals: parentEmail, mode: 'insensitive' }
         }
+      });
+      
+      if (existingChildWithEmail) {
+        // Parent already exists, we can use the same email/password
+        console.log(`Parent ${parentEmail} already has children registered`);
       }
 
       // Create the child record
       const child = await prisma.$transaction(async (tx) => {
         const childData = {
           parentName,
+          parentEmail: parentEmail || null,
+          parentPassword: parentPassword || null,
           fullName,
           relationship: relationship as Relationship,
           gender: gender as Gender,
           dateOfBirth,
           site: site as Site,
           organizationId: organization.id,
-          parentId, // Link to parent account if found
           servantId,
           roomId,
           option,

@@ -28,6 +28,7 @@ export default function Navigation() {
     { name: "Services", href: "#services", icon: HeartHandshake },
     { name: "Announcements", href: "/announcements", icon: Bell },
     { name: "Requirements", href: "#requirements", icon: FileText },
+    { name: "Apply", href: "/parent-application", icon: UserPlus },
     { name: "Contact", href: "#contact", icon: Users },
   ];
 

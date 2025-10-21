@@ -35,9 +35,11 @@ model Child {
   gender       Gender
   relationship Relationship
   parentName   String
+  parentEmail  String?       @unique
+  parentPassword String?
   site         Site
 
-  // Parent relationship
+  // Parent relationship (optional - for future use)
   parentId     String?
   parent       User?        @relation("ParentChildren", fields: [parentId], references: [id])
 

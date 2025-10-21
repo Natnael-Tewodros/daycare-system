@@ -95,12 +95,13 @@ export default function ReportsPage() {
     }
   };
 
-  const exportReport = (report: Report) => {
+  const exportReport = (report: any) => {
+    const childName = report.childName || children.find(c => c.id === selectedChild)?.fullName || 'Unknown Child';
     const content = `
 Daycare Report
 ==============
 
-Child: ${children.find(c => c.id === selectedChild)?.fullName}
+Child: ${childName}
 Date: ${formatDate(report.createdAt)}
 Time: ${formatTime(report.createdAt)}
 
@@ -161,146 +162,139 @@ Generated from Parent Portal
         </div>
       </div>
 
-      {/* Child Selection */}
+      {/* Report Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">Total Reports</p>
+                <p className="text-2xl font-bold text-gray-900">{allReports.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <FileText className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">This Month</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {allReports.filter(r => {
+                    const reportDate = new Date(r.createdAt);
+                    const now = new Date();
+                    return reportDate.getMonth() === now.getMonth() && 
+                           reportDate.getFullYear() === now.getFullYear();
+                  }).length}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">Children</p>
+                <p className="text-2xl font-bold text-purple-600">{children.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <User className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">Latest Report</p>
+                <p className="text-sm font-bold text-gray-900">
+                  {allReports.length > 0 
+                    ? formatDate(allReports[0].createdAt)
+                    : 'No reports'
+                  }
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <MessageSquare className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* All Reports List */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700">Select Child:</label>
-            <Select value={selectedChild?.toString() || ""} onValueChange={(value) => setSelectedChild(parseInt(value))}>
-              <SelectTrigger className="w-64">
-                <SelectContent>
-                  {children.map((child) => (
-                    <SelectItem key={child.id} value={child.id.toString()}>
-                      {child.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </SelectTrigger>
-            </Select>
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            All Children Reports
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {allReports.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No reports available for any of your children</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {allReports.map((report) => {
+                const reportType = getReportType(report.title);
+                return (
+                  <div key={`${report.childId}-${report.id}`} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h4 className="font-semibold text-gray-900">{report.title}</h4>
+                          <Badge className={reportType.color}>
+                            {reportType.type}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {report.childName}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                          {formatDate(report.createdAt)} at {formatTime(report.createdAt)}
+                        </p>
+                        <p className="text-gray-700 line-clamp-3">{report.content}</p>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedReport(report)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => exportReport(report)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Export
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {currentChild && (
-        <>
-          {/* Report Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">Total Reports</p>
-                    <p className="text-2xl font-bold text-gray-900">{currentChild.reports.length}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">This Month</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {currentChild.reports.filter(r => {
-                        const reportDate = new Date(r.createdAt);
-                        const now = new Date();
-                        return reportDate.getMonth() === now.getMonth() && 
-                               reportDate.getFullYear() === now.getFullYear();
-                      }).length}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <Calendar className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">Latest Report</p>
-                    <p className="text-sm font-bold text-gray-900">
-                      {currentChild.reports.length > 0 
-                        ? formatDate(currentChild.reports[0].createdAt)
-                        : 'No reports'
-                      }
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                    <MessageSquare className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Reports List */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Reports - {currentChild.fullName}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {currentChild.reports.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No reports available for this child</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {currentChild.reports.map((report) => {
-                    const reportType = getReportType(report.title);
-                    return (
-                      <div key={report.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h4 className="font-semibold text-gray-900">{report.title}</h4>
-                              <Badge className={reportType.color}>
-                                {reportType.type}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-gray-600 mb-3">
-                              {formatDate(report.createdAt)} at {formatTime(report.createdAt)}
-                            </p>
-                            <p className="text-gray-700 line-clamp-3">{report.content}</p>
-                          </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedReport(report)}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => exportReport(report)}
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Export
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
 
       {/* Report Detail Modal */}
       {selectedReport && (
@@ -319,6 +313,7 @@ Generated from Parent Portal
             <CardContent>
               <div className="space-y-4">
                 <div className="text-sm text-gray-600">
+                  <p>Child: {selectedReport.childName || 'Unknown Child'}</p>
                   <p>Date: {formatDate(selectedReport.createdAt)}</p>
                   <p>Time: {formatTime(selectedReport.createdAt)}</p>
                 </div>

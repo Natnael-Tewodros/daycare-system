@@ -9,7 +9,25 @@ export async function GET() {
   try {
     const servants = await prisma.servant.findMany({
       include: {
-        assignedRoom: true,
+        assignedRoom: {
+          select: {
+            id: true,
+            name: true,
+            ageRange: true
+          }
+        },
+        children: {
+          select: {
+            id: true,
+            fullName: true,
+            dateOfBirth: true,
+            gender: true,
+            parentName: true,
+            parentEmail: true,
+            site: true,
+            createdAt: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' },
     });

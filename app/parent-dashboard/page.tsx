@@ -66,48 +66,19 @@ export default function ParentDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    const userRole = localStorage.getItem('userRole');
-    
-    if (!userId || userRole !== 'PARENT') {
+    // Get parent info from localStorage (set during login)
+    const storedParentInfo = localStorage.getItem('parentInfo');
+    if (storedParentInfo) {
+      const parent = JSON.parse(storedParentInfo);
+      setUser(parent);
+      setChildren(parent.children || []);
+      setLoading(false);
+    } else {
+      // Redirect to login if no parent info
       router.push('/login');
-      return;
     }
-
-    fetchUserData(userId);
-    fetchChildrenData(userId);
   }, [router]);
 
-  const fetchUserData = async (userId: string) => {
-    try {
-      const response = await fetch('/api/users/me', {
-        headers: {
-          'x-user-id': userId
-        }
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
-  };
-
-  const fetchChildrenData = async (userId: string) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/parent/children?parentId=${userId}`);
-      if (response.ok) {
-        const childrenData = await response.json();
-        setChildren(childrenData);
-      }
-    } catch (error) {
-      console.error('Error fetching children data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -127,6 +98,15 @@ export default function ParentDashboard() {
         return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const isValidUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -172,7 +152,7 @@ export default function ParentDashboard() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                          {child.profilePic ? (
+                          {child.profilePic && isValidUrl(child.profilePic) ? (
                             <Image
                               src={child.profilePic}
                               alt={`${child.fullName} profile`}

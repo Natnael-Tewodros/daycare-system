@@ -86,6 +86,29 @@ export default function ServantsPage() {
     }
   };
 
+  const updateCaregiverRoom = async (caregiverId: number, roomId: string) => {
+    try {
+      const response = await fetch(`/api/servants/${caregiverId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          assignedRoomId: roomId === 'none' ? null : parseInt(roomId)
+        })
+      });
+
+      if (response.ok) {
+        // Refresh the servants list
+        await fetchServants();
+        alert('Room assignment updated successfully!');
+      } else {
+        alert('Failed to update room assignment');
+      }
+    } catch (error) {
+      console.error('Error updating room assignment:', error);
+      alert('Error updating room assignment');
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData();
@@ -345,7 +368,24 @@ export default function ServantsPage() {
                       'None'
                     )}
                   </TableCell>
-                  <TableCell>{servant.assignedRoom?.name || 'None'}</TableCell>
+                  <TableCell>
+                    <Select 
+                      value={servant.assignedRoomId?.toString() || 'none'} 
+                      onValueChange={(value) => updateCaregiverRoom(servant.id, value)}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Room</SelectItem>
+                        {rooms.map((room) => (
+                          <SelectItem key={room.id} value={room.id.toString()}>
+                            {room.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell>{servant.canTransferRooms ? 'Yes' : 'No'}</TableCell>
                   <TableCell>{new Date(servant.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="flex space-x-2">

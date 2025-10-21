@@ -21,44 +21,26 @@ interface ParentLayoutProps {
 }
 
 export default function ParentLayout({ children }: ParentLayoutProps) {
-  const [user, setUser] = useState<any>(null);
+  const [parentInfo, setParentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    const userRole = localStorage.getItem('userRole');
-    
-    if (!userId || userRole !== 'PARENT') {
+    // Get parent info from localStorage (set during login)
+    const storedParentInfo = localStorage.getItem('parentInfo');
+    if (storedParentInfo) {
+      const parent = JSON.parse(storedParentInfo);
+      setParentInfo(parent);
+      setLoading(false);
+    } else {
+      // Redirect to login if no parent info
       router.push('/login');
-      return;
     }
-
-    fetchUserData(userId);
   }, [router]);
 
-  const fetchUserData = async (userId: string) => {
-    try {
-      const response = await fetch('/api/users/me', {
-        headers: {
-          'x-user-id': userId
-        }
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
+    localStorage.removeItem('parentInfo');
     router.push('/login');
   };
 
@@ -118,7 +100,7 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Parent Portal</h1>
-                <p className="text-sm text-gray-600">Welcome, {user?.name}</p>
+                <p className="text-sm text-gray-600">Welcome, {parentInfo?.fullName}</p>
               </div>
             </div>
             <Button 

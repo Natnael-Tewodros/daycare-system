@@ -13,8 +13,8 @@ type FormData = { id: string; name: string; username?: string; email: string; pa
 export default function SignupPage() {
   const { register, handleSubmit, setValue, watch } = useForm<FormData>();
   const [message, setMessage] = useState("");
-  // Set default role to ADMIN - this can be changed based on your requirements
-  const [selectedRole, setSelectedRole] = useState("ADMIN");
+  // Set default role to PARENT for regular users
+  const [selectedRole, setSelectedRole] = useState("PARENT");
 
   const onSubmit = async (data: FormData) => {
     setMessage("");
@@ -60,44 +60,81 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>Create your admin account</CardDescription>
+          <CardTitle className="text-2xl font-bold text-gray-900">Create Account</CardTitle>
+          <CardDescription className="text-gray-600">Join our daycare community</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-            <div>
-              <Label>User ID</Label>
-              <Input {...register("id")} placeholder="Choose your ID (letters, numbers, - or _)" required />
+            <div className="space-y-2">
+              <Label htmlFor="id" className="text-sm font-medium text-gray-700">User ID</Label>
+              <Input 
+                {...register("id")} 
+                id="id"
+                placeholder="Choose your unique ID" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
             </div>
-            <div>
-              <Label>Name</Label>
-              <Input {...register("name")} placeholder="Your full name" required />
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</Label>
+              <Input 
+                {...register("name")} 
+                id="name"
+                placeholder="Enter your full name" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
             </div>
-          <div>
-            <Label>Username (optional)</Label>
-            <Input {...register("username")} placeholder="Choose a username" />
-          </div>
-            <div>
-              <Label>Email</Label>
-              <Input {...register("email")} type="email" placeholder="you@example.com" required />
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username (Optional)</Label>
+              <Input 
+                {...register("username")} 
+                id="username"
+                placeholder="Choose a username" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
             </div>
-            <div>
-              <Label>Password</Label>
-              <Input {...register("password")} type="password" placeholder="Enter password" required />
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address</Label>
+              <Input 
+                {...register("email")} 
+                id="email"
+                type="email" 
+                placeholder="Enter your email address" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
             </div>
-            <Button type="submit" className="w-full mt-2">
-              Sign Up
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+              <Input 
+                {...register("password")} 
+                id="password"
+                type="password" 
+                placeholder="Create a secure password" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
+            </div>
+            <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium">
+              Create Account
             </Button>
           </form>
-          {message && <p className="mt-4 text-center text-red-500">{message}</p>}
-          <div className="mt-6 text-center text-sm text-primary">
-            Already have an account?
-            <Link 
-              href="/login" 
-              className="ml-2 text-blue-400 underline hover:text-blue-900"
-            >
-              Login
-            </Link>
+          {message && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600 text-center">{message}</p>
+            </div>
+          )}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{" "}
+              <Link 
+                href="/login" 
+                className="text-blue-600 hover:text-blue-500 font-medium"
+              >
+                Sign in here
+              </Link>
+            </p>
           </div>
         </CardContent>
       </Card>

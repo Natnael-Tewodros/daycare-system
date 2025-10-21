@@ -23,41 +23,86 @@ export default function LoginPage() {
         email: (data.email || "").trim(), // can be email or username
         password: (data.password || "").trim(),
       };
-      const res = await fetch("/api/auth/login", {
+      
+      // First try admin login
+      const adminRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      let result: any = null;
-      const contentType = res.headers.get('content-type') || '';
+      let adminResult: any = null;
       try {
-        result = contentType.includes('application/json') ? await res.json() : await res.text();
-      } catch (_) {
-        // ignore parse errors
+        if (adminRes.ok) {
+          adminResult = await adminRes.json();
+        } else {
+          adminResult = await adminRes.json();
+        }
+      } catch (parseError) {
+        console.error('Error parsing admin response:', parseError);
+        adminResult = { error: 'Failed to parse response' };
       }
 
-      if (!res.ok) {
-        const errorMsg = typeof result === 'string' ? result : (result?.error || "Invalid credentials");
-        console.error('Login failed:', result || {});
-        setMessage(errorMsg);
-      } else {
+      if (adminRes.ok && typeof adminResult === 'object' && adminResult?.user?.id) {
+        // Admin login successful
         setMessage(`Welcome back!`);
-        // Store user id and role for profile calls (demo). Replace with real auth/session later.
-        if (typeof result === 'object' && result?.user?.id) {
-          localStorage.setItem('userId', String(result.user.id));
-          localStorage.setItem('userRole', result.user.role);
-          
-          // Redirect based on role
-          if (result.user.role === 'ADMIN') {
-            router.push("/dashboard");
-          } else if (result.user.role === 'PARENT') {
-            router.push("/parent-dashboard");
-          } else {
-            router.push("/dashboard"); // fallback
-          }
+        localStorage.setItem('userId', String(adminResult.user.id));
+        localStorage.setItem('userRole', adminResult.user.role);
+        
+        // Redirect based on role
+        if (adminResult.user.role === 'ADMIN') {
+          router.push("/dashboard");
+        } else if (adminResult.user.role === 'PARENT') {
+          router.push("/parent-dashboard");
+        } else {
+          router.push("/dashboard"); // fallback
         }
+        return;
       }
+
+      // If admin login failed, try parent login using the parent-login API logic
+      let parentResult: any = null;
+      try {
+        const parentRes = await fetch("/api/auth/parent-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        try {
+          parentResult = await parentRes.json();
+        } catch (parseError) {
+          console.error('Error parsing parent response:', parseError);
+          parentResult = { error: 'Failed to parse response' };
+        }
+
+        if (parentRes.ok && parentResult.success) {
+          // Parent login successful
+          setMessage(`Welcome back!`);
+          localStorage.setItem('parentInfo', JSON.stringify(parentResult.parent));
+          router.push("/parent-dashboard");
+          return;
+        }
+      } catch (parentError) {
+        console.error('Parent login error:', parentError);
+        parentResult = { error: 'Network error' };
+      }
+
+      // Both logins failed - provide specific error messages
+      let errorMsg = "Invalid credentials";
+      
+      if (adminResult?.error && parentResult?.error) {
+        errorMsg = "Invalid email or password. Please check your credentials and try again.";
+      } else if (adminResult?.error) {
+        errorMsg = "Admin login failed. Please check your email and password.";
+      } else if (parentResult?.error) {
+        errorMsg = "Parent login failed. Please check your email and password.";
+      }
+      
+      // Log the actual error details for debugging
+      console.error('Login failed - Admin result:', adminResult);
+      console.error('Login failed - Parent result:', parentResult);
+      setMessage(errorMsg);
     } catch (error) {
       console.error('Login error:', error);
       setMessage("An error occurred during login. Please try again.");
@@ -68,29 +113,52 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your credentials to access admin dashboard or parent portal</CardDescription>
+          <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
+          <CardDescription className="text-gray-600">Sign in to your account to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-            <div>
-              <Label>Email or Username</Label>
-              <Input {...register("email")} type="text" placeholder="you@example.com or yourusername" required />
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address</Label>
+              <Input 
+                {...register("email")} 
+                id="email"
+                type="email" 
+                placeholder="Enter your email address" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
             </div>
-            <div>
-              <Label>Password</Label>
-              <Input {...register("password")} type="password" placeholder="Enter password" required />
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+              <Input 
+                {...register("password")} 
+                id="password"
+                type="password" 
+                placeholder="Enter your password" 
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required 
+              />
             </div>
-            <Button type="submit" className="w-full mt-2">
-              Login
+            <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium">
+              Sign In
             </Button>
           </form>
-          {message && <p className="mt-4 text-center text-blue-500">{message}</p>}
-          <div className="mt-6 text-center text-sm text-primary">
-            Don't have an account?
-            <Link href="/signup" className="ml-2 text-blue-400 underline hover:text-blue-900">
-              Sign Up
-            </Link>
+          {message && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600 text-center">{message}</p>
+            </div>
+          )}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{" "}
+              <Link href="/signup" className="text-blue-600 hover:text-blue-500 font-medium">
+                Sign up here
+              </Link>
+            </p>
+            <p className="mt-2 text-xs text-gray-500">
+              For parent access, contact the daycare administration to register your child.
+            </p>
           </div>
         </CardContent>
       </Card>

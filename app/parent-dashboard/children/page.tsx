@@ -66,28 +66,21 @@ interface Report {
 export default function ChildrenPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
+  const [parentInfo, setParentInfo] = useState<any>(null);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    if (userId) {
-      fetchChildrenData(userId);
+    // Get parent info from localStorage (set during login)
+    const storedParentInfo = localStorage.getItem('parentInfo');
+    if (storedParentInfo) {
+      const parent = JSON.parse(storedParentInfo);
+      setParentInfo(parent);
+      setChildren(parent.children || []);
+      setLoading(false);
+    } else {
+      // Redirect to login if no parent info
+      window.location.href = '/login';
     }
   }, []);
-
-  const fetchChildrenData = async (userId: string) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/parent/children?parentId=${userId}`);
-      if (response.ok) {
-        const childrenData = await response.json();
-        setChildren(childrenData);
-      }
-    } catch (error) {
-      console.error('Error fetching children data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -121,6 +114,15 @@ export default function ChildrenPage() {
     }
     
     return age;
+  };
+
+  const isValidUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   if (loading) {
@@ -167,7 +169,7 @@ export default function ChildrenPage() {
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-sm">
-                  {child.profilePic ? (
+                  {child.profilePic && isValidUrl(child.profilePic) ? (
                     <Image
                       src={child.profilePic}
                       alt={`${child.fullName} profile`}
