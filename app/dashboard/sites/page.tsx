@@ -18,7 +18,6 @@ import {
   ArrowRight,
   Building2,
   HeartHandshake,
-  Baby,
   GraduationCap
 } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +25,6 @@ import Link from "next/link";
 interface SiteData {
   name: string;
   description: string;
-  children: any[];
   servants: any[];
   totalChildren: number;
   totalServants: number;
@@ -35,7 +33,7 @@ interface SiteData {
 }
 
 interface SitesData {
-  INSA: SiteData;
+  HeadOffice: SiteData;
   OPERATION: SiteData;
 }
 
@@ -68,7 +66,7 @@ export default function SitesPage() {
 
   const getSiteIcon = (siteName: string) => {
     switch (siteName) {
-      case 'INSA':
+      case 'HeadOffice':
         return Building;
       case 'OPERATION':
         return Activity;
@@ -79,7 +77,7 @@ export default function SitesPage() {
 
   const getSiteColor = (siteName: string) => {
     switch (siteName) {
-      case 'INSA':
+      case 'HeadOffice':
         return {
           bg: 'bg-gradient-to-br from-blue-500 to-blue-600',
           card: 'bg-gradient-to-br from-blue-50 to-blue-100',
@@ -143,7 +141,7 @@ export default function SitesPage() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
                 Site Management
               </h1>
-              <p className="text-lg text-muted-foreground">Manage and monitor INSA and OPERATION sites</p>
+              <p className="text-lg text-muted-foreground">Manage and monitor HeadOffice and OPERATION sites</p>
             </div>
             <div className="flex items-center gap-3">
               <Badge className="bg-blue-100 text-blue-800">
@@ -165,10 +163,10 @@ export default function SitesPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-3 bg-white/20 rounded-full">
-                        {siteKey === 'INSA' ? (
+                        {siteKey === 'HeadOffice' ? (
                           <Image
                             src="/Logo_of_Ethiopian_INSA.png"
-                            alt="INSA Logo"
+                            alt="HeadOffice Logo"
                             width={24}
                             height={24}
                             className="object-contain"
@@ -193,7 +191,7 @@ export default function SitesPage() {
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="text-center p-4 bg-white rounded-lg shadow-sm">
                       <div className="flex items-center justify-center mb-2">
-                        <Baby className="h-5 w-5 text-blue-600" />
+                        <Users className="h-5 w-5 text-blue-600" />
                       </div>
                       <div className="text-2xl font-bold text-blue-600">{siteData.totalChildren || 0}</div>
                       <div className="text-sm text-muted-foreground">Children</div>
@@ -224,38 +222,6 @@ export default function SitesPage() {
                     </div>
                   </div>
 
-                  {/* Recent Activity */}
-                  <div className="mb-6">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <Activity className="h-4 w-4" />
-                      Recent Activity
-                    </h4>
-                    <div className="space-y-2">
-                      {(siteData.children || []).length > 0 ? (
-                        (siteData.children || []).slice(0, 3).map((child: any) => (
-                          <div key={child.id} className="flex items-center gap-3 p-2 bg-white rounded-lg">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <Baby className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{child.fullName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {child.organization?.name || 'No organization'}
-                              </p>
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {new Date(child.createdAt).toLocaleDateString()}
-                            </Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-4 text-muted-foreground">
-                          <Baby className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No children data available</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">

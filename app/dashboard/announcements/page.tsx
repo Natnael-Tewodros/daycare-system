@@ -27,6 +27,7 @@ interface Announcement {
   content: string;
   type: string;
   isActive: boolean;
+  visibilityDays: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +44,8 @@ export default function AnnouncementsPage() {
     title: "",
     content: "",
     type: "GENERAL",
-    isActive: true
+    isActive: true,
+    visibilityDays: null as number | null
   });
 
   useEffect(() => {
@@ -98,7 +100,8 @@ export default function AnnouncementsPage() {
       title: announcement.title,
       content: announcement.content,
       type: announcement.type,
-      isActive: announcement.isActive
+      isActive: announcement.isActive,
+      visibilityDays: announcement.visibilityDays
     });
     setEditingId(announcement.id);
     setIsCreating(true);
@@ -131,7 +134,8 @@ export default function AnnouncementsPage() {
       title: "",
       content: "",
       type: "GENERAL",
-      isActive: true
+      isActive: true,
+      visibilityDays: null
     });
     setEditingId(null);
     setIsCreating(false);
@@ -167,6 +171,15 @@ export default function AnnouncementsPage() {
       default:
         return <FileText className="h-4 w-4" />;
     }
+  };
+
+  const getVisibilityText = (visibilityDays: number | null) => {
+    if (!visibilityDays) return "Permanent";
+    if (visibilityDays === 1) return "1 Day";
+    if (visibilityDays === 7) return "1 Week";
+    if (visibilityDays === 14) return "2 Weeks";
+    if (visibilityDays === 30) return "1 Month";
+    return `${visibilityDays} Days`;
   };
 
   if (loading) {
@@ -212,7 +225,7 @@ export default function AnnouncementsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title *</Label>
                   <Input
@@ -231,6 +244,28 @@ export default function AnnouncementsPage() {
                         <SelectItem value="GENERAL">General</SelectItem>
                         <SelectItem value="IMPORTANT">Important</SelectItem>
                         <SelectItem value="EVENT">Event</SelectItem>
+                      </SelectContent>
+                    </SelectTrigger>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="visibilityDays">Visibility Duration</Label>
+                  <Select 
+                    value={formData.visibilityDays?.toString() || "permanent"} 
+                    onValueChange={(value) => setFormData({ 
+                      ...formData, 
+                      visibilityDays: value === "permanent" ? null : parseInt(value) 
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="permanent">Permanent</SelectItem>
+                        <SelectItem value="1">1 Day</SelectItem>
+                        <SelectItem value="2">2 Days</SelectItem>
+                        <SelectItem value="3">3 Days</SelectItem>
+                        <SelectItem value="7">1 Week</SelectItem>
+                        <SelectItem value="14">2 Weeks</SelectItem>
+                        <SelectItem value="30">1 Month</SelectItem>
                       </SelectContent>
                     </SelectTrigger>
                   </Select>
@@ -296,6 +331,9 @@ export default function AnnouncementsPage() {
                         Inactive
                       </Badge>
                     )}
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      {getVisibilityText(announcement.visibilityDays)}
+                    </Badge>
                   </div>
                   <CardTitle className="text-lg">{announcement.title}</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">

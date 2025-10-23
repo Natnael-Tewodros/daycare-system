@@ -73,17 +73,17 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/login" className="text-gray-300 hover:text-white transition-colors text-sm">
-                  Parent Login
+                  Login
                 </Link>
               </li>
               <li>
                 <Link href="/signup" className="text-gray-300 hover:text-white transition-colors text-sm">
-                  Register
+                  Signup
                 </Link>
               </li>
               <li>
-                <Link href="/enroll" className="text-gray-300 hover:text-white transition-colors text-sm">
-                  Enrollment
+                <Link href="/parent-application" className="text-gray-300 hover:text-white transition-colors text-sm">
+                  Request
                 </Link>
               </li>
             </ul>
@@ -93,12 +93,12 @@ export default function Footer() {
           <div>
             <h4 className="text-lg font-semibold mb-4">Our Services</h4>
             <ul className="space-y-2">
-              <li className="text-gray-300 text-sm">Infant Care (0-2 years)</li>
-              <li className="text-gray-300 text-sm">Toddler Program (2-3 years)</li>
-              <li className="text-gray-300 text-sm">Preschool (3-4 years)</li>
-              <li className="text-gray-300 text-sm">After School Care</li>
-              <li className="text-gray-300 text-sm">Summer Programs</li>
-              <li className="text-gray-300 text-sm">Educational Activities</li>
+              <li className="text-gray-300 text-sm">Nutritious Meals</li>
+              <li className="text-gray-300 text-sm">Educational Games</li>
+              <li className="text-gray-300 text-sm">Comfortable Rest</li>
+              <li className="text-gray-300 text-sm">Life Skills Training</li>
+              <li className="text-gray-300 text-sm">Health Monitoring</li>
+              <li className="text-gray-300 text-sm">Emotional Support</li>
             </ul>
           </div>
 
@@ -127,8 +127,8 @@ export default function Footer() {
                 <Clock className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-gray-300 text-sm">
-                    Mon - Fri: 7:00 AM - 6:00 PM<br />
-                    Sat: 8:00 AM - 2:00 PM
+                    Mon - Fri: 8:00 AM - 11:00 PM<br />
+                    Sat: 2:00 AM - 12:00 PM
                   </p>
                 </div>
               </div>

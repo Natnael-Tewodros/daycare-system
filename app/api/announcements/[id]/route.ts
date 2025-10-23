@@ -28,7 +28,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { title, content, type, isActive } = await request.json();
+    const { title, content, type, isActive, visibilityDays } = await request.json();
 
     const announcement = await prisma.announcement.update({
       where: { id: parseInt(params.id) },
@@ -36,7 +36,8 @@ export async function PUT(
         title,
         content,
         type,
-        isActive
+        isActive,
+        visibilityDays: visibilityDays || null
       }
     });
 

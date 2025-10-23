@@ -38,31 +38,12 @@ export async function GET() {
       }
     });
 
-    // Get recent children for each site
-    const recentChildren = await prisma.child.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        site: true,
-        createdAt: true,
-        organization: {
-          select: {
-            name: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 10
-    });
-
     // Build sites data
     const sitesData = {
-      INSA: {
-        name: 'INSA',
-        description: 'INSA Site',
-        children: recentChildren.filter(child => child.site === 'INSA'),
+      HeadOffice: {
+        name: 'HeadOffice',
+        description: 'HeadOffice Site',
+        children: [],
         servants: [],
         totalChildren: childrenBySite.find(group => group.site === 'INSA')?._count.id || 0,
         totalServants: servantsBySite.find(group => group.site === 'INSA')?._count.id || 0,
@@ -72,7 +53,7 @@ export async function GET() {
       OPERATION: {
         name: 'Operation',
         description: 'Operation Site',
-        children: recentChildren.filter(child => child.site === 'OPERATION'),
+        children: [],
         servants: [],
         totalChildren: childrenBySite.find(group => group.site === 'OPERATION')?._count.id || 0,
         totalServants: servantsBySite.find(group => group.site === 'OPERATION')?._count.id || 0,

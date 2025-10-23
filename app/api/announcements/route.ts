@@ -9,7 +9,19 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json(announcements);
+    // Filter announcements based on visibility days
+    const now = new Date();
+    const filteredAnnouncements = announcements.filter(announcement => {
+      if (!announcement.visibilityDays) return true; // Permanent
+      
+      const daysSinceCreation = Math.floor(
+        (now.getTime() - new Date(announcement.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      return daysSinceCreation <= announcement.visibilityDays;
+    });
+
+    return NextResponse.json(filteredAnnouncements);
   } catch (error) {
     console.error('Error fetching announcements:', error);
     return NextResponse.json({ error: 'Failed to fetch announcements' }, { status: 500 });
@@ -19,7 +31,7 @@ export async function GET() {
 // Create new announcement (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const { title, content, type } = await request.json();
+    const { title, content, type, visibilityDays } = await request.json();
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
@@ -29,7 +41,8 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         content,
-        type: type || 'GENERAL'
+        type: type || 'GENERAL',
+        visibilityDays: visibilityDays || null
       }
     });
 

@@ -160,13 +160,14 @@ model EnrollmentRequest {
 }
 
 model Announcement {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String
-  type      AnnouncementType @default(GENERAL)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  title             String
+  content           String
+  type              AnnouncementType @default(GENERAL)
+  isActive          Boolean  @default(true)
+  visibilityDays    Int?     // Number of days the announcement should be visible (null = permanent)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 enum AnnouncementType {

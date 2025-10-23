@@ -18,7 +18,7 @@ const getOrganizationLogo = (type: string) => {
     case "MINISTRY_OF_PEACE":
       return "/peace.png";
     case "FINANCE_SECURITY":
-      return null; // No image for Finance Security, will show placeholder
+      return "/Finance.jpg"; 
     default:
       return null; // No default image, will show placeholder
   }
@@ -28,13 +28,13 @@ const getOrganizationLogo = (type: string) => {
 const getOrganizationColor = (type: string) => {
   switch (type) {
     case "INSA":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "bg-green-100 text-green-800 border-green-200";
     case "AI":
-      return "bg-purple-100 text-purple-800 border-purple-200";
+      return "bg-green-100 text-green-800 border-green-200";
     case "MINISTRY_OF_PEACE":
       return "bg-green-100 text-green-800 border-green-200";
     case "FINANCE_SECURITY":
-      return "bg-orange-100 text-orange-800 border-orange-200";
+      return "bg-green-100 text-green-800 border-green-200";
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
   }

@@ -33,10 +33,12 @@ export default function LoginPage() {
 
       let adminResult: any = null;
       try {
-        if (adminRes.ok) {
+        const contentType = adminRes.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
           adminResult = await adminRes.json();
         } else {
-          adminResult = await adminRes.json();
+          const textResponse = await adminRes.text();
+          adminResult = { error: textResponse || 'Invalid response format' };
         }
       } catch (parseError) {
         console.error('Error parsing admin response:', parseError);
@@ -70,7 +72,13 @@ export default function LoginPage() {
         });
 
         try {
-          parentResult = await parentRes.json();
+          const contentType = parentRes.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            parentResult = await parentRes.json();
+          } else {
+            const textResponse = await parentRes.text();
+            parentResult = { error: textResponse || 'Invalid response format' };
+          }
         } catch (parseError) {
           console.error('Error parsing parent response:', parseError);
           parentResult = { error: 'Failed to parse response' };
@@ -102,6 +110,8 @@ export default function LoginPage() {
       // Log the actual error details for debugging
       console.error('Login failed - Admin result:', adminResult);
       console.error('Login failed - Parent result:', parentResult);
+      console.error('Admin response status:', adminRes.status);
+      console.error('Admin response ok:', adminRes.ok);
       setMessage(errorMsg);
     } catch (error) {
       console.error('Login error:', error);
