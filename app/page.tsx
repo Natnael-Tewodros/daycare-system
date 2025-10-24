@@ -60,6 +60,47 @@ export default function HomePage() {
     }
   };
 
+  const markAnnouncementAsViewed = async (announcementId: number) => {
+    try {
+      // Get user info from localStorage if available
+      const parentInfo = localStorage.getItem('parentInfo');
+      const userId = localStorage.getItem('userId');
+      
+      let userEmail = null;
+      if (parentInfo) {
+        const parent = JSON.parse(parentInfo);
+        userEmail = parent.email;
+      }
+
+      // For anonymous users, generate a session ID
+      let sessionEmail = null;
+      if (!userId && !userEmail) {
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+          sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem('sessionId', sessionId);
+        }
+        sessionEmail = sessionId + '@anonymous.local';
+      }
+
+      const response = await fetch(`/api/announcements/${announcementId}/view`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId || null,
+          userEmail: userEmail || sessionEmail || null
+        }),
+      });
+
+      // Dispatch event to update announcement count
+      window.dispatchEvent(new CustomEvent('announcementViewed'));
+    } catch (error) {
+      console.error('Error marking announcement as viewed:', error);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -167,6 +208,7 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1, duration: 0.5 }}
                   whileHover={{ y: -5, scale: 1.02 }}
                   className="group cursor-pointer"
+                  onClick={() => markAnnouncementAsViewed(announcement.id)}
                 >
                   <Card className={`${getAnnouncementColor(announcement.type)} border-2 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden`}>
                     <div className="absolute top-4 right-4">

@@ -5,8 +5,16 @@ import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { OrganizationType, Gender, Relationship, Site } from '@prisma/client';
 
-async function processFileUpload(file: File | null): Promise<string | null> {
+async function processFileUpload(file: File | null, fileType: 'profile' | 'document' = 'document'): Promise<string | null> {
   if (!file || file.size === 0) return null;
+
+  // Validate file type based on the file type
+  if (fileType === 'document' && file.type !== 'application/pdf') {
+    throw new Error('Only PDF files are allowed for documents');
+  }
+  if (fileType === 'profile' && !file.type.startsWith('image/')) {
+    throw new Error('Only image files are allowed for profile pictures');
+  }
 
   const uploadDir = path.join(process.cwd(), 'public', 'uploads');
   await mkdir(uploadDir, { recursive: true });
@@ -26,14 +34,40 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const parentName = searchParams.get('parentName');
+    const parentEmail = searchParams.get('parentEmail');
+
+    console.log('Children API - parentName:', parentName, 'parentEmail:', parentEmail);
+
+    // Build where clause based on available filters
+    let whereClause: any = {};
+    if (parentName) {
+      whereClause.parentName = { equals: parentName, mode: 'insensitive' };
+    }
+    if (parentEmail) {
+      whereClause.parentEmail = { equals: parentEmail, mode: 'insensitive' };
+    }
+
+    console.log('Children API - whereClause:', whereClause);
 
     const children = await prisma.child.findMany({
-      where: parentName
-        ? { parentName: { equals: parentName, mode: 'insensitive' } }
-        : undefined,
-      include: { organization: true },
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+      include: { 
+        organization: true,
+        servant: true,
+        room: true,
+        attendances: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        reports: {
+          orderBy: { createdAt: 'desc' }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
+
+    console.log('Children API - found children:', children.length);
+    console.log('Children API - children data:', children.map(c => ({ id: c.id, fullName: c.fullName, parentEmail: c.parentEmail })));
 
     const mapped = children.map((c) => ({
       id: c.id,
@@ -42,11 +76,37 @@ export async function GET(request: Request) {
       gender: c.gender,
       relationship: c.relationship,
       site: c.site,
-      organization: c.organization?.name ?? '',
+      organization: {
+        name: c.organization?.name ?? '',
+        type: c.organization?.type ?? ''
+      },
+      servant: c.servant ? {
+        id: c.servant.id,
+        fullName: c.servant.fullName
+      } : null,
+      room: c.room ? {
+        name: c.room.name,
+        ageRange: c.room.ageRange
+      } : null,
       dateOfBirth: c.dateOfBirth,
       createdAt: c.createdAt,
       profilePic: c.profilePic,
       childInfoFile: c.childInfoFile,
+      activities: c.attendances.map(a => ({
+        id: a.id,
+        status: a.status,
+        checkInTime: a.checkInTime,
+        checkOutTime: a.checkOutTime,
+        broughtBy: a.broughtBy,
+        takenBy: a.takenBy,
+        createdAt: a.createdAt
+      })),
+      reports: c.reports.map(r => ({
+        id: r.id,
+        title: r.title,
+        content: r.content,
+        createdAt: r.createdAt
+      }))
     }));
 
     return NextResponse.json(mapped);
@@ -79,7 +139,6 @@ export async function POST(req: Request) {
 
     // Validate required fields
     const missingFields = [];
-    if (!parentName) missingFields.push('parentName');
     if (!fullName) missingFields.push('fullName');
     if (!relationship) missingFields.push('relationship');
     if (!gender) missingFields.push('gender');
@@ -87,12 +146,28 @@ export async function POST(req: Request) {
     if (!site) missingFields.push('site');
     if (!organizationIdStr && !organizationName) missingFields.push('organizationId or organization');
     
-    // Parent email and password are optional for now (for backward compatibility)
-    // if (!parentEmail) missingFields.push('parentEmail');
-    // if (!parentPassword) missingFields.push('parentPassword');
+    // Parent email is required, but name and password are optional
+    if (!parentEmail) missingFields.push('parentEmail');
     
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    // If parent name is not provided, try to look it up from the User table using email
+    let finalParentName = parentName;
+    if (!parentName && parentEmail) {
+      const parentUser = await prisma.user.findFirst({
+        where: { email: { equals: parentEmail, mode: 'insensitive' } }
+      });
+      
+      if (parentUser) {
+        // Parent exists in User table, use their name
+        finalParentName = parentUser.name;
+      } else {
+        // Parent doesn't exist in User table, use email as fallback name
+        finalParentName = parentEmail.split('@')[0]; // Use part before @ as name
+        console.log(`Parent with email ${parentEmail} not found in User table. Using email-based name: ${finalParentName}`);
+      }
     }
 
     // Parse and validate date
@@ -130,9 +205,9 @@ export async function POST(req: Request) {
     try {
       // Process file uploads in parallel with progress
       const [profilePic, childInfo, otherFilePath] = await Promise.allSettled([
-        processFileUpload(formData.get("profilePic") as File | null),
-        processFileUpload(formData.get("childInfoFile") as File | null),
-        processFileUpload(formData.get("otherFile") as File | null)
+        processFileUpload(formData.get("profilePic") as File | null, 'profile'),
+        processFileUpload(formData.get("childInfoFile") as File | null, 'document'),
+        processFileUpload(formData.get("otherFile") as File | null, 'document')
       ]).then(results => 
         results.map(result => 
           result.status === 'fulfilled' ? result.value : null
@@ -184,7 +259,7 @@ export async function POST(req: Request) {
       // Create the child record
       const child = await prisma.$transaction(async (tx) => {
         const childData = {
-          parentName,
+          parentName: finalParentName,
           parentEmail: parentEmail || null,
           parentPassword: parentPassword || null,
           fullName,

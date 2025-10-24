@@ -39,6 +39,11 @@ export async function GET() {
 }
 
 async function handleFileUpload(file: File) {
+  // Validate file type
+  if (file.type !== 'application/pdf') {
+    throw new Error('Only PDF files are allowed');
+  }
+
   // Define the upload directory
   const uploadDir = path.join(process.cwd(), 'public', 'uploads');
   await mkdir(uploadDir, { recursive: true });
@@ -77,12 +82,31 @@ export async function POST(request: NextRequest) {
       medicalReport = await handleFileUpload(medicalReportFile);
     }
 
-    if (!fullName || !phone) {
-      return NextResponse.json({ error: 'Full name and phone are required' }, { status: 400 });
+    if (!fullName || !phone || !email) {
+      return NextResponse.json({ error: 'Full name, email, and phone are required' }, { status: 400 });
     }
 
     if (!site || !organizationType) {
       return NextResponse.json({ error: 'Site and organization type are required' }, { status: 400 });
+    }
+
+    // Validate site enum value
+    if (!['HEADOFFICE', 'OPERATION'].includes(site)) {
+      return NextResponse.json({ error: 'Invalid site value. Must be HEADOFFICE or OPERATION' }, { status: 400 });
+    }
+
+    // Validate organization type enum value
+    if (!['INSA', 'AI', 'MINISTRY_OF_PEACE', 'FINANCE_SECURITY'].includes(organizationType)) {
+      return NextResponse.json({ error: 'Invalid organization type value' }, { status: 400 });
+    }
+
+    // Check if email already exists
+    const existingServant = await prisma.servant.findFirst({
+      where: { email }
+    });
+
+    if (existingServant) {
+      return NextResponse.json({ error: 'A caregiver with this email already exists' }, { status: 409 });
     }
 
     const servant = await prisma.servant.create({
@@ -93,8 +117,8 @@ export async function POST(request: NextRequest) {
         medicalReport,
         assignedRoomId,
         canTransferRooms,
-        site: site as any,
-        organizationType: organizationType as any,
+        site: site as "HEADOFFICE" | "OPERATION",
+        organizationType: organizationType as "INSA" | "AI" | "MINISTRY_OF_PEACE" | "FINANCE_SECURITY",
         ...(assignedByChildIds.length
           ? { children: { connect: assignedByChildIds.map((id) => ({ id })) } }
           : {}),

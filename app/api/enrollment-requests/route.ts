@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const { parentName, childName, childAge, email, phone, preferredStartDate, notes, organization, site, gender, dateOfBirth } = await request.json();
+    const { parentName, childName, childAge, dateOfBirth, address, email, phone, preferredStartDate, careNeeded, notes } = await request.json();
 
     // Basic validation
     if (!parentName || !childName || !childAge || !email) {
@@ -26,48 +26,16 @@ export async function POST(request: NextRequest) {
         email,
         phone,
         preferredStartDate: preferredStartDate ? new Date(preferredStartDate) : null,
-        notes,
+        notes: notes ? `${notes}\n\nAddress: ${address}\nCare Needed: ${careNeeded}` : `Address: ${address}\nCare Needed: ${careNeeded}`,
       },
     });
 
-    // If parent account exists, we can optionally create a child record linked to them
-    // This would be useful for auto-approval scenarios
-    let linkedChild = null;
-    if (parent && organization && site && gender && dateOfBirth) {
-      // Find or create organization
-      let org = await prisma.organization.findFirst({
-        where: { name: { equals: organization, mode: 'insensitive' } }
-      });
-      
-      if (!org) {
-        org = await prisma.organization.create({
-          data: {
-            name: organization,
-            type: organization as any || 'INSA'
-          }
-        });
-      }
-
-      // Create child record linked to parent
-      linkedChild = await prisma.child.create({
-        data: {
-          fullName: childName,
-          parentName,
-          dateOfBirth: new Date(dateOfBirth),
-          gender: gender as any,
-          relationship: 'OTHER',
-          site: site as any,
-          organizationId: org.id,
-          parentId: parent.id, // Link to parent account
-          option: 'Enrollment Request'
-        }
-      });
-    }
+    // Note: Child registration will be handled by admin after approval
+    // This enrollment request contains basic information for admin review
 
     return NextResponse.json({ 
       message: 'Enrollment request submitted successfully', 
-      data: enrollmentRequest,
-      linkedChild: linkedChild ? { id: linkedChild.id, fullName: linkedChild.fullName } : null
+      data: enrollmentRequest
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating enrollment request:', error);

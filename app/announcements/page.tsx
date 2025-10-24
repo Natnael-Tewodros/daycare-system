@@ -25,6 +25,7 @@ interface Announcement {
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewedAnnouncements, setViewedAnnouncements] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchAnnouncements();
@@ -43,6 +44,49 @@ export default function AnnouncementsPage() {
       setLoading(false);
     }
   };
+
+  const markAnnouncementAsViewed = async (announcementId: number) => {
+    // Immediately update local state and dispatch event for instant feedback
+    setViewedAnnouncements(prev => new Set([...prev, announcementId]));
+    
+    // Dispatch event immediately for instant badge update
+    window.dispatchEvent(new CustomEvent('announcementViewed'));
+    
+    try {
+      // Get user info from localStorage if available
+      const parentInfo = localStorage.getItem('parentInfo');
+      const userId = localStorage.getItem('userId');
+      const sessionId = localStorage.getItem('sessionId');
+      
+      let userEmail = null;
+      if (parentInfo) {
+        const parent = JSON.parse(parentInfo);
+        userEmail = parent.email;
+      } else if (sessionId) {
+        // For anonymous users, use session email
+        userEmail = sessionId + '@anonymous.local';
+      }
+
+
+      const response = await fetch(`/api/announcements/${announcementId}/view`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId || null,
+          userEmail: userEmail || null
+        }),
+      });
+
+      if (response.ok) {
+        // Announcement marked as viewed successfully
+      }
+    } catch (error) {
+      // Silently handle errors
+    }
+  };
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -135,7 +179,10 @@ export default function AnnouncementsPage() {
             {announcements.map((announcement) => (
               <Card 
                 key={announcement.id} 
-                className={`${getAnnouncementColor(announcement.type)} border-2 hover:shadow-lg transition-shadow duration-200`}
+                className={`${getAnnouncementColor(announcement.type)} border-2 hover:shadow-lg transition-shadow duration-200 cursor-pointer ${
+                  viewedAnnouncements.has(announcement.id) ? 'opacity-75' : ''
+                }`}
+                onClick={() => markAnnouncementAsViewed(announcement.id)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -156,6 +203,14 @@ export default function AnnouncementsPage() {
                           >
                             {announcement.type}
                           </Badge>
+                          {viewedAnnouncements.has(announcement.id) && (
+                            <Badge 
+                              variant="outline" 
+                              className="bg-green-100 text-green-800 border-green-200"
+                            >
+                              Viewed
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>

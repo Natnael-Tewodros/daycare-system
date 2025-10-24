@@ -15,14 +15,13 @@ import { useRouter } from "next/navigation";
 type FormData = {
   childName: string;
   childAge: number;
-  gender: string;
   dateOfBirth: string;
   parentName: string;
-  email: string;
+  address: string;
   phone: string;
-  organization: string;
-  site: string;
+  email: string;
   preferredStartDate: string;
+  careNeeded: string;
   notes: string;
 };
 
@@ -40,14 +39,13 @@ export default function ParentApplicationPage() {
       const payload = {
         childName: data.childName.trim(),
         childAge: data.childAge,
-        gender: data.gender,
         dateOfBirth: data.dateOfBirth,
         parentName: data.parentName.trim(),
-        email: data.email.trim().toLowerCase(),
+        address: data.address.trim(),
         phone: data.phone.trim(),
-        organization: data.organization,
-        site: data.site,
+        email: data.email.trim().toLowerCase(),
         preferredStartDate: data.preferredStartDate,
+        careNeeded: data.careNeeded.trim(),
         notes: data.notes.trim()
       };
 
@@ -62,7 +60,7 @@ export default function ParentApplicationPage() {
       if (!res.ok) {
         setMessage(result.error || "Application submission failed");
       } else {
-        setMessage("Application submitted successfully! We will review it and contact you soon.");
+        setMessage("Application submitted successfully! We will review it and contact you soon. If approved, the admin will register your child for you.");
         setTimeout(() => {
           router.push("/parent-dashboard");
         }, 3000);
@@ -84,8 +82,8 @@ export default function ParentApplicationPage() {
               <FileText className="h-8 w-8 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">Daycare Application</CardTitle>
-              <p className="text-gray-600 mt-2">Apply to enroll your child in our daycare system</p>
+              <CardTitle className="text-2xl font-bold text-gray-900">Application for Daycare Enrollment</CardTitle>
+              <p className="text-gray-600 mt-2">Submit your application for daycare admission</p>
             </div>
           </CardHeader>
           
@@ -100,7 +98,7 @@ export default function ParentApplicationPage() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="childName">Child's Full Name</Label>
+                    <Label htmlFor="childName">Child's Full Name *</Label>
                     <Input
                       id="childName"
                       type="text"
@@ -111,7 +109,7 @@ export default function ParentApplicationPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="childAge">Child's Age</Label>
+                    <Label htmlFor="childAge">Child's Age *</Label>
                     <Input
                       id="childAge"
                       type="number"
@@ -128,30 +126,14 @@ export default function ParentApplicationPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select onValueChange={(value) => setValue("gender", value)}>
-                      <SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MALE">Male</SelectItem>
-                          <SelectItem value="FEMALE">Female</SelectItem>
-                          <SelectItem value="OTHER">Other</SelectItem>
-                        </SelectContent>
-                      </SelectTrigger>
-                    </Select>
-                    {errors.gender && <p className="text-sm text-red-600">{errors.gender.message}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      {...register("dateOfBirth", { required: "Date of birth is required" })}
-                    />
-                    {errors.dateOfBirth && <p className="text-sm text-red-600">{errors.dateOfBirth.message}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    {...register("dateOfBirth", { required: "Date of birth is required" })}
+                  />
+                  {errors.dateOfBirth && <p className="text-sm text-red-600">{errors.dateOfBirth.message}</p>}
                 </div>
               </div>
 
@@ -159,23 +141,45 @@ export default function ParentApplicationPage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  Parent Information
+                  Parent/Guardian Information
                 </h3>
                 
+                <div className="space-y-2">
+                  <Label htmlFor="parentName">Parent/Guardian Name *</Label>
+                  <Input
+                    id="parentName"
+                    type="text"
+                    placeholder="Enter your full name"
+                    {...register("parentName", { required: "Parent name is required" })}
+                  />
+                  {errors.parentName && <p className="text-sm text-red-600">{errors.parentName.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address *</Label>
+                  <Textarea
+                    id="address"
+                    placeholder="Enter your full address"
+                    rows={3}
+                    {...register("address", { required: "Address is required" })}
+                  />
+                  {errors.address && <p className="text-sm text-red-600">{errors.address.message}</p>}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="parentName">Parent's Full Name</Label>
+                    <Label htmlFor="phone">Phone Number *</Label>
                     <Input
-                      id="parentName"
-                      type="text"
-                      placeholder="Enter parent's full name"
-                      {...register("parentName", { required: "Parent's name is required" })}
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter phone number"
+                      {...register("phone", { required: "Phone number is required" })}
                     />
-                    {errors.parentName && <p className="text-sm text-red-600">{errors.parentName.message}</p>}
+                    {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email">Email Address *</Label>
                     <Input
                       id="email"
                       type="email"
@@ -191,78 +195,42 @@ export default function ParentApplicationPage() {
                     {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Enter phone number"
-                    {...register("phone", { required: "Phone number is required" })}
-                  />
-                  {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
-                </div>
               </div>
 
-              {/* Organization and Site */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Building className="h-5 w-5" />
-                  Organization & Site
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="organization">Organization</Label>
-                    <Select onValueChange={(value) => setValue("organization", value)}>
-                      <SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="INSA">INSA</SelectItem>
-                          <SelectItem value="AI">AI</SelectItem>
-                          <SelectItem value="MINISTRY_OF_PEACE">Ministry of Peace</SelectItem>
-                          <SelectItem value="FINANCE_SECURITY">Finance Security</SelectItem>
-                        </SelectContent>
-                      </SelectTrigger>
-                    </Select>
-                    {errors.organization && <p className="text-sm text-red-600">{errors.organization.message}</p>}
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="site">Preferred Site</Label>
-                    <Select onValueChange={(value) => setValue("site", value)}>
-                      <SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="INSA">INSA Site</SelectItem>
-                          <SelectItem value="OPERATION">Operation Site</SelectItem>
-                        </SelectContent>
-                      </SelectTrigger>
-                    </Select>
-                    {errors.site && <p className="text-sm text-red-600">{errors.site.message}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Information */}
+              {/* Care Requirements */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Additional Information
+                  Care Requirements
                 </h3>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="preferredStartDate">Preferred Start Date</Label>
+                  <Label htmlFor="preferredStartDate">Preferred Start Date *</Label>
                   <Input
                     id="preferredStartDate"
                     type="date"
-                    {...register("preferredStartDate")}
+                    {...register("preferredStartDate", { required: "Preferred start date is required" })}
                   />
+                  {errors.preferredStartDate && <p className="text-sm text-red-600">{errors.preferredStartDate.message}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Additional Notes</Label>
+                  <Label htmlFor="careNeeded">Days/Hours of Care Needed *</Label>
+                  <Input
+                    id="careNeeded"
+                    type="text"
+                    placeholder="e.g., Monday–Friday, 8 AM–4 PM"
+                    {...register("careNeeded", { required: "Care schedule is required" })}
+                  />
+                  {errors.careNeeded && <p className="text-sm text-red-600">{errors.careNeeded.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Additional Information</Label>
                   <Textarea
                     id="notes"
-                    placeholder="Any additional information or special requirements..."
+                    placeholder="Any special requirements, medical conditions, or additional information..."
                     rows={4}
                     {...register("notes")}
                   />

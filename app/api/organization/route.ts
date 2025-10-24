@@ -51,16 +51,41 @@ export async function POST(req: Request) {
   try {
     const { name, type } = await req.json();
     
-    // For now, just return success
-    return NextResponse.json({ 
-      id: Date.now(), 
-      name, 
-      type, 
-      childrenCount: 0,
-      children: [],
-      rooms: [],
-      createdAt: new Date().toISOString()
+    if (!name || !type) {
+      return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
+    }
+
+    // Check if organization with same name already exists
+    const existingOrg = await prisma.organization.findFirst({
+      where: { 
+        name: { equals: name, mode: 'insensitive' }
+      }
     });
+
+    if (existingOrg) {
+      return NextResponse.json({ error: 'Organization with this name already exists' }, { status: 409 });
+    }
+
+    const organization = await prisma.organization.create({
+      data: {
+        name: name.trim(),
+        type: type as any
+      },
+      include: {
+        children: true,
+        rooms: true
+      }
+    });
+
+    return NextResponse.json({
+      id: organization.id,
+      name: organization.name,
+      type: organization.type,
+      childrenCount: organization.children.length,
+      children: organization.children,
+      rooms: organization.rooms,
+      createdAt: organization.createdAt.toISOString()
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating organization:', error);
     return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 });

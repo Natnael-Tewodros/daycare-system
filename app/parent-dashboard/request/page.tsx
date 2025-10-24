@@ -255,11 +255,12 @@ export default function RequestPage() {
                   <Label htmlFor="site">Preferred Site *</Label>
                   <Select onValueChange={(value) => setValue("site", value)}>
                     <SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="INSA">INSA Site</SelectItem>
-                        <SelectItem value="OPERATION">Operation Site</SelectItem>
-                      </SelectContent>
+                      <SelectValue placeholder="Select site" />
                     </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="HEADOFFICE">Head Office</SelectItem>
+                        <SelectItem value="OPERATION">Operation</SelectItem>
+                    </SelectContent>
                   </Select>
                   {errors.site && <p className="text-sm text-red-600">{errors.site.message}</p>}
                 </div>

@@ -49,18 +49,42 @@ async function createTestAccounts() {
     });
     console.log('✅ Organization created:', org.name);
 
-    // Create test room
-    const room = await prisma.room.upsert({
+    // Create test rooms with proper class names
+    const infantRoom = await prisma.room.upsert({
       where: { id: 1 },
       update: {},
       create: {
         id: 1,
-        name: 'Test Room',
-        ageRange: '3-5 years',
+        name: 'Infant',
+        ageRange: '0 months - 18 months',
         organizationId: org.id,
       },
     });
-    console.log('✅ Room created:', room.name);
+    console.log('✅ Infant room created:', infantRoom.name);
+
+    const toddlerRoom = await prisma.room.upsert({
+      where: { id: 2 },
+      update: {},
+      create: {
+        id: 2,
+        name: 'Toddler',
+        ageRange: '18 months - 3 years',
+        organizationId: org.id,
+      },
+    });
+    console.log('✅ Toddler room created:', toddlerRoom.name);
+
+    const niceRoom = await prisma.room.upsert({
+      where: { id: 3 },
+      update: {},
+      create: {
+        id: 3,
+        name: 'Nice',
+        ageRange: '3 years - 5 years',
+        organizationId: org.id,
+      },
+    });
+    console.log('✅ Nice room created:', niceRoom.name);
 
     // Create test child with parent credentials
     const child = await prisma.child.upsert({
@@ -75,9 +99,9 @@ async function createTestAccounts() {
         parentName: 'Test Parent',
         parentEmail: 'parent@test.com',
         parentPassword: 'parent123',
-        site: 'INSA',
+        site: 'HEADOFFICE',
         organizationId: org.id,
-        roomId: room.id,
+        roomId: infantRoom.id,
         option: 'Full Day',
       },
     });

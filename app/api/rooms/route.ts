@@ -67,20 +67,36 @@ export async function GET() {
       }
     });
 
-    // Organize children by age ranges for each room
+    // Organize children by room assignment and age ranges
     const roomsWithChildren = rooms.map(room => {
-      const childrenInThisRoom = allChildren.filter(child => {
+      // First, get children actually assigned to this room
+      const assignedChildren = allChildren.filter(child => child.roomId === room.id);
+      
+      // Then, get children that fit the age range but aren't assigned to any room
+      const unassignedChildrenInAgeRange = allChildren.filter(child => {
+        if (child.roomId) return false; // Skip already assigned children
         const ageInMonths = calculateAgeInMonths(child.dateOfBirth);
         return childFitsInAgeRange(ageInMonths, room.ageRange);
       });
 
-      // Clean up room name by removing organization suffix
-      const cleanRoomName = room.name.replace(/\s*-\s*[A-Z_]+$/, '');
+      // Combine assigned children and unassigned children in age range
+      const childrenInThisRoom = [...assignedChildren, ...unassignedChildrenInAgeRange];
+
+      // Map room names to class names
+      const getClassName = (roomName: string): string => {
+        const name = roomName.toLowerCase();
+        if (name.includes('default') || name.includes('infant')) return 'Infant';
+        if (name.includes('toddler')) return 'Toddler';
+        if (name.includes('preschool')) return 'Growing Star';
+        return roomName.replace(/\s*-\s*[A-Z_]+$/, ''); // Clean up organization suffix
+      };
 
       return {
         ...room,
-        name: cleanRoomName,
-        children: childrenInThisRoom
+        name: getClassName(room.name),
+        children: childrenInThisRoom,
+        assignedChildren: assignedChildren,
+        unassignedChildren: unassignedChildrenInAgeRange
       };
     });
 

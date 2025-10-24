@@ -58,6 +58,7 @@ model Child {
   attendances Attendance[]
   reports     Report[]
   eventParticipations EventParticipation[]
+  activities Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -76,7 +77,7 @@ enum Relationship {
 }
 
 enum Site {
-  INSA
+  HEADOFFICE
   OPERATION
 }
 
@@ -150,7 +151,7 @@ model EnrollmentRequest {
   parentName         String
   childName          String
   childAge           Int
-  email              String    @unique
+  email              String
   phone              String?
   preferredStartDate DateTime?
   status             String    @default("pending")
@@ -168,6 +169,21 @@ model Announcement {
   visibilityDays    Int?     // Number of days the announcement should be visible (null = permanent)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  
+  views             AnnouncementView[]
+}
+
+model AnnouncementView {
+  id              Int         @id @default(autoincrement())
+  announcementId  Int
+  userId          String?     // Optional - can track by user ID if logged in
+  userEmail       String?     // Optional - can track by email
+  viewedAt        DateTime    @default(now())
+
+  announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@unique([announcementId, userEmail])
 }
 
 enum AnnouncementType {
@@ -218,4 +234,33 @@ enum ParticipationStatus {
   ATTENDED
   ABSENT
   CANCELLED
+}
+
+model Activity {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  title       String
+  description String?
+  activityType ActivityType
+  date        DateTime
+  duration    Int?     // Duration in minutes
+  notes       String?
+  images      String[] // Array of image file paths
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+}
+
+enum ActivityType {
+  LEARNING
+  PLAY
+  MEAL
+  NAP
+  OUTDOOR
+  ART
+  MUSIC
+  STORY
+  EXERCISE
+  OTHER
 }

@@ -41,12 +41,12 @@ export async function GET() {
     // Build sites data
     const sitesData = {
       HeadOffice: {
-        name: 'HeadOffice',
-        description: 'HeadOffice Site',
+        name: 'Head Office',
+        description: 'Head Office Site',
         children: [],
         servants: [],
-        totalChildren: childrenBySite.find(group => group.site === 'INSA')?._count.id || 0,
-        totalServants: servantsBySite.find(group => group.site === 'INSA')?._count.id || 0,
+        totalChildren: childrenBySite.find(group => group.site === 'HEADOFFICE')?._count.id || 0,
+        totalServants: servantsBySite.find(group => group.site === 'HEADOFFICE')?._count.id || 0,
         totalOrganizations: organizations.length, // All organizations are available to both sites
         totalRooms: rooms.length // All rooms are available to both sites
       },

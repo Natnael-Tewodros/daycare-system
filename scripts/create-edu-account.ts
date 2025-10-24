@@ -54,7 +54,7 @@ async function createEduAccount() {
           parentName: 'Edu Parent',
           parentEmail: 'edu@gmail.com',
           parentPassword: 'edu123',
-          site: 'INSA',
+          site: 'HEADOFFICE',
           organizationId: org.id,
           roomId: room.id,
           option: 'Full Day',

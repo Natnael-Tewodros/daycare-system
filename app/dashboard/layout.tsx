@@ -37,14 +37,15 @@ const sidebarItems: SidebarItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Children", href: "/dashboard/children", icon: Users },
   { name: "Caregiver", href: "/dashboard/caregiver", icon: UserCog },
+  { name: "Activities", href: "/dashboard/activities", icon: Activity },
   { name: "Attendance", href: "/dashboard/attendance", icon: UserCheck },
   { name: "Rooms", href: "/dashboard/rooms", icon: DoorOpen },
   { name: "Organization", href: "/dashboard/organization", icon: Briefcase },
   { name: "Sites", href: "/dashboard/sites", icon: MapPin },
+  { name: "Enrollment Requests", href: "/dashboard/enrollment-requests", icon: FileText },
   { name: "Announcements", href: "/dashboard/announcements", icon: Bell },
-  { name: "Report", href: "/dashboard/report", icon: FileText },
+  { name: "Report", href: "/dashboard/report", icon: BarChart3 },
   { name: "User Management", href: "/dashboard/admin-management", icon: Shield },
-  { name: "Status", href: "/dashboard/status", icon: Activity },
 ];
 
 interface DashboardLayoutProps {
@@ -66,7 +67,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       // Expire cookie set by login route
       document.cookie = "userId=; Max-Age=0; path=/";
       await new Promise(resolve => setTimeout(resolve, 500));
-      router.push("/login");
+      router.push("/");
       router.refresh();
     } catch (error) {
       console.error("Logout error:", error);

@@ -46,9 +46,9 @@ export default function SignupPage() {
         setMessage(errorMsg);
       } else {
         const createdName = typeof result === 'object' ? result.name : 'User';
-        setMessage(`User ${createdName} created successfully! Redirecting to login...`);
+        setMessage(`User ${createdName} created successfully! Redirecting to parent dashboard...`);
         setTimeout(() => {
-          window.location.href = "/login";
+          window.location.href = `/parent-dashboard?email=${encodeURIComponent(data.email)}`;
         }, 800);
       }
     } catch {

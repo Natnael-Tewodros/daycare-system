@@ -4,6 +4,9 @@ import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import Image from "next/image";
 import { 
   Building, 
@@ -18,7 +21,10 @@ import {
   ArrowRight,
   Building2,
   HeartHandshake,
-  GraduationCap
+  GraduationCap,
+  Settings,
+  Edit,
+  Plus
 } from "lucide-react";
 import Link from "next/link";
 
@@ -37,10 +43,28 @@ interface SitesData {
   OPERATION: SiteData;
 }
 
+interface SiteSettings {
+  name: string;
+  description: string;
+  address: string;
+  phone: string;
+  email: string;
+}
+
 export default function SitesPage() {
   const [sites, setSites] = useState<SitesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [selectedSite, setSelectedSite] = useState<string | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>({
+    name: '',
+    description: '',
+    address: '',
+    phone: '',
+    email: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchSites = async () => {
     try {
@@ -63,6 +87,44 @@ export default function SitesPage() {
   useEffect(() => {
     fetchSites();
   }, []);
+
+  const openSettingsDialog = (siteKey: string) => {
+    setSelectedSite(siteKey);
+    // Load existing settings for the site
+    const siteData = sites?.[siteKey as keyof SitesData];
+    setSiteSettings({
+      name: siteData?.name || '',
+      description: siteData?.description || '',
+      address: '', // This would come from a settings API
+      phone: '',
+      email: ''
+    });
+    setShowSettingsDialog(true);
+  };
+
+  const handleSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      // Here you would save settings to an API
+      // For now, just simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setShowSettingsDialog(false);
+      setSelectedSite(null);
+      alert('Site settings updated successfully!');
+    } catch (error) {
+      console.error('Error updating site settings:', error);
+      alert('Failed to update site settings');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field: keyof SiteSettings, value: string) => {
+    setSiteSettings(prev => ({ ...prev, [field]: value }));
+  };
 
   const getSiteIcon = (siteName: string) => {
     switch (siteName) {
@@ -241,6 +303,13 @@ export default function SitesPage() {
                       <UserCog className="h-4 w-4 mr-2" />
                       View Caregivers
                     </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openSettingsDialog(siteKey)}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -285,6 +354,74 @@ export default function SitesPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Site Settings Dialog */}
+        <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Site Settings</DialogTitle>
+              <DialogDescription>
+                Manage settings and information for {selectedSite} site.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSettingsSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="site-name">Site Name</Label>
+                <Input
+                  id="site-name"
+                  value={siteSettings.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="Enter site name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site-description">Description</Label>
+                <Input
+                  id="site-description"
+                  value={siteSettings.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Enter site description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site-address">Address</Label>
+                <Input
+                  id="site-address"
+                  value={siteSettings.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  placeholder="Enter site address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site-phone">Phone</Label>
+                <Input
+                  id="site-phone"
+                  value={siteSettings.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  placeholder="Enter site phone number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site-email">Email</Label>
+                <Input
+                  id="site-email"
+                  type="email"
+                  value={siteSettings.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder="Enter site email"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowSettingsDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : 'Save Settings'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

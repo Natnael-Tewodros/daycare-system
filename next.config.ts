@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
+  // Turbopack configuration to resolve lockfile warning
+  turbopack: {
+    root: "./",
+  },
 };
 
 export default nextConfig;

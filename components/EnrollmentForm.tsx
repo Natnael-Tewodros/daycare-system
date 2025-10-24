@@ -188,7 +188,7 @@ export default function EnrollmentForm({ onSuccess, compact = false }: Enrollmen
                 <Select onValueChange={(value) => setValue("site", value)}>
                   <SelectTrigger className="h-9">
                     <SelectContent>
-                      <SelectItem value="INSA">INSA Site</SelectItem>
+                      <SelectItem value="HEADOFFICE">Head Office Site</SelectItem>
                       <SelectItem value="OPERATION">Operation Site</SelectItem>
                     </SelectContent>
                   </SelectTrigger>
@@ -373,7 +373,7 @@ export default function EnrollmentForm({ onSuccess, compact = false }: Enrollmen
                 <Select onValueChange={(value) => setValue("site", value)}>
                   <SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="INSA">INSA Site</SelectItem>
+                      <SelectItem value="HEADOFFICE">Head Office Site</SelectItem>
                       <SelectItem value="OPERATION">Operation Site</SelectItem>
                     </SelectContent>
                   </SelectTrigger>

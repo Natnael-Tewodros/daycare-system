@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,15 @@ export default function ApplicationStatusPage() {
   const [error, setError] = useState("");
   const [requests, setRequests] = useState<EnrollmentRequest[]>([]);
   const [searched, setSearched] = useState(false);
+
+  // Auto-populate email from URL params if coming from signup
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailParam = urlParams.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, []);
 
   const searchApplications = async () => {
     if (!email.trim()) {
@@ -205,6 +214,18 @@ export default function ApplicationStatusPage() {
                         {getStatusMessage(request.status)}
                       </AlertDescription>
                     </Alert>
+
+                    {/* Action Button for Approved Applications */}
+                    {request.status === 'approved' && (
+                      <div className="mt-4">
+                        <Button 
+                          onClick={() => window.location.href = `/parent-dashboard/register-child?email=${encodeURIComponent(request.email)}`}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Register Your Child
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Application Details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

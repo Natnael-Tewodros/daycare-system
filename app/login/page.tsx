@@ -46,10 +46,19 @@ export default function LoginPage() {
       }
 
       if (adminRes.ok && typeof adminResult === 'object' && adminResult?.user?.id) {
-        // Admin login successful
+        // Login successful
         setMessage(`Welcome back!`);
         localStorage.setItem('userId', String(adminResult.user.id));
         localStorage.setItem('userRole', adminResult.user.role);
+        
+        // Store parent info for parent dashboard
+        if (adminResult.user.role === 'PARENT') {
+          localStorage.setItem('parentInfo', JSON.stringify({
+            name: adminResult.user.name,
+            email: adminResult.user.email,
+            children: [] // Will be fetched by the dashboard
+          }));
+        }
         
         // Redirect based on role
         if (adminResult.user.role === 'ADMIN') {

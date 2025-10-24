@@ -22,21 +22,75 @@ export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [announcementCount, setAnnouncementCount] = useState(0);
 
-  useEffect(() => {
-    const fetchAnnouncementCount = async () => {
-      try {
-        const response = await fetch('/api/announcements/count');
-        if (response.ok) {
-          const data = await response.json();
-          setAnnouncementCount(data.count);
-        }
-      } catch (error) {
-        console.error('Error fetching announcement count:', error);
+  const fetchAnnouncementCount = async () => {
+    try {
+      // Get user info from localStorage if available
+      const parentInfo = localStorage.getItem('parentInfo');
+      const userId = localStorage.getItem('userId');
+      const sessionId = localStorage.getItem('sessionId');
+      
+      let userEmail = null;
+      if (parentInfo) {
+        const parent = JSON.parse(parentInfo);
+        userEmail = parent.email;
+      } else if (sessionId) {
+        // For anonymous users, use session email
+        userEmail = sessionId + '@anonymous.local';
       }
+
+      // Build URL with user parameters
+      const params = new URLSearchParams();
+      if (userId) params.append('userId', userId);
+      if (userEmail) params.append('userEmail', userEmail);
+
+      const response = await fetch(`/api/announcements/count?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAnnouncementCount(data.count);
+      }
+    } catch (error) {
+      // Silently handle errors
+    }
+  };
+
+  useEffect(() => {
+    fetchAnnouncementCount();
+
+    // Listen for announcement view events
+    const handleAnnouncementViewed = () => {
+      // Immediately decrease count by 1 as a quick response
+      setAnnouncementCount(prev => Math.max(0, prev - 1));
+      // Then fetch the actual count from API
+      fetchAnnouncementCount();
     };
 
-    fetchAnnouncementCount();
+    // Fallback: Check for updates every 5 seconds when on announcements page
+    const checkForUpdates = () => {
+      if (window.location.pathname === '/announcements') {
+        fetchAnnouncementCount();
+      }
+    };
+    
+    const interval = setInterval(checkForUpdates, 5000);
+
+    window.addEventListener('announcementViewed', handleAnnouncementViewed);
+    
+    // Also listen for storage changes (in case user info changes)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'parentInfo' || e.key === 'userId' || e.key === 'sessionId') {
+        fetchAnnouncementCount();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('announcementViewed', handleAnnouncementViewed);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
+
 
   const navigationItems = [
     { name: "Home", href: "/", icon: Home },
@@ -97,7 +151,7 @@ export default function Navigation() {
                     >
                       <Icon className="w-4 h-4" />
                       <span>{item.name}</span>
-                      {item.showCount && announcementCount > 0 && (
+                      {item.showCount && (
                         <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
                           {announcementCount}
                         </span>
@@ -168,7 +222,7 @@ export default function Navigation() {
                   >
                     <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
-                    {item.showCount && announcementCount > 0 && (
+                    {item.showCount && (
                       <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
                         {announcementCount}
                       </span>

@@ -29,6 +29,8 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Edit, Save, X } from "lucide-react";
 
 interface ChildForm {
   fullName: string;
@@ -43,20 +45,29 @@ interface ChildForm {
 }
 
 interface ParentInfo {
-  name: string;
   email: string;
-  password: string;
 }
 
 export default function AdminPage() {
   const [parentInfo, setParentInfo] = useState<ParentInfo>({
-    name: "",
-    email: "",
-    password: ""
+    email: ""
   });
   const [childrenForms, setChildrenForms] = useState<ChildForm[]>([]);
   const [childrenList, setChildrenList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Added for loading state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingChild, setEditingChild] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState<ChildForm>({
+    fullName: "",
+    relationship: "",
+    gender: "",
+    dateOfBirth: "",
+    site: "",
+    organization: "",
+    profilePic: null,
+    childInfoFile: null,
+    otherFile: null,
+  });
 
   const fetchChildren = async () => {
     setIsLoading(true);
@@ -71,13 +82,74 @@ export default function AdminPage() {
     }
   };
 
+  const openEditDialog = (child: any) => {
+    setEditingChild(child);
+    setEditFormData({
+      fullName: child.fullName || "",
+      relationship: child.relationship || "",
+      gender: child.gender || "",
+      dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth).toISOString().split('T')[0] : "",
+      site: child.site || "",
+      organization: child.organization?.name || "",
+      profilePic: null,
+      childInfoFile: null,
+      otherFile: null,
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingChild) return;
+    
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("fullName", editFormData.fullName);
+      formData.append("relationship", editFormData.relationship);
+      formData.append("gender", editFormData.gender);
+      formData.append("dateOfBirth", editFormData.dateOfBirth);
+      formData.append("site", editFormData.site);
+      formData.append("organization", editFormData.organization);
+      
+      if (editFormData.profilePic) {
+        formData.append("profilePic", editFormData.profilePic);
+      }
+      if (editFormData.childInfoFile) {
+        formData.append("childInfoFile", editFormData.childInfoFile);
+      }
+      if (editFormData.otherFile) {
+        formData.append("otherFile", editFormData.otherFile);
+      }
+
+      const response = await fetch(`/api/children/${editingChild.id}`, {
+        method: "PUT",
+        body: formData,
+      });
+
+      if (response.ok) {
+        alert("Child information updated successfully!");
+        setShowEditDialog(false);
+        setEditingChild(null);
+        fetchChildren(); // Refresh the list
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error || "Failed to update child"}`);
+      }
+    } catch (error) {
+      console.error("Error updating child:", error);
+      alert("Error updating child information");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchChildren();
   }, []);
 
   const addChildForm = () => {
-    if (!parentInfo.name || !parentInfo.email || !parentInfo.password) {
-      return alert("Please fill in all parent information (name, email, password) first!");
+    if (!parentInfo.email) {
+      return alert("Please fill in parent email first!");
     }
     setChildrenForms([
       ...childrenForms,
@@ -104,9 +176,7 @@ export default function AdminPage() {
         return;
       }
       const formData = new FormData();
-      formData.append("parentName", parentInfo.name);
       formData.append("parentEmail", parentInfo.email);
-      formData.append("parentPassword", parentInfo.password);
       formData.append("fullName", child.fullName);
       formData.append("relationship", child.relationship);
       formData.append("gender", child.gender);
@@ -132,7 +202,7 @@ export default function AdminPage() {
         setChildrenForms((prev) => {
           const allEmpty = prev.every(f => !f.fullName && !f.relationship && !f.gender && !f.dateOfBirth && !f.site && !f.organization && !f.profilePic && !f.childInfoFile && !f.otherFile);
           if (allEmpty) {
-            setParentInfo({ name: "", email: "", password: "" });
+            setParentInfo({ email: "" });
           }
           return prev;
         });
@@ -162,8 +232,8 @@ export default function AdminPage() {
   // Removed reference-based index finder; using index passed from render
 
   const handleRegisterAll = async () => {
-    if (!parentInfo.name || !parentInfo.email || !parentInfo.password) {
-      return alert("Please fill in all parent information (name, email, password) first!");
+    if (!parentInfo.email) {
+      return alert("Please fill in parent email first!");
     }
     if (childrenForms.length === 0) return alert("Add at least one child form.");
     setIsLoading(true);
@@ -175,9 +245,7 @@ export default function AdminPage() {
           return;
         }
         const formData = new FormData();
-        formData.append("parentName", parentInfo.name);
         formData.append("parentEmail", parentInfo.email);
-        formData.append("parentPassword", parentInfo.password);
         formData.append("fullName", child.fullName);
         formData.append("relationship", child.relationship);
         formData.append("gender", child.gender);
@@ -196,7 +264,7 @@ export default function AdminPage() {
       }
       alert("✅ All children registered successfully!");
       setChildrenForms([]);
-      setParentInfo({ name: "", email: "", password: "" });
+      setParentInfo({ email: "" });
       fetchChildren();
     } catch (err) {
       console.error("Bulk register error:", err);
@@ -211,7 +279,7 @@ export default function AdminPage() {
   };
 
   const clearAllForms = () => {
-    setParentInfo({ name: "", email: "", password: "" });
+    setParentInfo({ email: "" });
     setChildrenForms([]);
   };
 
@@ -224,21 +292,11 @@ export default function AdminPage() {
             Parent Information
           </CardTitle>
           <CardDescription className="text-slate-600">
-            Enter the parent's name and add children details.
+            Enter the parent's email to register children. If the parent is not registered, the system will use the email as the parent name.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Parent Name *</Label>
-              <Input
-                value={parentInfo.name}
-                onChange={(e) => setParentInfo(prev => ({ ...prev, name: e.target.value }))}
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter parent's full name"
-                required
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
             <div>
               <Label className="text-sm font-medium text-slate-700">Parent Email *</Label>
               <Input
@@ -247,17 +305,6 @@ export default function AdminPage() {
                 onChange={(e) => setParentInfo(prev => ({ ...prev, email: e.target.value }))}
                 className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Enter parent's email"
-                required
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Parent Password *</Label>
-              <Input
-                type="password"
-                value={parentInfo.password}
-                onChange={(e) => setParentInfo(prev => ({ ...prev, password: e.target.value }))}
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter parent's password"
                 required
               />
             </div>
@@ -348,10 +395,11 @@ export default function AdminPage() {
             {child.relationship === "OTHER" && (
               <div>
                 <Label className="text-sm font-medium text-slate-700">
-                  Upload Document for Other
+                  Upload Document for Other (PDF only)
                 </Label>
                 <Input
                   type="file"
+                  accept=".pdf"
                   onChange={(e) =>
                     handleChildChange(index, "otherFile", e.target.files?.[0] || null)
                   }
@@ -399,7 +447,7 @@ export default function AdminPage() {
                   <SelectValue placeholder="Select site" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="INSA">INSA</SelectItem>
+                  <SelectItem value="HEADOFFICE">Head Office</SelectItem>
                   <SelectItem value="OPERATION">Operation</SelectItem>
                 </SelectContent>
               </Select>
@@ -424,9 +472,10 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium text-slate-700">Profile Picture</Label>
+              <Label className="text-sm font-medium text-slate-700">Profile Picture (Images only)</Label>
               <Input
                 type="file"
+                accept="image/*"
                 onChange={(e) =>
                   handleChildChange(index, "profilePic", e.target.files?.[0] || null)
                 }
@@ -435,9 +484,10 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium text-slate-700">Child Info File</Label>
+              <Label className="text-sm font-medium text-slate-700">Child Info File (PDF only)</Label>
               <Input
                 type="file"
+                accept=".pdf"
                 onChange={(e) =>
                   handleChildChange(index, "childInfoFile", e.target.files?.[0] || null)
                 }
@@ -488,6 +538,7 @@ export default function AdminPage() {
                   <TableHead className="font-semibold text-slate-800">DOB</TableHead>
                   <TableHead className="font-semibold text-slate-800">Twin</TableHead>
                   <TableHead className="font-semibold text-slate-800">Document</TableHead>
+                  <TableHead className="font-semibold text-slate-800">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -508,7 +559,7 @@ export default function AdminPage() {
                     <TableCell className="text-slate-700">{child.gender}</TableCell>
                     <TableCell className="text-slate-700">{child.relationship}</TableCell>
                     <TableCell className="text-slate-700">{child.site}</TableCell>
-                    <TableCell className="text-slate-700">{child.organization}</TableCell>
+                    <TableCell className="text-slate-700">{child.organization?.name || 'N/A'}</TableCell>
                     <TableCell className="text-slate-700">
                       {new Date(child.dateOfBirth).toLocaleDateString()}
                     </TableCell>
@@ -529,6 +580,17 @@ export default function AdminPage() {
                         <span className="text-slate-400">No file</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-slate-700">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(child)}
+                        className="flex items-center gap-2"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -536,6 +598,150 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Child Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Child Information</DialogTitle>
+            <DialogDescription>
+              Update the child's information below.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-fullName">Full Name *</Label>
+                <Input
+                  id="edit-fullName"
+                  value={editFormData.fullName}
+                  onChange={(e) => setEditFormData({...editFormData, fullName: e.target.value})}
+                  placeholder="Enter child's full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-relationship">Relationship *</Label>
+                <Input
+                  id="edit-relationship"
+                  value={editFormData.relationship}
+                  onChange={(e) => setEditFormData({...editFormData, relationship: e.target.value})}
+                  placeholder="e.g., Son, Daughter"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-gender">Gender *</Label>
+                <Select
+                  value={editFormData.gender}
+                  onValueChange={(value) => setEditFormData({...editFormData, gender: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-dateOfBirth">Date of Birth *</Label>
+                <Input
+                  id="edit-dateOfBirth"
+                  type="date"
+                  value={editFormData.dateOfBirth}
+                  onChange={(e) => setEditFormData({...editFormData, dateOfBirth: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-site">Site *</Label>
+                <Select
+                  value={editFormData.site}
+                  onValueChange={(value) => setEditFormData({...editFormData, site: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HEADOFFICE">HEADOFFICE</SelectItem>
+                    <SelectItem value="BRANCH1">BRANCH1</SelectItem>
+                    <SelectItem value="BRANCH2">BRANCH2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-organization">Organization *</Label>
+                <Select
+                  value={editFormData.organization}
+                  onValueChange={(value) => setEditFormData({...editFormData, organization: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INSA">INSA</SelectItem>
+                    <SelectItem value="OTHER">OTHER</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-profilePic">Profile Picture</Label>
+                <Input
+                  id="edit-profilePic"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEditFormData({...editFormData, profilePic: e.target.files?.[0] || null})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-childInfoFile">Child Information File</Label>
+                <Input
+                  id="edit-childInfoFile"
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => setEditFormData({...editFormData, childInfoFile: e.target.files?.[0] || null})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-otherFile">Other File</Label>
+                <Input
+                  id="edit-otherFile"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.png"
+                  onChange={(e) => setEditFormData({...editFormData, otherFile: e.target.files?.[0] || null})}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditDialog(false)}
+              disabled={isLoading}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={isLoading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isLoading ? "Updating..." : "Update Child"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

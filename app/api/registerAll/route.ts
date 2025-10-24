@@ -63,11 +63,27 @@ export async function POST(req: Request) {
         },
       });
 
-      // 2) create a default room for this organization (so we can link servants/children)
-      const defaultRoom = await tx.room.create({
+      // 2) create rooms for this organization with proper class names
+      const infantRoom = await tx.room.create({
         data: {
-          name: "Default Room",
-          ageRange: "Unspecified",
+          name: "Infant",
+          ageRange: "0 months - 18 months",
+          organizationId: org.id,
+        },
+      });
+
+      const toddlerRoom = await tx.room.create({
+        data: {
+          name: "Toddler", 
+          ageRange: "18 months - 3 years",
+          organizationId: org.id,
+        },
+      });
+
+      const niceRoom = await tx.room.create({
+        data: {
+          name: "Nice",
+          ageRange: "3 years - 5 years", 
           organizationId: org.id,
         },
       });
@@ -90,8 +106,8 @@ export async function POST(req: Request) {
           email: body.servant.email ?? `${body.servant.fullName.replace(/\s+/g, "").toLowerCase()}@example.com`,
           phone: body.servant.phone ?? "",
           medicalReport: body.servant.medicalReport ?? null,
-          assignedRoomId: defaultRoom.id,
-          site: 'INSA', // Default site
+          assignedRoomId: infantRoom.id,
+          site: 'HEADOFFICE', // Default site
           organizationType: 'INSA', // Default organization type
         },
       });
@@ -108,9 +124,9 @@ export async function POST(req: Request) {
           profilePic: body.child.profileImage ?? null,
           childInfoFile: body.child.medicalReport ?? null,
           organizationId: org.id,
-          roomId: defaultRoom.id,
+          roomId: infantRoom.id,
           servantId: servant.id,
-          site: 'INSA', // Default site
+          site: 'HEADOFFICE', // Default site
         },
       });
 
