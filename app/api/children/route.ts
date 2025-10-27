@@ -3,7 +3,67 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
-import { OrganizationType, Gender, Relationship, Site } from '@prisma/client';
+import { Gender, Relationship, Site } from '@prisma/client';
+
+// Function to calculate age in months
+const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
+  const birthDate = new Date(dateOfBirth);
+  const now = new Date();
+  let ageInMonths = (now.getFullYear() - birthDate.getFullYear()) * 12 + (now.getMonth() - birthDate.getMonth());
+  
+  // If the current day is before the birth day, subtract one month
+  if (now.getDate() < birthDate.getDate()) {
+    ageInMonths--;
+  }
+  
+  return ageInMonths;
+};
+
+// Function to automatically assign room based on age
+const getRoomByAge = async (ageInMonths: number, organizationId: number) => {
+  let roomName = '';
+  let ageRange = '';
+  
+  if (ageInMonths >= 3 && ageInMonths <= 12) {
+    // Room 1: 3 months - 1 year
+    roomName = 'Room 1';
+    ageRange = '3 months - 1 year';
+  } else if (ageInMonths >= 13 && ageInMonths <= 24) {
+    // Room 2: 1 year - 2 years
+    roomName = 'Room 2';
+    ageRange = '1 year - 2 years';
+  } else if (ageInMonths >= 25 && ageInMonths <= 48) {
+    // Room 3: 2 years - 4 years
+    roomName = 'Room 3';
+    ageRange = '2 years - 4 years';
+  } else {
+    // Child is too young (under 3 months) or too old (over 4 years)
+    return null;
+  }
+  
+  // Find or create room for this organization
+  const room = await prisma.room.findFirst({
+    where: {
+      organizationId: organizationId,
+      name: roomName
+    }
+  });
+  
+  if (room) {
+    return room.id;
+  }
+  
+  // Create room if it doesn't exist
+  const newRoom = await prisma.room.create({
+    data: {
+      name: roomName,
+      ageRange: ageRange,
+      organizationId: organizationId
+    }
+  });
+  
+  return newRoom.id;
+};
 
 async function processFileUpload(file: File | null, fileType: 'profile' | 'document' = 'document'): Promise<string | null> {
   if (!file || file.size === 0) return null;
@@ -35,8 +95,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const parentName = searchParams.get('parentName');
     const parentEmail = searchParams.get('parentEmail');
+    const parentUsername = searchParams.get('parentUsername');
+    const parentId = searchParams.get('parentId');
 
-    console.log('Children API - parentName:', parentName, 'parentEmail:', parentEmail);
+
+    // If parent username is provided, look up parent user first
+    let parentUser = null;
+    if (parentUsername) {
+      parentUser = await prisma.user.findFirst({
+        where: { username: { equals: parentUsername, mode: 'insensitive' } }
+      });
+      if (parentUser) {
+      }
+    }
 
     // Build where clause based on available filters
     let whereClause: any = {};
@@ -46,8 +117,28 @@ export async function GET(request: Request) {
     if (parentEmail) {
       whereClause.parentEmail = { equals: parentEmail, mode: 'insensitive' };
     }
+    if (parentId) {
+      whereClause.parentId = parentId;
+    }
+    
+    // If we found parent user by username, also search by parentId
+    if (parentUser) {
+      whereClause = {
+        OR: [
+          whereClause,
+          { parentId: parentUser.id }
+        ]
+      };
+    }
 
-    console.log('Children API - whereClause:', whereClause);
+
+    // TODO: After adding approvalStatus field to database via migration
+    // Filter children by approval status for non-admin users
+    // const isAdmin = request.headers.get('user-role') === 'ADMIN';
+    // const whereClauseWithApproval = {
+    //   ...whereClause,
+    //   ...(!isAdmin ? { approvalStatus: 'approved' } : {})
+    // };
 
     const children = await prisma.child.findMany({
       where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
@@ -55,6 +146,7 @@ export async function GET(request: Request) {
         organization: true,
         servant: true,
         room: true,
+        parent: true, // Include parent user info
         attendances: {
           orderBy: { createdAt: 'desc' },
           take: 10
@@ -66,25 +158,25 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    console.log('Children API - found children:', children.length);
-    console.log('Children API - children data:', children.map(c => ({ id: c.id, fullName: c.fullName, parentEmail: c.parentEmail })));
 
     const mapped = children.map((c) => ({
       id: c.id,
       fullName: c.fullName,
       parentName: c.parentName,
+      parentEmail: c.parentEmail, // Add parentEmail field
       gender: c.gender,
       relationship: c.relationship,
       site: c.site,
       organization: {
         name: c.organization?.name ?? '',
-        type: c.organization?.type ?? ''
+        id: c.organization?.id ?? 0
       },
       servant: c.servant ? {
         id: c.servant.id,
         fullName: c.servant.fullName
       } : null,
       room: c.room ? {
+        id: c.room.id,
         name: c.room.name,
         ageRange: c.room.ageRange
       } : null,
@@ -92,6 +184,7 @@ export async function GET(request: Request) {
       createdAt: c.createdAt,
       profilePic: c.profilePic,
       childInfoFile: c.childInfoFile,
+      // TODO: Add approvalStatus after migration: approvalStatus: c.approvalStatus || 'pending',
       activities: c.attendances.map(a => ({
         id: a.id,
         status: a.status,
@@ -127,6 +220,7 @@ export async function POST(req: Request) {
     // Required fields with validation
     const parentName = (formData.get("parentName") as string)?.trim();
     const parentEmail = (formData.get("parentEmail") as string)?.trim();
+    const parentUsername = (formData.get("parentUsername") as string)?.trim(); // NEW: Accept username
     const parentPassword = (formData.get("parentPassword") as string)?.trim();
     const fullName = (formData.get("fullName") as string)?.trim();
     const relationship = formData.get("relationship") as string;
@@ -146,27 +240,72 @@ export async function POST(req: Request) {
     if (!site) missingFields.push('site');
     if (!organizationIdStr && !organizationName) missingFields.push('organizationId or organization');
     
-    // Parent email is required, but name and password are optional
-    if (!parentEmail) missingFields.push('parentEmail');
+    // Parent email OR username is required
+    if (!parentEmail && !parentUsername) {
+      missingFields.push('parentEmail or parentUsername');
+    }
     
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
 
-    // If parent name is not provided, try to look it up from the User table using email
+    // Validate that parent email or username exists in User table
+    let parentUser = null;
+    let finalParentEmail = parentEmail;
     let finalParentName = parentName;
-    if (!parentName && parentEmail) {
-      const parentUser = await prisma.user.findFirst({
-        where: { email: { equals: parentEmail, mode: 'insensitive' } }
-      });
+
+    if (parentUsername) {
+      // Look up by username
+      try {
+        parentUser = await prisma.user.findFirst({
+          where: { username: { equals: parentUsername, mode: 'insensitive' } }
+        });
+      } catch (dbError) {
+        console.error('Database error during username lookup:', dbError);
+        return NextResponse.json(
+          { error: "Database connection error. Please try again." },
+          { status: 500 }
+        );
+      }
       
-      if (parentUser) {
-        // Parent exists in User table, use their name
-        finalParentName = parentUser.name;
-      } else {
-        // Parent doesn't exist in User table, use email as fallback name
-        finalParentName = parentEmail.split('@')[0]; // Use part before @ as name
-        console.log(`Parent with email ${parentEmail} not found in User table. Using email-based name: ${finalParentName}`);
+      if (!parentUser) {
+        return NextResponse.json(
+          { error: `Parent with username "${parentUsername}" does not exist. Please register as a parent first.` },
+          { status: 400 }
+        );
+      }
+      
+      finalParentEmail = parentUser.email;
+      console.log(`Parent found by username: ${parentUser.name} (${parentUsername})`);
+    } else if (parentEmail) {
+      // Look up by email
+      try {
+        parentUser = await prisma.user.findFirst({
+          where: { email: { equals: parentEmail, mode: 'insensitive' } }
+        });
+      } catch (dbError) {
+        console.error('Database error during email lookup:', dbError);
+        return NextResponse.json(
+          { error: "Database connection error. Please try again." },
+          { status: 500 }
+        );
+      }
+      
+      if (!parentUser) {
+        return NextResponse.json(
+          { error: `Parent with email ${parentEmail} does not exist. Please register as a parent first.` },
+          { status: 400 }
+        );
+      }
+      
+      console.log(`Parent found by email: ${parentUser.name} (${parentEmail})`);
+    }
+
+    // Use parent's actual name and email from User table
+    if (parentUser) {
+      finalParentName = parentUser.name;
+      if (!finalParentEmail && parentUser.email) {
+        finalParentEmail = parentUser.email;
       }
     }
 
@@ -227,13 +366,10 @@ export async function POST(req: Request) {
         if (foundByName) {
           organization = { id: foundByName.id };
         } else {
-          // Attempt to infer OrganizationType from provided name, fallback to INSA
-          const possibleType = (OrganizationType as any)[organizationName as keyof typeof OrganizationType] as OrganizationType | undefined;
-          const inferredType = possibleType ?? OrganizationType.INSA;
+          // Create new organization if it doesn't exist
           const created = await prisma.organization.create({
             data: {
               name: organizationName,
-              type: inferredType,
             },
           });
           organization = { id: created.id };
@@ -244,35 +380,49 @@ export async function POST(req: Request) {
         throw new Error(`Organization not found${organizationIdStr ? ` with ID ${organizationIdStr}` : organizationName ? ` with name "${organizationName}"` : ''}`);
       }
 
-      // Check if parent email already exists for another child
-      const existingChildWithEmail = await prisma.child.findFirst({
+      // Check if parent already has children registered
+      const existingChildWithParent = await prisma.child.findFirst({
         where: { 
-          parentEmail: { equals: parentEmail, mode: 'insensitive' }
+          OR: [
+            { parentEmail: { equals: finalParentEmail, mode: 'insensitive' } },
+            { parentId: parentUser?.id }
+          ]
         }
       });
       
-      if (existingChildWithEmail) {
+      if (existingChildWithParent) {
         // Parent already exists, we can use the same email/password
-        console.log(`Parent ${parentEmail} already has children registered`);
+        console.log(`Parent already has children registered`);
       }
 
-      // Create the child record
+      // Calculate age and automatically assign room if not already provided
+      let finalRoomId = roomId;
+      if (!finalRoomId) {
+        const ageInMonths = calculateAgeInMonths(dateOfBirth);
+        console.log(`Calculated age: ${ageInMonths} months for child`);
+        
+        // Automatically assign room based on age
+        finalRoomId = await getRoomByAge(ageInMonths, organization.id);
+        console.log(`Assigned to room: ${finalRoomId}`);
+      }
+
+      // Create the child record with pending approval status
       const child = await prisma.$transaction(async (tx) => {
-        const childData = {
+        const childData: any = {
           parentName: finalParentName,
-          parentEmail: parentEmail || null,
+          parentEmail: finalParentEmail || null,
           parentPassword: parentPassword || null,
           fullName,
           relationship: relationship as Relationship,
           gender: gender as Gender,
           dateOfBirth,
-          site: site as Site,
           organizationId: organization.id,
           servantId,
-          roomId,
+          roomId: finalRoomId,
           option,
           profilePic: profilePic as string | null,
           childInfoFile: (childInfo || otherFilePath) as string | null,
+          parentId: parentUser?.id || null, // Link to parent user
         };
 
         return await tx.child.create({
@@ -280,13 +430,16 @@ export async function POST(req: Request) {
           include: {
             organization: true,
             servant: true,
-            room: true
+            room: true,
+            parent: true
           }
         });
       });
 
       return NextResponse.json({ 
-        success: true, 
+        success: true,
+        message: 'Child registered successfully! Pending admin approval.',
+        requiresApproval: true,
         child: {
           ...child,
           dateOfBirth: child.dateOfBirth.toISOString(),

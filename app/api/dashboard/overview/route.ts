@@ -19,11 +19,19 @@ export async function GET() {
       },
     });
 
+    // Count pending enrollment requests
+    const pendingEnrollmentRequests = await prisma.enrollmentRequest.count({
+      where: {
+        status: 'pending',
+      },
+    });
+
     return NextResponse.json({
       totalChildren,
       totalServants,
       totalOrganizations,
       todaysAttendance,
+      pendingEnrollmentRequests,
     });
   } catch (error) {
     console.error("Overview Error:", error);

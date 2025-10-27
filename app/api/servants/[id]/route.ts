@@ -6,10 +6,35 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const formData = await request.formData();
+    const contentType = request.headers.get('content-type') || '';
     const servantId = parseInt(params.id);
 
-    // Check if this is a room assignment update (from the table)
+    // Handle JSON request (simple room assignment update from table)
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      
+      if (body.assignedRoomId !== undefined) {
+        const updatedServant = await prisma.servant.update({
+          where: { id: servantId },
+          data: { 
+            assignedRoomId: body.assignedRoomId === null || body.assignedRoomId === 'none' 
+              ? null 
+              : parseInt(body.assignedRoomId as string) 
+          },
+          include: {
+            assignedRoom: {
+              select: { id: true, name: true, ageRange: true }
+            }
+          }
+        });
+        return NextResponse.json(updatedServant);
+      }
+    }
+
+    // Handle form data request (full update with files)
+    const formData = await request.formData();
+    
+    // Check if this is a room assignment update (from the table via form data)
     const assignedRoomId = formData.get('assignedRoomId');
     if (assignedRoomId !== null) {
       const updatedServant = await prisma.servant.update({
@@ -53,7 +78,7 @@ export async function PUT(
       fullName,
       email,
       phone,
-      site: site as "HEADOFFICE" | "OPERATION",
+      siteId: null, // TODO: Update to use actual site ID from database
       organizationType: organizationType as "INSA" | "AI" | "MINISTRY_OF_PEACE" | "FINANCE_SECURITY",
       canTransferRooms
     };

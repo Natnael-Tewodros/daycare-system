@@ -152,7 +152,7 @@ export default function Navigation() {
                       <Icon className="w-4 h-4" />
                       <span>{item.name}</span>
                       {item.showCount && (
-                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
                           {announcementCount}
                         </span>
                       )}
@@ -223,7 +223,7 @@ export default function Navigation() {
                     <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
                     {item.showCount && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
                         {announcementCount}
                       </span>
                     )}

@@ -45,12 +45,12 @@ interface ChildForm {
 }
 
 interface ParentInfo {
-  email: string;
+  username: string;
 }
 
 export default function AdminPage() {
   const [parentInfo, setParentInfo] = useState<ParentInfo>({
-    email: ""
+    username: ""
   });
   const [childrenForms, setChildrenForms] = useState<ChildForm[]>([]);
   const [childrenList, setChildrenList] = useState<any[]>([]);
@@ -147,14 +147,30 @@ export default function AdminPage() {
     fetchChildren();
   }, []);
 
-  const addChildForm = () => {
-    if (!parentInfo.email) {
-      return alert("Please fill in parent email first!");
+  const addChildForm = async () => {
+    if (!parentInfo.username) {
+      return alert("Please fill in parent username first!");
     }
-    setChildrenForms([
-      ...childrenForms,
-      emptyChildForm()
-    ]);
+
+    // Validate that the username exists before allowing form creation
+    try {
+      const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(parentInfo.username)}`);
+      const result = await res.json();
+      
+      if (!result.exists) {
+        alert(`❌ Parent with username "${parentInfo.username}" does not exist. Please register as a parent first.`);
+        return;
+      }
+      
+      // Username exists, proceed with adding the form
+      setChildrenForms([
+        ...childrenForms,
+        emptyChildForm()
+      ]);
+    } catch (error) {
+      console.error("Error validating username:", error);
+      alert("❌ Error validating username. Please try again.");
+    }
   };
 
   const handleChildChange = (
@@ -176,7 +192,7 @@ export default function AdminPage() {
         return;
       }
       const formData = new FormData();
-      formData.append("parentEmail", parentInfo.email);
+      formData.append("parentUsername", parentInfo.username);
       formData.append("fullName", child.fullName);
       formData.append("relationship", child.relationship);
       formData.append("gender", child.gender);
@@ -193,7 +209,8 @@ export default function AdminPage() {
       });
 
       const result = await res.json();
-      if (result.success) {
+      
+      if (res.ok && result.success) {
         alert(`✅ Child ${child.fullName} registered successfully!`);
         fetchChildren();
         // Clear this specific form by index
@@ -202,12 +219,14 @@ export default function AdminPage() {
         setChildrenForms((prev) => {
           const allEmpty = prev.every(f => !f.fullName && !f.relationship && !f.gender && !f.dateOfBirth && !f.site && !f.organization && !f.profilePic && !f.childInfoFile && !f.otherFile);
           if (allEmpty) {
-            setParentInfo({ email: "" });
+            setParentInfo({ username: "" });
           }
           return prev;
         });
       } else {
-        alert("❌ Failed to register child");
+        // Display the specific error message from the API
+        const errorMessage = result.error || "❌ Failed to register child";
+        alert(errorMessage);
       }
     } catch (error) {
       alert("❌ Error registering child");
@@ -232,8 +251,8 @@ export default function AdminPage() {
   // Removed reference-based index finder; using index passed from render
 
   const handleRegisterAll = async () => {
-    if (!parentInfo.email) {
-      return alert("Please fill in parent email first!");
+    if (!parentInfo.username) {
+      return alert("Please fill in parent username first!");
     }
     if (childrenForms.length === 0) return alert("Add at least one child form.");
     setIsLoading(true);
@@ -245,7 +264,7 @@ export default function AdminPage() {
           return;
         }
         const formData = new FormData();
-        formData.append("parentEmail", parentInfo.email);
+        formData.append("parentUsername", parentInfo.username);
         formData.append("fullName", child.fullName);
         formData.append("relationship", child.relationship);
         formData.append("gender", child.gender);
@@ -258,17 +277,18 @@ export default function AdminPage() {
 
         const res = await fetch("/api/children", { method: "POST", body: formData });
         const result = await res.json();
-        if (!result.success) {
+        if (!res.ok || !result.success) {
           throw new Error(result.error || "Failed to register a child");
         }
       }
       alert("✅ All children registered successfully!");
       setChildrenForms([]);
-      setParentInfo({ email: "" });
+      setParentInfo({ username: "" });
       fetchChildren();
     } catch (err) {
       console.error("Bulk register error:", err);
-      alert("❌ Failed to register all children. Some may not be saved.");
+      const errorMessage = err instanceof Error ? err.message : "❌ Failed to register all children. Some may not be saved.";
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -279,7 +299,7 @@ export default function AdminPage() {
   };
 
   const clearAllForms = () => {
-    setParentInfo({ email: "" });
+    setParentInfo({ username: "" });
     setChildrenForms([]);
   };
 
@@ -292,21 +312,24 @@ export default function AdminPage() {
             Parent Information
           </CardTitle>
           <CardDescription className="text-slate-600">
-            Enter the parent's email to register children. If the parent is not registered, the system will use the email as the parent name.
+            Enter the parent's username to register children. The parent must be registered in the system first.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <Label className="text-sm font-medium text-slate-700">Parent Email *</Label>
+              <Label className="text-sm font-medium text-slate-700">Parent Username *</Label>
               <Input
-                type="email"
-                value={parentInfo.email}
-                onChange={(e) => setParentInfo(prev => ({ ...prev, email: e.target.value }))}
+                type="text"
+                value={parentInfo.username}
+                onChange={(e) => setParentInfo(prev => ({ ...prev, username: e.target.value }))}
                 className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter parent's email"
+                placeholder="Enter parent's username"
                 required
               />
+              <p className="text-sm text-slate-500 mt-1">
+                The parent must exist in the system before registering children
+              </p>
             </div>
           </div>
           <div className="flex gap-4 items-end">
@@ -326,7 +349,7 @@ export default function AdminPage() {
                 🚀 Register All
               </Button>
             )}
-            {(parentInfo.name || parentInfo.email || parentInfo.password || childrenForms.length > 0) && (
+            {(parentInfo.username || childrenForms.length > 0) && (
               <Button
                 onClick={clearAllForms}
                 variant="outline"

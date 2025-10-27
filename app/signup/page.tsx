@@ -45,10 +45,20 @@ export default function SignupPage() {
         const errorMsg = typeof result === 'string' ? result : (result?.error || "Something went wrong");
         setMessage(errorMsg);
       } else {
-        const createdName = typeof result === 'object' ? result.name : 'User';
-        setMessage(`User ${createdName} created successfully! Redirecting to parent dashboard...`);
+        const createdUser = typeof result === 'object' ? result : null;
+        
+        // Automatically log in the user after signup
+        localStorage.setItem('userId', createdUser?.id || data.id);
+        localStorage.setItem('userRole', 'PARENT'); // New signups are always PARENT
+        localStorage.setItem('parentInfo', JSON.stringify({
+          name: createdUser?.name || data.name,
+          email: createdUser?.email || data.email,
+          children: [] // Will be empty for new signups until they register children
+        }));
+        
+        setMessage(`Account created successfully! Redirecting...`);
         setTimeout(() => {
-          window.location.href = `/parent-dashboard?email=${encodeURIComponent(data.email)}`;
+          window.location.href = '/parent-dashboard';
         }, 800);
       }
     } catch {

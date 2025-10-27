@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const updatePromises = childIds.map((childId: number) =>
       prisma.child.update({
         where: { id: childId },
-        data: { assignedServantId: servantId }
+        data: { servantId: servantId }
       })
     );
 

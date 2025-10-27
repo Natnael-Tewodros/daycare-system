@@ -24,13 +24,14 @@ import {
   Shield,
 } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Sidebar items definition
 interface SidebarItem {
   name: string;
   href: string;
   icon: any;
+  badge?: number;
 }
 
 const sidebarItems: SidebarItem[] = [
@@ -57,6 +58,36 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+  const [activitiesBadge, setActivitiesBadge] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchUnreadActivities = async () => {
+      try {
+        const response = await fetch('/api/activities');
+        if (response.ok) {
+          const activities = await response.json();
+          // Get read activities from localStorage
+          const readActivitiesJson = localStorage.getItem('readActivities');
+          const readActivities = readActivitiesJson ? new Set(JSON.parse(readActivitiesJson)) : new Set();
+          
+          // Count unread activities that need attention
+          const unread = activities.filter((activity: any) => {
+            const needsAttention = activity.subject?.toLowerCase().includes('absence notice') || 
+                                  activity.subject?.toLowerCase().includes('sick report');
+            return !readActivities.has(activity.id) && needsAttention;
+          }).length;
+          
+          setActivitiesBadge(unread);
+        }
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      }
+    };
+
+    fetchUnreadActivities();
+    const interval = setInterval(fetchUnreadActivities, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -122,13 +153,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {sidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const badge = item.name === "Activities" ? activitiesBadge : item.badge;
             
             return (
               <Link
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center rounded-lg px-3 py-3 text-sm font-medium transition-all duration-200",
+                  "flex items-center rounded-lg px-3 py-3 text-sm font-medium transition-all duration-200 relative",
                   isCollapsed ? "justify-center" : "gap-3",
                   isActive
                     ? "bg-blue-600 text-white shadow-md"
@@ -136,7 +168,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                {!isCollapsed && <span>{item.name}</span>}
+                {!isCollapsed && (
+                  <>
+                    <span>{item.name}</span>
+                    {badge && badge > 0 && (
+                      <span className="ml-auto bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {badge}
+                      </span>
+                    )}
+                  </>
+                )}
+                {isCollapsed && badge && badge > 0 && (
+                  <span className="absolute top-1 right-1 bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {badge}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -36,6 +36,7 @@ interface Announcement {
   type: string;
   createdAt: string;
   isActive: boolean;
+  isRead: boolean;
 }
 
 export default function HomePage() {
@@ -48,10 +49,38 @@ export default function HomePage() {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await fetch("/api/announcements");
+      // Get user info from localStorage if available
+      const parentInfo = localStorage.getItem('parentInfo');
+      const userId = localStorage.getItem('userId');
+      
+      let userEmail = null;
+      if (parentInfo) {
+        const parent = JSON.parse(parentInfo);
+        userEmail = parent.email;
+      }
+
+      // For anonymous users, generate a session ID
+      let sessionEmail = null;
+      if (!userId && !userEmail) {
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+          sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem('sessionId', sessionId);
+        }
+        sessionEmail = sessionId + '@anonymous.local';
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (userId) params.append('userId', userId);
+      if (userEmail) params.append('userEmail', userEmail);
+      if (sessionEmail) params.append('userEmail', sessionEmail);
+
+      const response = await fetch(`/api/announcements/with-status?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setAnnouncements(data.filter((ann: Announcement) => ann.isActive));
+        // Only show unread announcements
+        setAnnouncements(data.filter((ann: Announcement) => !ann.isRead));
       }
     } catch (error) {
       console.error("Error fetching announcements:", error);
@@ -94,8 +123,13 @@ export default function HomePage() {
         }),
       });
 
-      // Dispatch event to update announcement count
-      window.dispatchEvent(new CustomEvent('announcementViewed'));
+      if (response.ok) {
+        // Remove the announcement from the list since it's now marked as read
+        setAnnouncements(prev => prev.filter(ann => ann.id !== announcementId));
+        
+        // Dispatch event to update announcement count
+        window.dispatchEvent(new CustomEvent('announcementViewed'));
+      }
     } catch (error) {
       console.error('Error marking announcement as viewed:', error);
     }
@@ -190,7 +224,7 @@ export default function HomePage() {
             className="mb-20"
           >
             <div className="text-center mb-12">
-              <Badge variant="secondary" className="mb-4 bg-blue-100 text-blue-800 px-4 py-2 text-sm font-semibold">
+              <Badge variant="secondary" className="mb-4 bg-blue-500 text-white px-4 py-2 text-sm font-semibold">
                 <Bell className="h-4 w-4 mr-2" />
                 Latest Updates
               </Badge>

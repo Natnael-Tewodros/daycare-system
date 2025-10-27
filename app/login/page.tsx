@@ -25,19 +25,26 @@ export default function LoginPage() {
       };
       
       // First try admin login
+      console.log('Sending login request with payload:', payload);
+      
       const adminRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      let adminResult: any = null;
+      let adminResult: any = {};
       try {
         const contentType = adminRes.headers.get('content-type');
+        console.log('Admin login response status:', adminRes.status);
+        console.log('Admin login response content-type:', contentType);
+        
         if (contentType && contentType.includes('application/json')) {
           adminResult = await adminRes.json();
+          console.log('Admin login result:', adminResult);
         } else {
           const textResponse = await adminRes.text();
+          console.log('Admin login text response:', textResponse);
           adminResult = { error: textResponse || 'Invalid response format' };
         }
       } catch (parseError) {
@@ -56,7 +63,7 @@ export default function LoginPage() {
           localStorage.setItem('parentInfo', JSON.stringify({
             name: adminResult.user.name,
             email: adminResult.user.email,
-            children: [] // Will be fetched by the dashboard
+            children: adminResult.children || [] // Children fetched from login API
           }));
         }
         
@@ -72,7 +79,7 @@ export default function LoginPage() {
       }
 
       // If admin login failed, try parent login using the parent-login API logic
-      let parentResult: any = null;
+      let parentResult: any = {};
       try {
         const parentRes = await fetch("/api/auth/parent-login", {
           method: "POST",

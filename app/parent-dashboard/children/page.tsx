@@ -12,7 +12,6 @@ import {
   User, 
   HeartHandshake,
   FileText,
-  Clock,
   MapPin,
   Users,
   Phone,
@@ -40,20 +39,9 @@ interface Child {
     name: string;
     ageRange: string;
   };
-  attendances: Attendance[];
   reports: Report[];
   createdAt: string;
   updatedAt: string;
-}
-
-interface Attendance {
-  id: number;
-  status: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  broughtBy?: string;
-  takenBy?: string;
-  createdAt: string;
 }
 
 interface Report {
@@ -88,19 +76,6 @@ export default function ChildrenPage() {
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'present':
-        return 'bg-green-100 text-green-800';
-      case 'absent':
-        return 'bg-red-100 text-red-800';
-      case 'late':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
   };
 
   const calculateAge = (dateOfBirth: string) => {
@@ -158,9 +133,6 @@ export default function ChildrenPage() {
           <h1 className="text-3xl font-bold text-gray-900">My Children</h1>
           <p className="text-gray-600 mt-1">Detailed information about your children</p>
         </div>
-        <Link href="/parent-dashboard/request">
-          <Button>Apply for Another Child</Button>
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -286,46 +258,17 @@ export default function ChildrenPage() {
                   </div>
                 )}
 
-                {/* Recent Attendance */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Recent Attendance
-                  </h4>
-                  {child.attendances.length === 0 ? (
-                    <p className="text-sm text-gray-500">No attendance records</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {child.attendances.slice(0, 3).map((attendance) => (
-                        <div key={attendance.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div className="flex items-center gap-2">
-                            <Badge className={getStatusColor(attendance.status)}>
-                              {attendance.status}
-                            </Badge>
-                            <span className="text-sm text-gray-600">
-                              {formatDate(attendance.createdAt)}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {attendance.checkInTime && formatTime(attendance.checkInTime)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 {/* Recent Reports */}
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <FileText className="h-4 w-4" />
                     Recent Reports
                   </h4>
-                  {child.reports.length === 0 ? (
+                  {(child.reports || []).length === 0 ? (
                     <p className="text-sm text-gray-500">No reports available</p>
                   ) : (
                     <div className="space-y-2">
-                      {child.reports.slice(0, 2).map((report) => (
+                      {(child.reports || []).slice(0, 2).map((report) => (
                         <div key={report.id} className="p-3 bg-gray-50 rounded-lg">
                           <div className="flex items-center justify-between mb-1">
                             <h5 className="font-medium text-sm">{report.title}</h5>
@@ -342,12 +285,6 @@ export default function ChildrenPage() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4 border-t">
-                  <Link href={`/parent-dashboard/attendance?child=${child.id}`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full">
-                      <Clock className="h-4 w-4 mr-2" />
-                      View Attendance
-                    </Button>
-                  </Link>
                   <Link href={`/parent-dashboard/reports?child=${child.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full">
                       <FileText className="h-4 w-4 mr-2" />

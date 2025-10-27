@@ -10,108 +10,92 @@ datasource db {
 model User {
   id           String   @id
   name         String
-  username     String?  @unique
   email        String   @unique
   password     String
-  role         UserRole @default(ADMIN)
-  profileImage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
-  
-  // Parent relationship
+  username     String?  @unique
+  profileImage String?
+  role         UserRole @default(ADMIN)
   children     Child[]  @relation("ParentChildren")
 }
 
-enum UserRole {
-  ADMIN
-  PARENT
-}
-
 model Child {
-  id           Int          @id @default(autoincrement())
-  profilePic   String?
-  fullName     String
-  dateOfBirth  DateTime
-  gender       Gender
-  relationship Relationship
-  parentName   String
-  parentEmail  String?       @unique
-  parentPassword String?
-  site         Site
-
-  // Parent relationship (optional - for future use)
-  parentId     String?
-  parent       User?        @relation("ParentChildren", fields: [parentId], references: [id])
-
-  organizationId Int
-  organization   Organization @relation(fields: [organizationId], references: [id])
-
-  servantId Int?
-  servant   Servant? @relation(fields: [servantId], references: [id])
-
-  roomId Int?
-  room   Room? @relation(fields: [roomId], references: [id])
-
-  childInfoFile String?
-  option        String
-
-  attendances Attendance[]
-  reports     Report[]
+  id                  Int                  @id @default(autoincrement())
+  fullName            String
+  parentName          String
+  option              String
+  dateOfBirth         DateTime
+  roomId              Int?
+  servantId           Int?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  childInfoFile       String?
+  organizationId      Int
+  profilePic          String?
+  relationship        Relationship
+  gender              Gender
+  approvalStatus      String               @default("pending")
+  enrollmentRequestId Int?
+  parentEmail         String?
+  parentId            String?
+  parentPassword      String?
+  siteId              Int?
+  attendances         Attendance[]
+  enrollmentRequest   EnrollmentRequest?   @relation(fields: [enrollmentRequestId], references: [id])
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  parent              User?                @relation("ParentChildren", fields: [parentId], references: [id])
+  room                Room?                @relation(fields: [roomId], references: [id])
+  servant             Servant?             @relation(fields: [servantId], references: [id])
+  site                Site?                @relation("SiteChildren", fields: [siteId], references: [id])
   eventParticipations EventParticipation[]
-  activities Activity[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
-enum Relationship {
-  FATHER
-  MOTHER
-  OTHER
-}
-
-enum Site {
-  HEADOFFICE
-  OPERATION
-}
-
-enum OrganizationType {
-  INSA
-  AI
-  MINISTRY_OF_PEACE
-  FINANCE_SECURITY
+  reports             Report[]
 }
 
 model Servant {
-  id               Int      @id @default(autoincrement())
+  id               Int              @id @default(autoincrement())
   fullName         String
   email            String?
   phone            String
   medicalReport    String?
   assignedRoomId   Int?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  canTransferRooms Boolean  @default(false)
-  site             Site
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  canTransferRooms Boolean          @default(false)
   organizationType OrganizationType
+  siteId           Int?
+  children         Child[]
+  assignedRoom     Room?            @relation(fields: [assignedRoomId], references: [id])
+  site             Site?            @relation("SiteServants", fields: [siteId], references: [id])
+}
 
-  assignedRoom Room?   @relation(fields: [assignedRoomId], references: [id])
-  children     Child[] // inverse relation for Child.servant
+model Site {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  logo        String?
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  children    Child[]   @relation("SiteChildren")
+  servants    Servant[] @relation("SiteServants")
 }
 
 model Organization {
-  id        Int              @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   name      String
-  type      OrganizationType
+  createdAt DateTime @default(now())
+  address   String?
+  email     String?
+  logo      String?
+  phone     String?
+  website   String?
+  children  Child[]
   rooms     Room[]
-  children  Child[] // inverse relation for Child.organization
-  createdAt DateTime         @default(now())
 }
 
 model Room {
@@ -119,22 +103,21 @@ model Room {
   name           String
   ageRange       String
   organizationId Int?
+  children       Child[]
   organization   Organization? @relation(fields: [organizationId], references: [id])
   servants       Servant[]
-  children       Child[] // inverse relation for Child.room
 }
 
 model Attendance {
   id           Int       @id @default(autoincrement())
   childId      Int
-  status       String // present, absent, late
+  status       String
   checkInTime  DateTime?
   checkOutTime DateTime?
   broughtBy    String?
   takenBy      String?
   createdAt    DateTime  @default(now())
-
-  child Child @relation(fields: [childId], references: [id])
+  child        Child     @relation(fields: [childId], references: [id])
 }
 
 model Report {
@@ -158,52 +141,108 @@ model EnrollmentRequest {
   notes              String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  children           Child[]
 }
 
 model Announcement {
-  id                Int      @id @default(autoincrement())
-  title             String
-  content           String
-  type              AnnouncementType @default(GENERAL)
-  isActive          Boolean  @default(true)
-  visibilityDays    Int?     // Number of days the announcement should be visible (null = permanent)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  views             AnnouncementView[]
+  id             Int                @id @default(autoincrement())
+  title          String
+  content        String
+  type           AnnouncementType   @default(GENERAL)
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  visibilityDays Int?
+  views          AnnouncementView[]
 }
 
 model AnnouncementView {
-  id              Int         @id @default(autoincrement())
-  announcementId  Int
-  userId          String?     // Optional - can track by user ID if logged in
-  userEmail       String?     // Optional - can track by email
-  viewedAt        DateTime    @default(now())
-
-  announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  announcementId Int
+  userId         String?
+  userEmail      String?
+  viewedAt       DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@unique([announcementId, userId])
   @@unique([announcementId, userEmail])
+}
+
+model Event {
+  id             Int                  @id @default(autoincrement())
+  title          String
+  description    String?
+  eventDate      DateTime
+  eventType      EventType
+  location       String?
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  participations EventParticipation[]
+}
+
+model EventParticipation {
+  id        Int                 @id @default(autoincrement())
+  childId   Int
+  eventId   Int
+  status    ParticipationStatus @default(REGISTERED)
+  notes     String?
+  createdAt DateTime            @default(now())
+  child     Child               @relation(fields: [childId], references: [id])
+  event     Event               @relation(fields: [eventId], references: [id])
+
+  @@unique([childId, eventId])
+}
+
+model Activity {
+  id            Int            @id @default(autoincrement())
+  subject       String
+  description   String?
+  recipients    String[]
+  attachments   String[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  notifications Notification[]
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  activityId  Int
+  parentEmail String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  ADMIN
+  PARENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Relationship {
+  FATHER
+  MOTHER
+  OTHER
+}
+
+enum OrganizationType {
+  INSA
+  AI
+  MINISTRY_OF_PEACE
+  FINANCE_SECURITY
 }
 
 enum AnnouncementType {
   GENERAL
   IMPORTANT
   EVENT
-}
-
-model Event {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  eventDate   DateTime
-  eventType   EventType
-  location    String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  participations EventParticipation[]
 }
 
 enum EventType {
@@ -215,52 +254,9 @@ enum EventType {
   OTHER
 }
 
-model EventParticipation {
-  id        Int     @id @default(autoincrement())
-  childId   Int
-  eventId   Int
-  status    ParticipationStatus @default(REGISTERED)
-  notes     String?
-  createdAt DateTime @default(now())
-
-  child Child @relation(fields: [childId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
-
-  @@unique([childId, eventId])
-}
-
 enum ParticipationStatus {
   REGISTERED
   ATTENDED
   ABSENT
   CANCELLED
-}
-
-model Activity {
-  id          Int      @id @default(autoincrement())
-  childId     Int
-  title       String
-  description String?
-  activityType ActivityType
-  date        DateTime
-  duration    Int?     // Duration in minutes
-  notes       String?
-  images      String[] // Array of image file paths
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
-}
-
-enum ActivityType {
-  LEARNING
-  PLAY
-  MEAL
-  NAP
-  OUTDOOR
-  ART
-  MUSIC
-  STORY
-  EXERCISE
-  OTHER
 }

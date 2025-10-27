@@ -25,7 +25,8 @@ import {
   Clock,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  Bell
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 // import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -53,12 +54,24 @@ interface EnrollmentRequest {
   updatedAt: string;
 }
 
+interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  type: string;
+  isActive: boolean;
+  visibilityDays: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function AdminManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [enrollmentRequests, setEnrollmentRequests] = useState<EnrollmentRequest[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'users' | 'enrollment'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'enrollment' | 'announcements'>('users');
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [detailOpen, setDetailOpen] = useState(false);
@@ -69,10 +82,22 @@ export default function AdminManagementPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  // Announcement form state
+  const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<number | null>(null);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    content: "",
+    type: "GENERAL",
+    isActive: true,
+    visibilityDays: null as number | null
+  });
 
   useEffect(() => {
     fetchUsers();
     fetchEnrollmentRequests();
+    fetchAnnouncements();
   }, []);
 
   const fetchUsers = async () => {
@@ -88,6 +113,95 @@ export default function AdminManagementPage() {
       console.error('Error fetching users:', err);
       setError('Failed to fetch users');
     }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const response = await fetch('/api/announcements');
+      if (response.ok) {
+        const data = await response.json();
+        setAnnouncements(data);
+      } else {
+        setError('Failed to fetch announcements');
+      }
+    } catch (err) {
+      console.error('Error fetching announcements:', err);
+      setError('Failed to fetch announcements');
+    }
+  };
+
+  const handleAnnouncementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    try {
+      const url = editingAnnouncementId ? `/api/announcements/${editingAnnouncementId}` : '/api/announcements';
+      const method = editingAnnouncementId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(announcementForm)
+      });
+
+      if (response.ok) {
+        setError(null);
+        resetAnnouncementForm();
+        fetchAnnouncements();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to save announcement');
+      }
+    } catch (err) {
+      console.error('Error saving announcement:', err);
+      setError('Failed to save announcement');
+    }
+  };
+
+  const handleEditAnnouncement = (announcement: Announcement) => {
+    setAnnouncementForm({
+      title: announcement.title,
+      content: announcement.content,
+      type: announcement.type,
+      isActive: announcement.isActive,
+      visibilityDays: announcement.visibilityDays
+    });
+    setEditingAnnouncementId(announcement.id);
+    setIsCreatingAnnouncement(true);
+  };
+
+  const handleDeleteAnnouncement = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/announcements/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setError(null);
+        fetchAnnouncements();
+      } else {
+        setError('Failed to delete announcement');
+      }
+    } catch (err) {
+      console.error('Error deleting announcement:', err);
+      setError('Failed to delete announcement');
+    }
+  };
+
+  const resetAnnouncementForm = () => {
+    setAnnouncementForm({
+      title: "",
+      content: "",
+      type: "GENERAL",
+      isActive: true,
+      visibilityDays: null
+    });
+    setEditingAnnouncementId(null);
+    setIsCreatingAnnouncement(false);
   };
 
   const fetchEnrollmentRequests = async () => {
@@ -269,6 +383,36 @@ export default function AdminManagementPage() {
     }
   };
 
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'IMPORTANT':
+        return 'bg-red-100 text-red-800';
+      case 'EVENT':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-blue-100 text-blue-800';
+    }
+  };
+
+  const getVisibilityText = (visibilityDays: number | null) => {
+    if (!visibilityDays) return "Permanent";
+    if (visibilityDays === 1) return "1 Day";
+    if (visibilityDays === 7) return "1 Week";
+    if (visibilityDays === 14) return "2 Weeks";
+    if (visibilityDays === 30) return "1 Month";
+    return `${visibilityDays} Days`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -315,6 +459,14 @@ export default function AdminManagementPage() {
             >
               <FileText className="h-4 w-4 mr-2" />
               Enrollment ({enrollmentRequests.length})
+            </Button>
+            <Button
+              variant={activeTab === 'announcements' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('announcements')}
+              className="px-6"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Announcements ({announcements.length})
             </Button>
           </div>
         </div>
@@ -722,6 +874,182 @@ export default function AdminManagementPage() {
               )}
             </DialogContent>
           </Dialog>
+          </>
+        )}
+
+        {/* Announcements Tab */}
+        {activeTab === 'announcements' && (
+          <>
+            {/* Create/Edit Announcement Form */}
+            {isCreatingAnnouncement && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    {editingAnnouncementId ? 'Edit Announcement' : 'Create New Announcement'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAnnouncementSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="title">Title *</Label>
+                        <Input
+                          id="title"
+                          value={announcementForm.title}
+                          onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                          placeholder="Enter announcement title"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="type">Type</Label>
+                        <Select value={announcementForm.type} onValueChange={(value) => setAnnouncementForm({ ...announcementForm, type: value })}>
+                          <SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="GENERAL">General</SelectItem>
+                              <SelectItem value="IMPORTANT">Important</SelectItem>
+                              <SelectItem value="EVENT">Event</SelectItem>
+                            </SelectContent>
+                          </SelectTrigger>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="visibilityDays">Visibility Duration</Label>
+                        <Select 
+                          value={announcementForm.visibilityDays?.toString() || "permanent"} 
+                          onValueChange={(value) => setAnnouncementForm({ 
+                            ...announcementForm, 
+                            visibilityDays: value === "permanent" ? null : parseInt(value) 
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="permanent">Permanent</SelectItem>
+                              <SelectItem value="1">1 Day</SelectItem>
+                              <SelectItem value="2">2 Days</SelectItem>
+                              <SelectItem value="3">3 Days</SelectItem>
+                              <SelectItem value="7">1 Week</SelectItem>
+                              <SelectItem value="14">2 Weeks</SelectItem>
+                              <SelectItem value="30">1 Month</SelectItem>
+                            </SelectContent>
+                          </SelectTrigger>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="content">Content *</Label>
+                      <textarea
+                        id="content"
+                        value={announcementForm.content}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                        placeholder="Enter announcement content"
+                        rows={6}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        checked={announcementForm.isActive}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, isActive: e.target.checked })}
+                        className="rounded"
+                      />
+                      <Label htmlFor="isActive">Active (visible to parents)</Label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button type="submit">
+                        {editingAnnouncementId ? 'Update Announcement' : 'Create Announcement'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={resetAnnouncementForm}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Announcements List */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {announcements.map((announcement) => (
+                <Card key={announcement.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className={getTypeColor(announcement.type)}>
+                            {announcement.type}
+                          </Badge>
+                          {announcement.isActive ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <Eye className="h-3 w-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                              <EyeOff className="h-3 w-3 mr-1" />
+                              Inactive
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {getVisibilityText(announcement.visibilityDays)}
+                          </Badge>
+                        </div>
+                        <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {formatDate(announcement.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-700 line-clamp-3 mb-4">
+                      {announcement.content}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditAnnouncement(announcement)}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteAnnouncement(announcement.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {announcements.length === 0 && (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Announcements</h3>
+                  <p className="text-gray-600 mb-4">
+                    Create your first announcement to share information with parents.
+                  </p>
+                  <Button onClick={() => setIsCreatingAnnouncement(true)}>
+                    Create Announcement
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>

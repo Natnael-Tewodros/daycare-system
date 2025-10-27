@@ -86,13 +86,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Full name, email, and phone are required' }, { status: 400 });
     }
 
-    if (!site || !organizationType) {
-      return NextResponse.json({ error: 'Site and organization type are required' }, { status: 400 });
-    }
-
-    // Validate site enum value
-    if (!['HEADOFFICE', 'OPERATION'].includes(site)) {
-      return NextResponse.json({ error: 'Invalid site value. Must be HEADOFFICE or OPERATION' }, { status: 400 });
+    if (!organizationType) {
+      return NextResponse.json({ error: 'Organization type is required' }, { status: 400 });
     }
 
     // Validate organization type enum value
@@ -117,7 +112,7 @@ export async function POST(request: NextRequest) {
         medicalReport,
         assignedRoomId,
         canTransferRooms,
-        site: site as "HEADOFFICE" | "OPERATION",
+        siteId: null, // TODO: Update to use actual site ID from database
         organizationType: organizationType as "INSA" | "AI" | "MINISTRY_OF_PEACE" | "FINANCE_SECURITY",
         ...(assignedByChildIds.length
           ? { children: { connect: assignedByChildIds.map((id) => ({ id })) } }

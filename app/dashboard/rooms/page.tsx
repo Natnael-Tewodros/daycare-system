@@ -25,11 +25,39 @@ import {
   UserPlus2,
   Heart,
   Star,
-  Gamepad2
+  Gamepad2,
+  Flower2,
+  Rainbow
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+// Function to get room icon based on room name
+const getRoomIcon = (roomName: string) => {
+  const name = roomName.toLowerCase();
+  if (name.includes('infants') || name.includes('room 1')) {
+    return <Baby className="h-8 w-8 text-white" />;
+  } else if (name.includes('toddlers') || name.includes('room 2')) {
+    return <Flower2 className="h-8 w-8 text-white" />;
+  } else if (name.includes('growing stars') || name.includes('room 3')) {
+    return <Rainbow className="h-8 w-8 text-white" />;
+  }
+  return <Baby className="h-8 w-8 text-white" />;
+};
+
+// Function to get room icon gradient colors
+const getRoomIconColors = (roomName: string) => {
+  const name = roomName.toLowerCase();
+  if (name.includes('infants') || name.includes('room 1')) {
+    return 'from-pink-500 to-rose-500';
+  } else if (name.includes('toddlers') || name.includes('room 2')) {
+    return 'from-blue-500 to-cyan-500';
+  } else if (name.includes('growing stars') || name.includes('room 3')) {
+    return 'from-purple-500 to-violet-500';
+  }
+  return 'from-blue-500 to-indigo-500';
+};
 
 // Function to calculate age in months
 const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
@@ -52,30 +80,30 @@ const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
 const categorizeChildrenByAge = (children: any[]) => {
   console.log('Categorizing children:', children);
   
-  const infant = children.filter(child => {
+  const infants = children.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
-    const isInfant = age >= 0 && age <= 12; // 0-12 months
+    const isInfant = age >= 3 && age <= 12; // 3-12 months
     console.log(`Child ${child.fullName}: age=${age} months, isInfant=${isInfant}, dateOfBirth=${child.dateOfBirth}`);
     return isInfant;
   });
   
-  const toddler = children.filter(child => {
+  const toddlers = children.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
-    const isToddler = age > 12 && age <= 36; // 13-36 months (1-3 years)
+    const isToddler = age >= 13 && age <= 24; // 13-24 months (1-2 years)
     console.log(`Child ${child.fullName}: age=${age} months, isToddler=${isToddler}, dateOfBirth=${child.dateOfBirth}`);
     return isToddler;
   });
   
-  const growingStar = children.filter(child => {
+  const growingStars = children.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
-    const isGrowingStar = age > 36; // 37+ months (3+ years)
+    const isGrowingStar = age >= 25 && age <= 48; // 25-48 months (2-4 years)
     console.log(`Child ${child.fullName}: age=${age} months, isGrowingStar=${isGrowingStar}, dateOfBirth=${child.dateOfBirth}`);
     return isGrowingStar;
   });
   
-  console.log('Categorization results:', { infant: infant.length, toddler: toddler.length, growingStar: growingStar.length });
+  console.log('Categorization results:', { infants: infants.length, toddlers: toddlers.length, growingStars: growingStars.length });
   
-  return { infant, toddler, growingStar };
+  return { infant: infants, toddler: toddlers, growingStar: growingStars };
 };
 
 export default function RoomPage() {
@@ -110,9 +138,10 @@ export default function RoomPage() {
     }
   };
 
-  const fetchAllChildren = async () => {
+    const fetchAllChildren = async () => {
     try {
       const res = await axios.get("/api/children");
+      console.log('Fetched children:', res.data);
       setAllChildren(res.data);
       
       // Organize children by caregiver ID
@@ -316,17 +345,13 @@ export default function RoomPage() {
                 <CardHeader className="pb-6 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-b border-gray-100">
                   <div className="text-center space-y-4">
                     <div className="flex justify-center">
-                      <div className="p-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl shadow-lg">
-                        <Home className="h-8 w-8 text-white" />
+                      <div className={`p-4 bg-gradient-to-r ${getRoomIconColors(room.name)} rounded-2xl shadow-lg`}>
+                        {getRoomIcon(room.name)}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <CardTitle className="text-2xl font-bold text-gray-800">
-                        {room.name === 'Default Room' ? 'Infant' : 
-                         room.name.toLowerCase().includes('toddler') ? 'Toddler' :
-                         room.name.toLowerCase().includes('preschool') ? 'Growing Star' :
-                         room.name.toLowerCase().includes('infant') ? 'Infant' :
-                         room.name}
+                        {room.name}
                       </CardTitle>
                       <p className="text-lg text-gray-600 font-medium">
                         {room.ageRange}
@@ -466,16 +491,12 @@ export default function RoomPage() {
               <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 sticky top-0 z-10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-sm">
-                      <Home className="h-8 w-8 text-white" />
+                    <div className={`p-3 bg-gradient-to-r ${getRoomIconColors(selectedRoom.name)} rounded-xl shadow-sm`}>
+                      {getRoomIcon(selectedRoom.name)}
                     </div>
                     <div>
                       <CardTitle className="text-2xl font-bold text-gray-800">
-                        {selectedRoom.name === 'Default Room' ? 'Infant' : 
-                         selectedRoom.name.toLowerCase().includes('toddler') ? 'Toddler' :
-                         selectedRoom.name.toLowerCase().includes('preschool') ? 'Growing Star' :
-                         selectedRoom.name.toLowerCase().includes('infant') ? 'Infant' :
-                         selectedRoom.name}
+                        {selectedRoom.name}
                       </CardTitle>
                       <p className="text-lg text-gray-600 font-medium mt-1">
                         {selectedRoom.ageRange}
@@ -655,24 +676,45 @@ export default function RoomPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {(() => {
+                              console.log('=== ASSIGN CHILD TO CAREGIVER DEBUG ===');
+                              console.log('All children count:', allChildren.length);
                               console.log('All children:', allChildren);
                               console.log('Selected room:', selectedRoom);
+                              console.log('Selected room ID:', selectedRoom?.id);
                               
-                              const unassignedChildren = allChildren.filter((child: any) => {
-                                const isUnassigned = !child.servant || child.servant.id === null;
-                                const isInRoom = child.room && child.room.id === selectedRoom.id;
-                                console.log(`Child ${child.fullName}: unassigned=${isUnassigned}, inRoom=${isInRoom}`, child);
-                                return isUnassigned && isInRoom;
+                              // Get all children in the selected room
+                              // Check both child.room?.id and potentially a roomId field
+                              const roomChildren = allChildren.filter((child: any) => {
+                                const roomIdMatch = (child.room?.id === selectedRoom.id) || (child.roomId === selectedRoom.id);
+                                console.log(`Child "${child.fullName}" (ID: ${child.id}):`, {
+                                  room: child.room,
+                                  roomId: child.room?.id,
+                                  roomIdField: child.roomId,
+                                  selectedRoomId: selectedRoom.id,
+                                  matches: roomIdMatch
+                                });
+                                return roomIdMatch;
                               });
                               
-                              console.log('Unassigned children:', unassignedChildren);
+                              console.log('Children in room:', roomChildren.length);
+                              
+                              // Filter to only unassigned children
+                              const unassignedChildren = roomChildren.filter((child: any) => {
+                                const isUnassigned = !child.servant || child.servant === null || child.servant.id === null;
+                                console.log(`Child ${child.fullName}: isUnassigned=${isUnassigned}`);
+                                return isUnassigned;
+                              });
+                              
+                              console.log('Unassigned children in room:', unassignedChildren.length);
+                              console.log('Unassigned children list:', unassignedChildren);
+                              
                               const { infant, toddler, growingStar } = categorizeChildrenByAge(unassignedChildren);
                               
                               return (
                                 <>
                                   {infant.length > 0 && (
                                     <>
-                                      <div className="px-2 py-1 text-xs font-semibold text-pink-600 bg-pink-50">👶 Infants (0-12 months)</div>
+                                      <div className="px-2 py-1 text-xs font-semibold text-pink-600 bg-pink-50">👶 Infants (3-12 months)</div>
                                       {infant.map((child: any) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                           {child.fullName} ({child.gender}) - {calculateAgeInMonths(child.dateOfBirth)} months
@@ -682,7 +724,7 @@ export default function RoomPage() {
                                   )}
                                   {toddler.length > 0 && (
                                     <>
-                                      <div className="px-2 py-1 text-xs font-semibold text-yellow-600 bg-yellow-50">🧒 Toddlers (1-3 years)</div>
+                                      <div className="px-2 py-1 text-xs font-semibold text-yellow-600 bg-yellow-50">🧒 Toddlers (1-2 years)</div>
                                       {toddler.map((child: any) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                           {child.fullName} ({child.gender}) - {Math.floor(calculateAgeInMonths(child.dateOfBirth) / 12)}y {calculateAgeInMonths(child.dateOfBirth) % 12}m
@@ -692,7 +734,7 @@ export default function RoomPage() {
                                   )}
                                   {growingStar.length > 0 && (
                                     <>
-                                      <div className="px-2 py-1 text-xs font-semibold text-purple-600 bg-purple-50">⭐ Growing Stars (3+ years)</div>
+                                      <div className="px-2 py-1 text-xs font-semibold text-purple-600 bg-purple-50">⭐ Growing Stars (2-4 years)</div>
                                       {growingStar.map((child: any) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                           {child.fullName} ({child.gender}) - {Math.floor(calculateAgeInMonths(child.dateOfBirth) / 12)}y {calculateAgeInMonths(child.dateOfBirth) % 12}m
@@ -701,7 +743,11 @@ export default function RoomPage() {
                                     </>
                                   )}
                                   {unassignedChildren.length === 0 && (
-                                    <div className="px-2 py-1 text-xs text-gray-500">No unassigned children in this room</div>
+                                    <div className="px-2 py-1 text-xs text-gray-500">
+                                      {roomChildren.length === 0 
+                                        ? 'No children in this room yet' 
+                                        : 'All children in this room are already assigned to caregivers'}
+                                    </div>
                                   )}
                                 </>
                               );
@@ -745,19 +791,6 @@ export default function RoomPage() {
                         {selectedRoom.children?.length || 0}
                       </Badge>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAssigningChild(selectedRoom.id);
-                        setSelectedRoom(null);
-                      }}
-                      className="h-8 px-4 text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200 hover:border-green-300"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Child
-                    </Button>
                   </div>
 
                   {selectedRoom.children && selectedRoom.children.length > 0 ? (
@@ -774,7 +807,7 @@ export default function RoomPage() {
                                   <div className="p-2 bg-pink-100 rounded-lg">
                                     <Heart className="h-5 w-5 text-pink-600" />
                                   </div>
-                                  <h4 className="text-lg font-semibold text-pink-700">Infant (0-12 months)</h4>
+                                  <h4 className="text-lg font-semibold text-pink-700">Infants (3-12 months)</h4>
                                   <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
                                     {infant.length}
                                   </Badge>
@@ -803,7 +836,7 @@ export default function RoomPage() {
                                             <span>{ageInMonths} months</span>
                                             <span className="text-gray-300">•</span>
                                             <span className="bg-pink-100 text-pink-700 px-2 py-1 rounded-full text-xs font-medium">
-                                              Infant
+                                              Infants
                                             </span>
                                             <span className="text-xs text-gray-400">(Age: {ageInMonths}m)</span>
                                             {isAssigned && (
@@ -830,7 +863,7 @@ export default function RoomPage() {
                                   <div className="p-2 bg-yellow-100 rounded-lg">
                                     <Gamepad2 className="h-5 w-5 text-yellow-600" />
                                   </div>
-                                  <h4 className="text-lg font-semibold text-yellow-700">Toddler (1-3 years)</h4>
+                                  <h4 className="text-lg font-semibold text-yellow-700">Toddlers (1-2 years)</h4>
                                   <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                                     {toddler.length}
                                   </Badge>
@@ -859,7 +892,7 @@ export default function RoomPage() {
                                             <span>{Math.floor(ageInMonths / 12)}y {ageInMonths % 12}m</span>
                                             <span className="text-gray-300">•</span>
                                             <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-medium">
-                                              Toddler
+                                              Toddlers
                                             </span>
                                             <span className="text-xs text-gray-400">(Age: {ageInMonths}m)</span>
                                             {isAssigned && (
@@ -886,7 +919,7 @@ export default function RoomPage() {
                                   <div className="p-2 bg-purple-100 rounded-lg">
                                     <Star className="h-5 w-5 text-purple-600" />
                                   </div>
-                                  <h4 className="text-lg font-semibold text-purple-700">Growing Star (3+ years)</h4>
+                                  <h4 className="text-lg font-semibold text-purple-700">Growing Stars (2-4 years)</h4>
                                   <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                                     {growingStar.length}
                                   </Badge>
@@ -915,7 +948,7 @@ export default function RoomPage() {
                                             <span>{Math.floor(ageInMonths / 12)}y {ageInMonths % 12}m</span>
                                             <span className="text-gray-300">•</span>
                                             <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-medium">
-                                              Growing Star
+                                              Growing Stars
                                             </span>
                                             <span className="text-xs text-gray-400">(Age: {ageInMonths}m)</span>
                                             {isAssigned && (
@@ -942,7 +975,6 @@ export default function RoomPage() {
                     <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
                       <Baby className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500 font-medium text-lg">No children in this room</p>
-                      <p className="text-gray-400 mt-2">Click "Add Child" to assign children to this room</p>
                     </div>
                   )}
                 </div>

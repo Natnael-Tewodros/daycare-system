@@ -25,20 +25,15 @@ type Child = { id: number; fullName: string; parentName?: string; relationship?:
 
 export default function AttendancePage() {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [childSearch, setChildSearch] = useState<string>("");
-  const [showChildResults, setShowChildResults] = useState<boolean>(false);
+  const [allChildren, setAllChildren] = useState<Child[]>([]);
+  const [filteredChildren, setFilteredChildren] = useState<Child[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkInOpen, setCheckInOpen] = useState(false);
   const [checkOutOpen, setCheckOutOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<Attendance | null>(null);
-
-  const [checkInData, setCheckInData] = useState({
-    childId: "",
-    broughtBy: "",
-    checkInTime: new Date().toISOString().slice(0, 16),
-  });
+  const [currentFilter, setCurrentFilter] = useState<'today' | 'yesterday' | 'week' | 'all' | 'custom'>('today');
+  const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const [checkOutData, setCheckOutData] = useState({
     takenBy: "",
@@ -46,18 +41,33 @@ export default function AttendancePage() {
   });
 
   const downloadCsv = (rows: Attendance[]) => {
-    const headers = ['Child','Check-In','Check-Out','Brought By','Taken By'];
+    const headers = ['Child','Status','Check-In','Check-Out','Brought By','Taken By','Parent','Relationship'];
     const csvRows = [headers.join(',')];
-    for (const r of rows) {
+    
+    // Get all children and their attendance status
+    const allChildrenWithAttendance = allChildren.map(child => {
+      const attendance = rows.find(att => att.childId === child.id);
+      return {
+        child,
+        attendance
+      };
+    });
+    
+    // Add all children with their attendance status
+    for (const { child, attendance } of allChildrenWithAttendance) {
       const cols = [
-        (r.child?.fullName || '').replace(/,/g, ' '),
-        r.checkInTime ? new Date(r.checkInTime).toLocaleString() : '-',
-        r.checkOutTime ? new Date(r.checkOutTime).toLocaleString() : '-',
-        (r.broughtBy || '').replace(/,/g, ' '),
-        (r.takenBy || '').replace(/,/g, ' '),
+        (child.fullName || '').replace(/,/g, ' '),
+        attendance ? attendance.status : 'absent',
+        attendance?.checkInTime ? new Date(attendance.checkInTime).toLocaleString() : '-',
+        attendance?.checkOutTime ? new Date(attendance.checkOutTime).toLocaleString() : '-',
+        (attendance?.broughtBy || '').replace(/,/g, ' '),
+        (attendance?.takenBy || '').replace(/,/g, ' '),
+        (child.parentName || '').replace(/,/g, ' '),
+        (child.relationship || '').replace(/,/g, ' '),
       ];
       csvRows.push(cols.join(','));
     }
+    
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -74,25 +84,46 @@ export default function AttendancePage() {
       const res = await fetch("/api/children");
       if (!res.ok) throw new Error("Failed to fetch children");
       const data = await res.json();
-      setChildren(data);
+      setAllChildren(data);
+      setFilteredChildren(data);
     } catch (err) {
       setError("Failed to load children");
       console.error(err);
     }
   };
 
-  const fetchAttendance = async (range?: 'day' | 'week' | 'all') => {
+  const fetchAttendance = async (filter: 'today' | 'yesterday' | 'week' | 'all' | 'custom', customDateValue?: string) => {
     try {
       setLoading(true);
       let url = "/api/attendance";
-      if (range === 'day') {
-        const start = new Date(); start.setHours(0,0,0,0);
+      
+      if (filter === 'today') {
+        const start = new Date(); 
+        start.setHours(0,0,0,0);
         url += `?start=${start.toISOString()}`;
-      } else if (range === 'week') {
-        const end = new Date(); end.setHours(23,59,59,999);
-        const start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
+      } else if (filter === 'yesterday') {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0,0,0,0);
+        const endYesterday = new Date(yesterday);
+        endYesterday.setHours(23,59,59,999);
+        url += `?start=${yesterday.toISOString()}&end=${endYesterday.toISOString()}`;
+      } else if (filter === 'week') {
+        const end = new Date(); 
+        end.setHours(23,59,59,999);
+        const start = new Date(end); 
+        start.setDate(start.getDate() - 6); 
+        start.setHours(0,0,0,0);
         url += `?start=${start.toISOString()}&end=${end.toISOString()}`;
+      } else if (filter === 'custom' && customDateValue) {
+        const customStart = new Date(customDateValue);
+        customStart.setHours(0,0,0,0);
+        const customEnd = new Date(customDateValue);
+        customEnd.setHours(23,59,59,999);
+        url += `?start=${customStart.toISOString()}&end=${customEnd.toISOString()}`;
       }
+      // For 'all', no date filters are applied
+      
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch attendance");
       const data = await res.json();
@@ -105,17 +136,25 @@ export default function AttendancePage() {
     }
   };
 
+  // Search functionality
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredChildren(allChildren);
+    } else {
+      const filtered = allChildren.filter(child =>
+        child.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (child.parentName && child.parentName.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+      setFilteredChildren(filtered);
+    }
+  }, [searchTerm, allChildren]);
+
   useEffect(() => {
     fetchChildren();
-    fetchAttendance('day');
+    fetchAttendance('today');
   }, []);
 
-  const handleCheckIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!checkInData.childId) {
-      setError("Please select a child");
-      return;
-    }
+  const handleAttendanceAction = async (childId: number, status: 'present' | 'absent' | 'late', broughtBy?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -123,20 +162,16 @@ export default function AttendancePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...checkInData,
-          childId: parseInt(checkInData.childId), // Ensure number
+          childId: childId,
+          status: status,
+          broughtBy: broughtBy || null,
+          checkInTime: status === 'present' || status === 'late' ? new Date().toISOString() : null,
         }),
       });
-      if (!res.ok) throw new Error("Failed to check in");
-      setCheckInOpen(false);
-      setCheckInData({
-        childId: "",
-        broughtBy: "",
-        checkInTime: new Date().toISOString().slice(0, 16),
-      });
+      if (!res.ok) throw new Error(`Failed to mark as ${status}`);
       fetchAttendance();
     } catch (err) {
-      setError("Failed to check in child");
+      setError(`Failed to mark child as ${status}`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -174,6 +209,7 @@ export default function AttendancePage() {
     }
   };
 
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -188,176 +224,304 @@ export default function AttendancePage() {
         <CardTitle>Attendance Management</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Search Bar */}
+        <div className="mb-6">
+          <Input
+            placeholder="Search children by name or parent name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
+        </div>
+
         <div className="flex justify-between mb-4">
-          <Button onClick={() => setCheckInOpen(true)} disabled={loading}>
-            {loading ? "Loading..." : "Check In"}
-          </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => fetchAttendance('day')}>Today</Button>
-            <Button variant="outline" onClick={() => fetchAttendance('week')}>This Week</Button>
-            <Button variant="outline" onClick={() => fetchAttendance('all')}>All</Button>
+            <Button 
+              variant={currentFilter === 'today' ? 'default' : 'outline'} 
+              onClick={() => {
+                setCurrentFilter('today');
+                fetchAttendance('today');
+              }}
+            >
+              Today
+            </Button>
+            <Button 
+              variant={currentFilter === 'yesterday' ? 'default' : 'outline'} 
+              onClick={() => {
+                setCurrentFilter('yesterday');
+                fetchAttendance('yesterday');
+              }}
+            >
+              Yesterday
+            </Button>
+            <Button 
+              variant={currentFilter === 'week' ? 'default' : 'outline'} 
+              onClick={() => {
+                setCurrentFilter('week');
+                fetchAttendance('week');
+              }}
+            >
+              This Week
+            </Button>
+            <Button 
+              variant={currentFilter === 'all' ? 'default' : 'outline'} 
+              onClick={() => {
+                setCurrentFilter('all');
+                fetchAttendance('all');
+              }}
+            >
+              All
+            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="w-40"
+              />
+              <Button 
+                variant={currentFilter === 'custom' ? 'default' : 'outline'} 
+                onClick={() => {
+                  setCurrentFilter('custom');
+                  fetchAttendance('custom', customDate);
+                }}
+              >
+                Custom Date
+              </Button>
+            </div>
+          </div>
+          <div className="flex gap-2">
             <Button variant="outline" onClick={() => downloadCsv(attendance)}>Download CSV</Button>
           </div>
         </div>
 
-        {/* Check-In Modal */}
-        <Dialog open={checkInOpen} onOpenChange={setCheckInOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Child Check-In</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCheckIn} className="space-y-3">
-              <div>
-                <Label>Search Child</Label>
-                <Input
-                  placeholder="Type child name"
-                  value={childSearch}
-                  onChange={(e) => { setChildSearch(e.target.value); setShowChildResults(true); }}
-                  onFocus={() => setShowChildResults(true)}
-                />
-                {checkInData.childId && (
-                  <div className="mt-1 text-sm text-gray-600">Selected: {children.find(c => String(c.id) === checkInData.childId)?.fullName || 'Unknown'}</div>
-                )}
-                {showChildResults && (
-                  <div className="max-h-40 overflow-auto mt-2 border rounded">
-                    {children
-                      .filter(c => c.fullName.toLowerCase().includes(childSearch.toLowerCase()))
-                      .slice(0, 20)
-                      .map((child) => (
-                        <button
-                          key={child.id}
-                          type="button"
-                          className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${checkInData.childId === String(child.id) ? 'bg-gray-100' : ''}`}
-                          onClick={() => {
-                            setCheckInData({ ...checkInData, childId: String(child.id) });
-                            setChildSearch(child.fullName);
-                            setShowChildResults(false);
-                          }}
-                        >
-                          {child.fullName}
-                        </button>
-                      ))}
-                    {childSearch && children.filter(c => c.fullName.toLowerCase().includes(childSearch.toLowerCase())).length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-500">No matches</div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Status removed; server defaults to 'present' */}
-
-              <div>
-                <Label>Brought By</Label>
-                <Input
-                  value={checkInData.broughtBy || ""}
-                  onChange={(e) => setCheckInData({ ...checkInData, broughtBy: e.target.value || "" })}
-                  placeholder="Optional"
-                />
-              </div>
-
-              <div>
-                <Label>Check-In Time</Label>
-                <Input
-                  type="datetime-local"
-                  value={checkInData.checkInTime}
-                  onChange={(e) => setCheckInData({ ...checkInData, checkInTime: e.target.value })}
-                />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Submitting..." : "Submit"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-
         {/* Check-Out Modal */}
         <Dialog open={checkOutOpen} onOpenChange={setCheckOutOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Child Check-Out</DialogTitle>
+              <DialogTitle className="text-xl font-semibold">Child Check-Out</DialogTitle>
               {selectedAttendance && (
-                <p className="text-sm text-muted-foreground">
-                  For: {selectedAttendance.child.fullName}
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Child:</strong> {selectedAttendance.child.fullName}
+                  </p>
+                  {selectedAttendance.checkInTime && (
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Checked In:</strong> {new Date(selectedAttendance.checkInTime).toLocaleString()}
+                    </p>
+                  )}
+                  {selectedAttendance.broughtBy && (
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Brought By:</strong> {selectedAttendance.broughtBy}
+                    </p>
+                  )}
+                </div>
               )}
             </DialogHeader>
-            <form onSubmit={handleCheckOut} className="space-y-3">
-              <div>
-                <Label>Taken By</Label>
+            <form onSubmit={handleCheckOut} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="takenBy" className="text-sm font-semibold">Who is picking up the child? *</Label>
                 <Input
+                  id="takenBy"
                   value={checkOutData.takenBy || ""}
                   onChange={(e) => setCheckOutData({ ...checkOutData, takenBy: e.target.value || "" })}
-                  placeholder={`Optional${selectedAttendance?.child?.parentName ? ` (e.g., ${selectedAttendance.child.parentName} - ${selectedAttendance.child.relationship?.toLowerCase()})` : ''}`}
+                  placeholder={`Enter name${selectedAttendance?.child?.parentName ? ` (e.g., ${selectedAttendance.child.parentName})` : ''}`}
+                  required
+                  className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the name of the person picking up the child
+                </p>
               </div>
 
-              <div>
-                <Label>Check-Out Time</Label>
+              <div className="space-y-2">
+                <Label htmlFor="checkOutTime" className="text-sm font-semibold">Check-Out Time *</Label>
                 <Input
+                  id="checkOutTime"
                   type="datetime-local"
                   value={checkOutData.checkOutTime}
                   onChange={(e) => setCheckOutData({ ...checkOutData, checkOutTime: e.target.value })}
+                  required
+                  className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Current time is automatically set. You can adjust if needed.
+                </p>
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Submitting..." : "Confirm Check-Out"}
-              </Button>
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Please verify the pickup person's identity before confirming checkout.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setCheckOutOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700" disabled={loading}>
+                  {loading ? "Processing..." : "Confirm Check-Out"}
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* Attendance Table */}
+        {/* Current Filter Display */}
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <h3 className="font-semibold text-blue-800">
+            {currentFilter === 'today' && 'Today\'s Attendance'}
+            {currentFilter === 'yesterday' && 'Yesterday\'s Attendance - Children Who Didn\'t Check In'}
+            {currentFilter === 'week' && 'This Week\'s Attendance'}
+            {currentFilter === 'all' && 'All Attendance Records'}
+            {currentFilter === 'custom' && `Attendance for ${new Date(customDate).toLocaleDateString()}`}
+          </h3>
+          <p className="text-sm text-blue-600">
+            {currentFilter === 'today' && 'Mark attendance for today'}
+            {currentFilter === 'yesterday' && 'View children who were absent yesterday'}
+            {currentFilter === 'week' && 'View attendance records for the past 7 days'}
+            {currentFilter === 'all' && 'View all attendance records'}
+            {currentFilter === 'custom' && 'View attendance for the selected date'}
+          </p>
+        </div>
+
+        {/* Children List with Attendance Actions */}
         {loading ? (
-          <p>Loading attendance...</p>
+          <p>Loading children...</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Child</TableHead>
-                <TableHead>Check-In</TableHead>
-                <TableHead>Check-Out</TableHead>
-                <TableHead>Brought By</TableHead>
-                <TableHead>Taken By</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attendance.map((att) => (
-                <TableRow key={att.id}>
-                  <TableCell>{att.child?.fullName || "Unknown"}</TableCell>
-                  <TableCell>{att.checkInTime ? new Date(att.checkInTime).toLocaleString() : "-"}</TableCell>
-                  <TableCell>{att.checkOutTime ? new Date(att.checkOutTime).toLocaleString() : "-"}</TableCell>
-                  <TableCell>{att.broughtBy || "-"}</TableCell>
-                  <TableCell>{att.takenBy || "-"}</TableCell>
-                  <TableCell>
-                    {!att.checkOutTime && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedAttendance(att);
-                          setCheckOutOpen(true);
-                          setCheckOutData({
-                            takenBy: "",
-                            checkOutTime: new Date().toISOString().slice(0, 16),
-                          });
-                        }}
-                      >
-                        Check Out
-                      </Button>
+          <div className="space-y-4">
+            {filteredChildren.map((child) => {
+              // Find attendance record for this child
+              const childAttendance = attendance.find(att => att.childId === child.id);
+              const isPresent = childAttendance && (childAttendance.status === 'present' || childAttendance.status === 'late');
+              const isAbsent = childAttendance && childAttendance.status === 'absent';
+              const isLate = childAttendance && childAttendance.status === 'late';
+              
+              return (
+                <div key={child.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-semibold text-sm">
+                          {child.fullName.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{child.fullName}</h3>
+                        <p className="text-sm text-gray-600">
+                          {child.parentName} • {child.relationship}
+                        </p>
+                        {childAttendance && (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <span className={`text-xs px-2 py-1 rounded-full inline-block w-fit ${
+                              isPresent ? 'bg-green-100 text-green-800' :
+                              isLate ? 'bg-yellow-100 text-yellow-800' :
+                              isAbsent ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {childAttendance.status.charAt(0).toUpperCase() + childAttendance.status.slice(1)}
+                            </span>
+                            {childAttendance.checkInTime && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="font-medium text-gray-700">Checked in:</span>
+                                <span className="text-gray-600">
+                                  {new Date(childAttendance.checkInTime).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {childAttendance.checkOutTime && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="font-medium text-gray-700">Checked out:</span>
+                                <span className="text-gray-600">
+                                  {new Date(childAttendance.checkOutTime).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {!childAttendance ? (
+                      // No attendance record - show all options
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => handleAttendanceAction(child.id, 'present')}
+                          disabled={loading}
+                        >
+                          Present
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                          onClick={() => handleAttendanceAction(child.id, 'late')}
+                          disabled={loading}
+                        >
+                          Late
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500 text-red-600 hover:bg-red-50"
+                          onClick={() => handleAttendanceAction(child.id, 'absent')}
+                          disabled={loading}
+                        >
+                          Absent
+                        </Button>
+                      </>
+                    ) : (
+                      // Has attendance record - show check out or status change options
+                      <>
+                        {!childAttendance.checkOutTime && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedAttendance(childAttendance);
+                              setCheckOutOpen(true);
+                              setCheckOutData({
+                                takenBy: "",
+                                checkOutTime: new Date().toISOString().slice(0, 16),
+                              });
+                            }}
+                            disabled={loading}
+                          >
+                            Check Out
+                          </Button>
+                        )}
+                        {childAttendance.checkOutTime && (
+                          <span className="text-sm text-gray-500 font-medium">
+                            ✓ Checked Out
+                          </span>
+                        )}
+                      </>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {attendance.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center">No attendance records for today.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                  </div>
+                </div>
+              );
+            })}
+            
+            {filteredChildren.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  {searchTerm ? 'No children found matching your search.' : 
+                   currentFilter === 'yesterday' ? 'No children were absent yesterday.' :
+                   currentFilter === 'week' ? 'No attendance records for this week.' :
+                   currentFilter === 'all' ? 'No attendance records found.' :
+                   'No children found.'}
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

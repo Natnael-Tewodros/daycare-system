@@ -24,46 +24,60 @@ import {
   GraduationCap,
   Settings,
   Edit,
-  Plus
+  Plus,
+  Trash2,
+  Phone,
+  Mail,
+  Globe
 } from "lucide-react";
 import Link from "next/link";
 
 interface SiteData {
+  id: number;
   name: string;
   description: string;
-  servants: any[];
+  logo?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
   totalChildren: number;
   totalServants: number;
   totalOrganizations: number;
   totalRooms: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface SitesData {
-  HeadOffice: SiteData;
-  OPERATION: SiteData;
-}
+interface SitesData extends Array<SiteData> {}
 
-interface SiteSettings {
+interface SiteFormData {
   name: string;
   description: string;
   address: string;
   phone: string;
   email: string;
+  website: string;
 }
 
 export default function SitesPage() {
-  const [sites, setSites] = useState<SitesData | null>(null);
+  const [sites, setSites] = useState<SiteData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
-  const [selectedSite, setSelectedSite] = useState<string | null>(null);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>({
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedSite, setSelectedSite] = useState<SiteData | null>(null);
+  const [formData, setFormData] = useState<SiteFormData>({
     name: '',
     description: '',
     address: '',
     phone: '',
-    email: ''
+    email: '',
+    website: ''
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchSites = async () => {
@@ -88,87 +102,192 @@ export default function SitesPage() {
     fetchSites();
   }, []);
 
-  const openSettingsDialog = (siteKey: string) => {
-    setSelectedSite(siteKey);
-    // Load existing settings for the site
-    const siteData = sites?.[siteKey as keyof SitesData];
-    setSiteSettings({
-      name: siteData?.name || '',
-      description: siteData?.description || '',
-      address: '', // This would come from a settings API
-      phone: '',
-      email: ''
-    });
-    setShowSettingsDialog(true);
+  const handleInputChange = (field: keyof SiteFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
-  const handleSettingsSubmit = async (e: React.FormEvent) => {
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Site name is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const openCreateDialog = () => {
+    setFormData({
+      name: '',
+      description: '',
+      address: '',
+      phone: '',
+      email: '',
+      website: ''
+    });
+    setLogoFile(null);
+    setLogoPreview(null);
+    setErrors({});
+    setShowCreateDialog(true);
+  };
+
+  const openEditDialog = (site: SiteData) => {
+    setFormData({
+      name: site.name,
+      description: site.description || '',
+      address: site.address || '',
+      phone: site.phone || '',
+      email: site.email || '',
+      website: site.website || ''
+    });
+    setLogoFile(null);
+    setLogoPreview(null);
+    setSelectedSite(site);
+    setErrors({});
+    setShowEditDialog(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
-      // Here you would save settings to an API
-      // For now, just simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = new FormData();
+      data.append('name', formData.name);
+      if (formData.description) data.append('description', formData.description);
+      if (formData.website) data.append('website', formData.website);
+      if (formData.address) data.append('address', formData.address);
+      if (formData.phone) data.append('phone', formData.phone);
+      if (formData.email) data.append('email', formData.email);
+      if (logoFile) data.append('logo', logoFile);
+
+      const response = await fetch('/api/sites', {
+        method: 'POST',
+        body: data
+      });
       
-      setShowSettingsDialog(false);
-      setSelectedSite(null);
-      alert('Site settings updated successfully!');
+      if (response.ok) {
+        setShowCreateDialog(false);
+        setFormData({ name: '', description: '', address: '', phone: '', email: '', website: '' });
+        setLogoFile(null);
+        setLogoPreview(null);
+        setErrors({});
+        fetchSites();
+        alert('Site created successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to create site');
+      }
     } catch (error) {
-      console.error('Error updating site settings:', error);
-      alert('Failed to update site settings');
+      console.error('Error creating site:', error);
+      alert('Failed to create site');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleInputChange = (field: keyof SiteSettings, value: string) => {
-    setSiteSettings(prev => ({ ...prev, [field]: value }));
-  };
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm() || !selectedSite) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const data = new FormData();
+      data.append('id', selectedSite.id.toString());
+      data.append('name', formData.name);
+      if (formData.description) data.append('description', formData.description);
+      if (formData.website) data.append('website', formData.website);
+      if (formData.address) data.append('address', formData.address);
+      if (formData.phone) data.append('phone', formData.phone);
+      if (formData.email) data.append('email', formData.email);
+      if (logoFile) data.append('logo', logoFile);
 
-  const getSiteIcon = (siteName: string) => {
-    switch (siteName) {
-      case 'HeadOffice':
-        return Building;
-      case 'OPERATION':
-        return Activity;
-      default:
-        return Building2;
+      const response = await fetch('/api/sites', {
+        method: 'PUT',
+        body: data
+      });
+      
+      if (response.ok) {
+        setShowEditDialog(false);
+        setSelectedSite(null);
+        setFormData({ name: '', description: '', address: '', phone: '', email: '', website: '' });
+        setLogoFile(null);
+        setLogoPreview(null);
+        setErrors({});
+        fetchSites();
+        alert('Site updated successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to update site');
+      }
+    } catch (error) {
+      console.error('Error updating site:', error);
+      alert('Failed to update site');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const getSiteColor = (siteName: string) => {
-    switch (siteName) {
-      case 'HeadOffice':
-        return {
-          bg: 'bg-gradient-to-br from-blue-500 to-blue-600',
-          card: 'bg-gradient-to-br from-blue-50 to-blue-100',
-          text: 'text-blue-600',
-          border: 'border-blue-200'
-        };
-      case 'OPERATION':
-        return {
-          bg: 'bg-gradient-to-br from-green-500 to-green-600',
-          card: 'bg-gradient-to-br from-green-50 to-green-100',
-          text: 'text-green-600',
-          border: 'border-green-200'
-        };
-      default:
-        return {
-          bg: 'bg-gradient-to-br from-gray-500 to-gray-600',
-          card: 'bg-gradient-to-br from-gray-50 to-gray-100',
-          text: 'text-gray-600',
-          border: 'border-gray-200'
-        };
+  const handleDelete = async (site: SiteData) => {
+    if (!confirm(`Are you sure you want to delete "${site.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/sites?id=${site.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        fetchSites();
+        alert('Site deleted successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to delete site');
+      }
+    } catch (error) {
+      console.error('Error deleting site:', error);
+      alert('Failed to delete site');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading sites...</p>
+      <div className="p-4">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sites</h1>
+          <p className="text-gray-600">Manage daycare sites</p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading sites...</p>
+          </div>
         </div>
       </div>
     );
@@ -185,244 +304,356 @@ export default function SitesPage() {
     );
   }
 
-  if (!sites) {
+  if (!sites || sites.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">No sites data available</p>
+        <p className="text-muted-foreground">No sites found</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-                Site Management
-              </h1>
-              <p className="text-lg text-muted-foreground">Manage and monitor HeadOffice and OPERATION sites</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800">
-                {Object.keys(sites).length} Sites
-              </Badge>
+    <div className="p-6 space-y-6">
+      <div className="mb-8">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">Sites</h1>
+            <p className="text-lg text-gray-600 mb-4">Manage daycare sites and locations</p>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span>{sites.length} Total Sites</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span>{sites.reduce((sum, site) => sum + site.totalChildren, 0)} Children Enrolled</span>
+              </div>
             </div>
           </div>
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreateDialog} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200">
+                <Plus className="mr-2 h-5 w-5" /> Add Site
+              </Button>
+            </DialogTrigger>
+          </Dialog>
         </div>
+      </div>
 
-        {/* Sites Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {Object.entries(sites).map(([siteKey, siteData]) => {
-            const SiteIcon = getSiteIcon(siteKey);
-            const colors = getSiteColor(siteKey);
-            
-            return (
-              <Card key={siteKey} className={`${colors.card} shadow-xl border-0 overflow-hidden`}>
-                <CardHeader className={`${colors.bg} text-white pb-4`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-white/20 rounded-full">
-                        {siteKey === 'HeadOffice' ? (
-                          <Image
-                            src="/Logo_of_Ethiopian_INSA.png"
-                            alt="HeadOffice Logo"
-                            width={24}
-                            height={24}
-                            className="object-contain"
-                          />
-                        ) : (
-                          <SiteIcon className="h-6 w-6" />
-                        )}
-                      </div>
-                      <div>
-                        <CardTitle className="text-2xl font-bold">{siteData.name}</CardTitle>
-                        <p className="text-white/90 text-sm">{siteData.description}</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-white/20 text-white border-0">
-                      Active
-                    </Badge>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sites.map((site) => (
+          <Card key={site.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white">
+            <CardHeader className="pb-4">
+              <div className="flex items-start gap-4">
+                <div className="w-20 h-20 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center border-2 border-gray-100 shadow-sm">
+                  {site.logo ? (
+                    <img
+                      src={site.logo}
+                      alt={`${site.name} logo`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<svg class="h-10 w-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Building className="h-10 w-10 text-gray-500" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-xl font-semibold text-gray-900 mb-1 truncate">{site.name}</CardTitle>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Calendar className="h-4 w-4" />
+                    <span>Created {new Date(site.createdAt).toLocaleDateString()}</span>
                   </div>
-                </CardHeader>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditDialog(site)}
+                    className="hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(site)}
+                    className="hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                {/* Stats Section */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700">Children</span>
+                    </div>
+                    <div className="text-xl font-bold text-blue-900">{site.totalChildren}</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <HeartHandshake className="h-4 w-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">Caregivers</span>
+                    </div>
+                    <div className="text-xl font-bold text-green-900">{site.totalServants}</div>
+                  </div>
+                </div>
                 
-                <CardContent className="pt-6">
-                  {/* Statistics Grid */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                      <div className="flex items-center justify-center mb-2">
-                        <Users className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div className="text-2xl font-bold text-blue-600">{siteData.totalChildren || 0}</div>
-                      <div className="text-sm text-muted-foreground">Children</div>
-                    </div>
-                    
-                    <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                      <div className="flex items-center justify-center mb-2">
-                        <HeartHandshake className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div className="text-2xl font-bold text-green-600">{siteData.totalServants || 0}</div>
-                      <div className="text-sm text-muted-foreground">Caregivers</div>
-                    </div>
-                    
-                    <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                      <div className="flex items-center justify-center mb-2">
-                        <Building2 className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <div className="text-2xl font-bold text-purple-600">{siteData.totalOrganizations || 0}</div>
-                      <div className="text-sm text-muted-foreground">Organizations</div>
-                    </div>
-                    
-                    <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                      <div className="flex items-center justify-center mb-2">
-                        <Home className="h-5 w-5 text-orange-600" />
-                      </div>
-                      <div className="text-2xl font-bold text-orange-600">{siteData.totalRooms || 0}</div>
-                      <div className="text-sm text-muted-foreground">Rooms</div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">Organizations</span>
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">{site.totalOrganizations}</div>
+                </div>
+
+                {/* Contact Information */}
+                {(site.phone || site.email || site.website || site.address) && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Contact Information</h4>
+                    <div className="space-y-2">
+                      {site.phone && (
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Phone className="h-3 w-3 text-blue-600" />
+                          </div>
+                          <a href={`tel:${site.phone}`} className="text-blue-600 hover:text-blue-800 transition-colors">{site.phone}</a>
+                        </div>
+                      )}
+                      {site.email && (
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                            <Mail className="h-3 w-3 text-green-600" />
+                          </div>
+                          <a href={`mailto:${site.email}`} className="text-green-600 hover:text-green-800 transition-colors truncate">{site.email}</a>
+                        </div>
+                      )}
+                      {site.website && (
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                            <Globe className="h-3 w-3 text-purple-600" />
+                          </div>
+                          <a href={site.website} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800 transition-colors truncate">{site.website}</a>
+                        </div>
+                      )}
+                      {site.address && (
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">
+                            <MapPin className="h-3 w-3 text-orange-600" />
+                          </div>
+                          <span className="text-gray-600 truncate">{site.address}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => window.location.href = `/dashboard/children?site=${siteKey}`}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Children
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => window.location.href = `/dashboard/caregiver?site=${siteKey}`}
-                    >
-                      <UserCog className="h-4 w-4 mr-2" />
-                      View Caregivers
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => openSettingsDialog(siteKey)}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Summary Statistics */}
-        <Card className="bg-white shadow-xl border-0">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50">
-            <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              Site Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + (site.totalChildren || 0), 0)}
-                </div>
-                <div className="text-sm text-muted-foreground">Total Children</div>
+                )}
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + (site.totalServants || 0), 0)}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Create Site Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900">Create Site</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Add a new site to the daycare system.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-semibold text-gray-700">Site Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                placeholder="Enter site name"
+                required
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+              {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="logo" className="text-sm font-semibold text-gray-700">Site Logo</Label>
+              <Input
+                id="logo"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoChange}
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+              {logoPreview && (
+                <div className="mt-3 p-3 border border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                  <img src={logoPreview} alt="Preview" width={120} height={120} className="rounded-lg object-cover border" />
                 </div>
-                <div className="text-sm text-muted-foreground">Total Caregivers</div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website" className="text-sm font-semibold text-gray-700">Website</Label>
+              <Input
+                id="website"
+                type="url"
+                value={formData.website}
+                onChange={(e) => handleInputChange('website', e.target.value)}
+                placeholder="https://example.com"
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">Phone</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  placeholder="+1234567890"
+                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + (site.totalOrganizations || 0), 0)}
-                </div>
-                <div className="text-sm text-muted-foreground">Total Organizations</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-orange-600 mb-2">
-                  {Object.values(sites).reduce((sum, site) => sum + (site.totalRooms || 0), 0)}
-                </div>
-                <div className="text-sm text-muted-foreground">Total Rooms</div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold text-gray-700">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder="site@example.com"
+                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-sm font-semibold text-gray-700">Address</Label>
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleInputChange('address', e.target.value)}
+                placeholder="Enter site address"
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)} className="px-6">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="px-6 bg-blue-600 hover:bg-blue-700">
+                {isSubmitting ? 'Creating...' : 'Create Site'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Site Settings Dialog */}
-        <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Site Settings</DialogTitle>
-              <DialogDescription>
-                Manage settings and information for {selectedSite} site.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSettingsSubmit} className="space-y-4">
+      {/* Edit Site Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900">Edit Site</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Update site information.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-sm font-semibold text-gray-700">Site Name *</Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                placeholder="Enter site name"
+                required
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+              {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-logo" className="text-sm font-semibold text-gray-700">Site Logo</Label>
+              <Input
+                id="edit-logo"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoChange}
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+              {logoPreview && (
+                <div className="mt-3 p-3 border border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                  <img src={logoPreview} alt="Preview" width={120} height={120} className="rounded-lg object-cover border" />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-website" className="text-sm font-semibold text-gray-700">Website</Label>
+              <Input
+                id="edit-website"
+                type="url"
+                value={formData.website}
+                onChange={(e) => handleInputChange('website', e.target.value)}
+                placeholder="https://example.com"
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="site-name">Site Name</Label>
+                <Label htmlFor="edit-phone" className="text-sm font-semibold text-gray-700">Phone</Label>
                 <Input
-                  id="site-name"
-                  value={siteSettings.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="Enter site name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="site-description">Description</Label>
-                <Input
-                  id="site-description"
-                  value={siteSettings.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  placeholder="Enter site description"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="site-address">Address</Label>
-                <Input
-                  id="site-address"
-                  value={siteSettings.address}
-                  onChange={(e) => handleInputChange('address', e.target.value)}
-                  placeholder="Enter site address"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="site-phone">Phone</Label>
-                <Input
-                  id="site-phone"
-                  value={siteSettings.phone}
+                  id="edit-phone"
+                  type="tel"
+                  value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  placeholder="Enter site phone number"
+                  placeholder="+1234567890"
+                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="site-email">Email</Label>
+                <Label htmlFor="edit-email" className="text-sm font-semibold text-gray-700">Email</Label>
                 <Input
-                  id="site-email"
+                  id="edit-email"
                   type="email"
-                  value={siteSettings.email}
+                  value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="Enter site email"
+                  placeholder="site@example.com"
+                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowSettingsDialog(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : 'Save Settings'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-address" className="text-sm font-semibold text-gray-700">Address</Label>
+              <Input
+                id="edit-address"
+                value={formData.address}
+                onChange={(e) => handleInputChange('address', e.target.value)}
+                placeholder="Enter site address"
+                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)} className="px-6">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="px-6 bg-blue-600 hover:bg-blue-700">
+                {isSubmitting ? 'Updating...' : 'Update Site'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

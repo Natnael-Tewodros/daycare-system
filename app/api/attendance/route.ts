@@ -7,6 +7,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const startParam = searchParams.get('start');
     const endParam = searchParams.get('end');
+    const includeAbsent = searchParams.get('includeAbsent') === 'true';
 
     let start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -40,6 +41,31 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // If includeAbsent is true, also get children who didn't check in yesterday
+    if (includeAbsent) {
+      const presentChildIds = attendances.map(a => a.childId);
+      
+      const absentChildren = await prisma.child.findMany({
+        where: {
+          id: {
+            notIn: presentChildIds
+          }
+        },
+        select: {
+          id: true,
+          fullName: true,
+          parentName: true,
+          relationship: true,
+        }
+      });
+
+      return NextResponse.json({
+        attendances,
+        absentChildren
+      });
+    }
+
     return NextResponse.json(attendances);
   } catch (error) {
     console.error("Error fetching attendance:", error);
@@ -47,10 +73,10 @@ export async function GET(req: Request) {
   }
 }
 
-// POST new check-in
+// POST new check-in or mark absent
 export async function POST(req: Request) {
   try {
-    const { childId, broughtBy, checkInTime } = await req.json();
+    const { childId, broughtBy, checkInTime, status = 'present' } = await req.json();
 
     // Validation
     if (!childId) {
@@ -60,9 +86,9 @@ export async function POST(req: Request) {
     const attendance = await prisma.attendance.create({
       data: {
         childId: Number(childId),
-        status: 'present',
+        status: status,
         broughtBy: broughtBy || null,
-        checkInTime: checkInTime ? new Date(checkInTime) : new Date(),
+        checkInTime: status === 'present' ? (checkInTime ? new Date(checkInTime) : new Date()) : null,
       },
       include: {
         child: {

@@ -6,18 +6,8 @@ import { join } from 'path';
 export async function GET() {
   try {
     const activities = await prisma.activity.findMany({
-      include: {
-        child: {
-          select: {
-            id: true,
-            fullName: true,
-            dateOfBirth: true,
-            gender: true,
-          }
-        }
-      },
       orderBy: {
-        date: 'desc'
+        createdAt: 'desc'
       }
     });
 
@@ -31,61 +21,70 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const childId = parseInt(formData.get('childId') as string);
-    const title = formData.get('title') as string;
+    const subject = formData.get('subject') as string;
     const description = formData.get('description') as string;
-    const activityType = formData.get('activityType') as string;
-    const date = formData.get('date') as string;
-    const duration = formData.get('duration') as string;
-    const notes = formData.get('notes') as string;
+    const recipientsJson = formData.get('recipients') as string;
+    const attachments = formData.getAll('attachments') as File[];
 
     // Validate required fields
-    if (!childId || !title || !activityType || !date) {
-      return NextResponse.json({ error: 'Child ID, title, activity type, and date are required' }, { status: 400 });
+    if (!subject) {
+      return NextResponse.json({ error: 'Subject is required' }, { status: 400 });
     }
 
-    // Handle image uploads
-    const images: string[] = [];
-    const imageFiles = formData.getAll('images') as File[];
-    
-    for (const imageFile of imageFiles) {
-      if (imageFile && imageFile.size > 0) {
-        const bytes = await imageFile.arrayBuffer();
+    const recipients = JSON.parse(recipientsJson || '[]');
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      return NextResponse.json({ error: 'At least one recipient is required' }, { status: 400 });
+    }
+
+    // Handle file uploads
+    const attachmentPaths: string[] = [];
+    for (const file of attachments) {
+      if (file && file.size > 0) {
+        const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        const filename = `${Date.now()}-${imageFile.name}`;
+        const filename = `${Date.now()}-${file.name}`;
         const path = join(process.cwd(), 'public/uploads', filename);
         await writeFile(path, buffer);
-        images.push(filename);
+        attachmentPaths.push(`/uploads/${filename}`);
       }
     }
 
-    const activity = await prisma.activity.create({
-      data: {
-        childId,
-        title,
-        description: description || null,
-        activityType: activityType as any,
-        date: new Date(date),
-        duration: duration ? parseInt(duration) : null,
-        notes: notes || null,
-        images,
-      },
-      include: {
-        child: {
-          select: {
-            id: true,
-            fullName: true,
-            dateOfBirth: true,
-            gender: true,
-          }
-        }
-      }
+    // Create activity
+    const activity = await prisma.$transaction(async (tx) => {
+      return await tx.activity.create({
+        data: {
+          subject,
+          description: description || null,
+          recipients: recipients,
+          attachments: attachmentPaths,
+        },
+      });
     });
+
+    // Create notifications for each recipient
+    if (recipients.length > 0) {
+      console.log(`📧 Creating notifications for ${recipients.length} parent(s)`);
+      
+      // Create a notification for each recipient parent
+      const notificationPromises = recipients.map(email => 
+        prisma.notification.create({
+          data: {
+            activityId: activity.id,
+            parentEmail: email,
+            isRead: false,
+          }
+        })
+      );
+      
+      await Promise.all(notificationPromises);
+      console.log(`✅ Notifications created for parent(s):`, recipients);
+    }
 
     return NextResponse.json({
       success: true,
       activity,
-      message: 'Activity created successfully'
+      message: 'Activity created successfully',
+      notifiedParents: recipients.length
     });
 
   } catch (error) {

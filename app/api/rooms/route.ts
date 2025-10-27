@@ -4,9 +4,25 @@ import { NextResponse } from "next/server";
 
 // Function to calculate age in months
 const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
-  const birthDate = new Date(dateOfBirth);
-  const now = new Date();
-  return (now.getFullYear() - birthDate.getFullYear()) * 12 + (now.getMonth() - birthDate.getMonth());
+  try {
+    const birthDate = new Date(dateOfBirth);
+    if (isNaN(birthDate.getTime())) {
+      console.error('Invalid date:', dateOfBirth);
+      return 0;
+    }
+    const now = new Date();
+    let ageInMonths = (now.getFullYear() - birthDate.getFullYear()) * 12 + (now.getMonth() - birthDate.getMonth());
+    
+    // If the current day is before the birth day, subtract one month
+    if (now.getDate() < birthDate.getDate()) {
+      ageInMonths--;
+    }
+    
+    return ageInMonths;
+  } catch (error) {
+    console.error('Error calculating age:', error, 'dateOfBirth:', dateOfBirth);
+    return 0;
+  }
 };
 
 // Function to parse age range and check if child fits
@@ -52,7 +68,6 @@ export async function GET() {
         gender: true,
         parentName: true,
         parentEmail: true,
-        site: true,
         profilePic: true,
         createdAt: true,
         updatedAt: true,
@@ -60,8 +75,7 @@ export async function GET() {
         organization: {
           select: {
             id: true,
-            name: true,
-            type: true
+            name: true
           }
         }
       }
@@ -75,8 +89,15 @@ export async function GET() {
       // Then, get children that fit the age range but aren't assigned to any room
       const unassignedChildrenInAgeRange = allChildren.filter(child => {
         if (child.roomId) return false; // Skip already assigned children
-        const ageInMonths = calculateAgeInMonths(child.dateOfBirth);
-        return childFitsInAgeRange(ageInMonths, room.ageRange);
+        if (!room.ageRange) return false; // Skip if room has no age range defined
+        
+        try {
+          const ageInMonths = calculateAgeInMonths(child.dateOfBirth);
+          return childFitsInAgeRange(ageInMonths, room.ageRange);
+        } catch (error) {
+          console.error(`Error calculating age for child ${child.id}:`, error);
+          return false;
+        }
       });
 
       // Combine assigned children and unassigned children in age range
@@ -84,16 +105,21 @@ export async function GET() {
 
       // Map room names to class names
       const getClassName = (roomName: string): string => {
+        if (!roomName) return 'Unnamed Room';
         const name = roomName.toLowerCase();
-        if (name.includes('default') || name.includes('infant')) return 'Infant';
-        if (name.includes('toddler')) return 'Toddler';
-        if (name.includes('preschool')) return 'Growing Star';
+        if (name.includes('room 1')) return 'Infants';
+        if (name.includes('room 2')) return 'Toddlers';
+        if (name.includes('room 3')) return 'Growing Stars';
+        if (name.includes('default') || name.includes('infant')) return 'Infants';
+        if (name.includes('toddler')) return 'Toddlers';
+        if (name.includes('preschool')) return 'Growing Stars';
         return roomName.replace(/\s*-\s*[A-Z_]+$/, ''); // Clean up organization suffix
       };
 
       return {
         ...room,
         name: getClassName(room.name),
+        ageRange: room.ageRange || 'No age range specified',
         children: childrenInThisRoom,
         assignedChildren: assignedChildren,
         unassignedChildren: unassignedChildrenInAgeRange
@@ -103,7 +129,14 @@ export async function GET() {
     return NextResponse.json(roomsWithChildren);
   } catch (error) {
     console.error('Error fetching rooms:', error);
-    return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorDetails = error instanceof Error ? error.stack : String(error);
+    console.error('Error details:', errorDetails);
+    return NextResponse.json({ 
+      error: 'Failed to fetch rooms',
+      message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+    }, { status: 500 });
   }
 }
 

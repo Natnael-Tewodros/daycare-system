@@ -28,58 +28,35 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Edit, Trash2, AlertTriangle, Heart, CheckCircle, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Image, Plus, Edit, Trash2, Eye } from "lucide-react";
 
 interface ActivityForm {
-  childId: string;
-  title: string;
+  recipients: string[];
+  subject: string;
   description: string;
-  activityType: string;
-  date: string;
-  duration: string;
-  notes: string;
-  images: File[];
-}
-
-interface Child {
-  id: number;
-  fullName: string;
-  dateOfBirth: string;
-  gender: string;
+  attachments: File[];
 }
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<any[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewingActivity, setViewingActivity] = useState<any>(null);
+  const [readActivities, setReadActivities] = useState<Set<number>>(new Set());
   const [editingActivity, setEditingActivity] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'sent' | 'received'>('received');
   const [formData, setFormData] = useState<ActivityForm>({
-    childId: "",
-    title: "",
+    recipients: [],
+    subject: "",
     description: "",
-    activityType: "",
-    date: "",
-    duration: "",
-    notes: "",
-    images: [],
+    attachments: [],
   });
-
-  const activityTypes = [
-    { value: "LEARNING", label: "Learning" },
-    { value: "PLAY", label: "Play" },
-    { value: "MEAL", label: "Meal" },
-    { value: "NAP", label: "Nap" },
-    { value: "OUTDOOR", label: "Outdoor" },
-    { value: "ART", label: "Art" },
-    { value: "MUSIC", label: "Music" },
-    { value: "STORY", label: "Story" },
-    { value: "EXERCISE", label: "Exercise" },
-    { value: "OTHER", label: "Other" },
-  ];
+  const [allParents, setAllParents] = useState<any[]>([]);
+  const [children, setChildren] = useState<any[]>([]);
 
   const fetchActivities = async () => {
     setIsLoading(true);
@@ -87,6 +64,13 @@ export default function ActivitiesPage() {
       const res = await fetch("/api/activities");
       const data = await res.json();
       setActivities(data);
+      
+      // Load read activities from localStorage
+      const readActivitiesJson = localStorage.getItem('readActivities');
+      if (readActivitiesJson) {
+        const readArray = JSON.parse(readActivitiesJson);
+        setReadActivities(new Set(readArray));
+      }
     } catch (error) {
       console.error("Error fetching activities:", error);
     } finally {
@@ -94,49 +78,180 @@ export default function ActivitiesPage() {
     }
   };
 
-  const fetchChildren = async () => {
+  const fetchParents = async () => {
     try {
       const res = await fetch("/api/children");
       const data = await res.json();
+      console.log("Fetched children data:", data);
+      
+      // Store children data for parent lookup
       setChildren(data);
+      
+      // Get unique parent emails from all children
+      const uniqueParents = Array.from(
+        new Map(
+          data
+            .filter((child: any) => child.parentEmail)
+            .map((child: any) => [
+              child.parentEmail,
+              { email: child.parentEmail, name: child.parentName || 'Parent' }
+            ])
+        ).values()
+      );
+      
+      console.log("Extracted parent emails:", uniqueParents);
+      setAllParents(uniqueParents);
+      
+      if (uniqueParents.length === 0) {
+        console.warn("No parent emails found in children data");
+      }
     } catch (error) {
-      console.error("Error fetching children:", error);
+      console.error("Error fetching parents:", error);
     }
+  };
+
+  const getParentInfo = (activity: any) => {
+    // Check if this is an activity sent TO admin (FROM a parent)
+    const sentToAdmin = activity.recipients?.some((r: string) => 
+      r.toLowerCase().includes('admin') || r === 'admin@daycare.com'
+    );
+    
+    if (!sentToAdmin) return null;
+    
+    // If children haven't loaded yet, return null
+    if (!children || children.length === 0) {
+      console.log('Children data not loaded yet');
+      return null;
+    }
+    
+    const description = activity.description || '';
+    const subject = activity.subject || '';
+    
+    console.log('Checking activity for parent info:', { subject, description, recipients: activity.recipients, childrenCount: children.length });
+    
+    // Method 1: Try to extract child name from description (pattern: "Child: {name}")
+    const childNameMatch = description.match(/Child:\s*([^\n]+)/i);
+    if (childNameMatch && childNameMatch[1]) {
+      let childName = childNameMatch[1].trim();
+      const child = children.find((c: any) => 
+        childName.toLowerCase() === c.fullName?.toLowerCase()
+      );
+      
+      if (child) {
+        console.log('Found parent via description:', child.parentName);
+        return {
+          name: child.parentName || child.fullName,
+          email: child.parentEmail || 'Unknown',
+          childName: child.fullName
+        };
+      }
+    }
+    
+    // Method 2: Try to extract from subject (pattern: "Absence Notice: {childName} - {date}")
+    const subjectMatch = subject.match(/Absence Notice:\s*([^-]+?)\s*-/i);
+    if (subjectMatch && subjectMatch[1]) {
+      let childName = subjectMatch[1].trim();
+      const child = children.find((c: any) => 
+        childName.toLowerCase() === c.fullName?.toLowerCase()
+      );
+      
+      if (child) {
+        console.log('Found parent via subject:', child.parentName);
+        return {
+          name: child.parentName || child.fullName,
+          email: child.parentEmail || 'Unknown',
+          childName: child.fullName
+        };
+      }
+    }
+    
+    // Method 3: Search all children to find any mention in description or subject
+    for (const child of children) {
+      if (child.fullName) {
+        const fullNameLower = child.fullName.toLowerCase();
+        if (
+          description.toLowerCase().includes(fullNameLower) ||
+          subject.toLowerCase().includes(fullNameLower)
+        ) {
+          console.log('Found parent via search:', child.parentName);
+          return {
+            name: child.parentName || child.fullName,
+            email: child.parentEmail || 'Unknown',
+            childName: child.fullName
+          };
+        }
+      }
+    }
+    
+    // Method 4: If no match found but it's sent to admin, try to get any parent email if available
+    if (sentToAdmin && children.length > 0) {
+      // Return generic parent info as fallback
+      const firstChild = children.find((c: any) => c.parentName && c.parentEmail);
+      if (firstChild) {
+        console.log('Using fallback parent:', firstChild.parentName);
+        return {
+          name: firstChild.parentName || 'Parent',
+          email: firstChild.parentEmail || 'parent@example.com',
+          childName: firstChild.fullName || 'N/A'
+        };
+      }
+    }
+    
+    console.log('No parent info found for activity');
+    return null;
   };
 
   useEffect(() => {
     fetchActivities();
-    fetchChildren();
+    fetchParents();
   }, []);
 
-  const handleInputChange = (field: keyof ActivityForm, value: string | File[]) => {
-    setFormData({ ...formData, [field]: value });
+  const handleInputChange = (field: keyof ActivityForm, value: string | string[] | File[]) => {
+    setFormData({ ...formData, [field]: value as any });
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRecipientToggle = (email: string) => {
+    setFormData({
+      ...formData,
+      recipients: formData.recipients.includes(email)
+        ? formData.recipients.filter((e) => e !== email)
+        : [...formData.recipients, email],
+    });
+  };
+
+  const handleSelectAllRecipients = () => {
+    if (formData.recipients.length === allParents.length) {
+      setFormData({ ...formData, recipients: [] });
+    } else {
+      setFormData({ ...formData, recipients: allParents.map((p) => p.email) });
+    }
+  };
+
+  const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setFormData({ ...formData, images: files });
+    setFormData({ ...formData, attachments: files });
   };
 
   const handleCreate = async () => {
-    if (!formData.childId || !formData.title || !formData.activityType || !formData.date) {
-      alert("Please fill in all required fields");
+    if (!formData.subject) {
+      alert("Please fill in the subject field");
+      return;
+    }
+    if (formData.recipients.length === 0) {
+      alert("Please select at least one recipient");
       return;
     }
 
     setIsLoading(true);
     try {
       const submitData = new FormData();
-      submitData.append("childId", formData.childId);
-      submitData.append("title", formData.title);
+      submitData.append("subject", formData.subject);
       submitData.append("description", formData.description);
-      submitData.append("activityType", formData.activityType);
-      submitData.append("date", formData.date);
-      submitData.append("duration", formData.duration);
-      submitData.append("notes", formData.notes);
+      submitData.append("recipients", JSON.stringify(formData.recipients));
 
-      formData.images.forEach((image, index) => {
-        submitData.append(`images`, image);
+      // Append files
+      formData.attachments.forEach((file) => {
+        submitData.append("attachments", file);
       });
 
       const response = await fetch("/api/activities", {
@@ -144,23 +259,20 @@ export default function ActivitiesPage() {
         body: submitData,
       });
 
+      const responseData = await response.json();
+
       if (response.ok) {
-        alert("Activity created successfully!");
+        alert(`Activity created successfully and sent to ${responseData.notifiedParents} parents!`);
         setShowCreateDialog(false);
         setFormData({
-          childId: "",
-          title: "",
+          recipients: [],
+          subject: "",
           description: "",
-          activityType: "",
-          date: "",
-          duration: "",
-          notes: "",
-          images: [],
+          attachments: [],
         });
         fetchActivities();
       } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error || "Failed to create activity"}`);
+        alert(`Error: ${responseData.error || "Failed to create activity"}`);
       }
     } catch (error) {
       console.error("Error creating activity:", error);
@@ -170,17 +282,56 @@ export default function ActivitiesPage() {
     }
   };
 
+  const openViewDialog = (activity: any) => {
+    setViewingActivity(activity);
+    // Mark as read when viewing
+    setReadActivities(prev => {
+      const newSet = new Set(prev).add(activity.id);
+      // Save to localStorage
+      localStorage.setItem('readActivities', JSON.stringify(Array.from(newSet)));
+      return newSet;
+    });
+    setShowViewDialog(true);
+  };
+
+  const markAsRead = (activityId: number) => {
+    setReadActivities(prev => {
+      const newSet = new Set(prev).add(activityId);
+      // Save to localStorage
+      localStorage.setItem('readActivities', JSON.stringify(Array.from(newSet)));
+      return newSet;
+    });
+  };
+
+  const isActivityUnread = (activityId: number) => {
+    return !readActivities.has(activityId);
+  };
+
+  const needsAttention = (activity: any) => {
+    if (!activity) return false;
+    const subject = activity.subject?.toLowerCase() || '';
+    return subject.includes('absence notice') || 
+           subject.includes('sick report') ||
+           (activity.description?.toLowerCase() || '').includes('⛔ absent');
+  };
+
+  const isReceivedActivity = (activity: any) => {
+    // Check if sent to admin (from a parent)
+    return activity.recipients?.some((r: string) => 
+      r.toLowerCase().includes('admin') || r === 'admin@daycare.com'
+    );
+  };
+
+  const receivedActivities = activities.filter(isReceivedActivity);
+  const sentActivities = activities.filter(a => !isReceivedActivity(a));
+
   const openEditDialog = (activity: any) => {
     setEditingActivity(activity);
     setFormData({
-      childId: activity.childId.toString(),
-      title: activity.title,
+      recipients: activity.recipients || [],
+      subject: activity.subject,
       description: activity.description || "",
-      activityType: activity.activityType,
-      date: new Date(activity.date).toISOString().split('T')[0],
-      duration: activity.duration?.toString() || "",
-      notes: activity.notes || "",
-      images: [],
+      attachments: [],
     });
     setShowEditDialog(true);
   };
@@ -191,15 +342,13 @@ export default function ActivitiesPage() {
     setIsLoading(true);
     try {
       const submitData = new FormData();
-      submitData.append("title", formData.title);
+      submitData.append("subject", formData.subject);
       submitData.append("description", formData.description);
-      submitData.append("activityType", formData.activityType);
-      submitData.append("date", formData.date);
-      submitData.append("duration", formData.duration);
-      submitData.append("notes", formData.notes);
+      submitData.append("recipients", JSON.stringify(formData.recipients));
 
-      formData.images.forEach((image, index) => {
-        submitData.append(`images`, image);
+      // Append new files
+      formData.attachments.forEach((file) => {
+        submitData.append("attachments", file);
       });
 
       const response = await fetch(`/api/activities/${editingActivity.id}`, {
@@ -247,113 +396,248 @@ export default function ActivitiesPage() {
     }
   };
 
-  const getActivityTypeColor = (type: string) => {
-    const colors: { [key: string]: string } = {
-      LEARNING: "bg-blue-100 text-blue-800",
-      PLAY: "bg-green-100 text-green-800",
-      MEAL: "bg-orange-100 text-orange-800",
-      NAP: "bg-purple-100 text-purple-800",
-      OUTDOOR: "bg-yellow-100 text-yellow-800",
-      ART: "bg-pink-100 text-pink-800",
-      MUSIC: "bg-indigo-100 text-indigo-800",
-      STORY: "bg-teal-100 text-teal-800",
-      EXERCISE: "bg-red-100 text-red-800",
-      OTHER: "bg-gray-100 text-gray-800",
-    };
-    return colors[type] || "bg-gray-100 text-gray-800";
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Child Activities</h1>
-          <p className="text-slate-600">Manage and record daily activities for children</p>
+          <h1 className="text-3xl font-bold text-slate-800">Activities & Messages</h1>
+          <p className="text-slate-600">
+            {activeTab === 'received' 
+              ? 'View activities received from parents' 
+              : 'View and send activities to parents'}
+          </p>
         </div>
-        <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Activity
-        </Button>
+        {activeTab === 'sent' && (
+          <Button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Compose
+          </Button>
+        )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Activities List</CardTitle>
-          <CardDescription>
-            View and manage all recorded activities
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Activities</CardTitle>
+              <CardDescription>
+                Manage sent and received activities and announcements
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              {receivedActivities.filter(a => isActivityUnread(a.id)).length > 0 && (
+                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                  {receivedActivities.filter(a => isActivityUnread(a.id)).length} New
+                </Badge>
+              )}
+              {receivedActivities.filter(a => needsAttention(a)).length > 0 && (
+                <Badge className="bg-blue-100 text-blue-800 border-blue-300 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {receivedActivities.filter(a => needsAttention(a)).length}
+                </Badge>
+              )}
+            </div>
+          </div>
         </CardHeader>
+        
+        {/* Tabs */}
+        <div className="border-b border-gray-200 px-6">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('received')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'received'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📨 Received ({receivedActivities.length})
+              {receivedActivities.filter(a => isActivityUnread(a.id)).length > 0 && (
+                <Badge className="ml-2 bg-red-600">{receivedActivities.filter(a => isActivityUnread(a.id)).length}</Badge>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('sent')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'sent'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              ✉️ Sent ({sentActivities.length})
+            </button>
+          </div>
+        </div>
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8">Loading activities...</div>
-          ) : activities.length === 0 ? (
+          ) : activeTab === 'received' && receivedActivities.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
-              No activities recorded yet
+              No received activities yet
+            </div>
+          ) : activeTab === 'sent' && sentActivities.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">
+              No sent activities yet
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Child</TableHead>
-                  <TableHead>Activity</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>From</TableHead>
+                  <TableHead>To</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Attachments</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Duration</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activities.map((activity, idx) => (
+                {(activeTab === 'received' ? receivedActivities : sentActivities).map((activity, idx) => (
                   <TableRow
                     key={activity.id}
                     className={`${
                       idx % 2 === 0 ? "bg-white" : "bg-slate-50"
-                    } hover:bg-blue-50 transition-colors`}
+                    } hover:bg-blue-50 transition-colors ${
+                      isActivityUnread(activity.id) ? 'border-l-4 border-l-blue-500' : ''
+                    }`}
                   >
-                    <TableCell className="font-medium">
-                      {activity.child?.fullName || "Unknown Child"}
-                    </TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{activity.title}</div>
-                        {activity.description && (
-                          <div className="text-sm text-slate-600 truncate max-w-xs">
-                            {activity.description}
-                          </div>
+                      <div className="flex flex-col gap-1">
+                        {isActivityUnread(activity.id) && (
+                          <Badge variant="outline" className="w-fit text-xs bg-blue-100 text-blue-800 border-blue-300">
+                            NEW
+                          </Badge>
+                        )}
+                        {needsAttention(activity) && (
+                          <Badge className="w-fit flex items-center gap-1 text-xs bg-blue-100 text-blue-800 border-blue-300">
+                            <AlertTriangle className="h-3 w-3" />
+                          </Badge>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getActivityTypeColor(activity.activityType)}>
-                        {activityTypes.find(t => t.value === activity.activityType)?.label || activity.activityType}
-                      </Badge>
+                      {(() => {
+                        const parentInfo = getParentInfo(activity);
+                        const isSentToAdmin = activity.recipients?.some((r: string) => 
+                          r.toLowerCase().includes('admin') || r === 'admin@daycare.com'
+                        );
+                        
+                        if (parentInfo) {
+                          return (
+                            <div className="text-sm">
+                              <div className="font-medium text-green-700">👤 {parentInfo.name}</div>
+                              <div className="text-xs text-slate-500">{parentInfo.email}</div>
+                              <div className="text-xs text-blue-600">👶 {parentInfo.childName}</div>
+                            </div>
+                          );
+                        }
+                        
+                        // If sent to admin but no parent info found, try to show as "Parent"
+                        if (isSentToAdmin) {
+                          return (
+                            <div className="text-sm text-orange-700">
+                              👤 Parent (Identifying...)
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="text-sm text-slate-500">
+                            👨‍💼 Admin
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
-                      {new Date(activity.date).toLocaleDateString()}
+                      <div className="text-sm">
+                        {activity.recipients?.some((r: string) => 
+                          r.toLowerCase().includes('admin') || r === 'admin@daycare.com'
+                        ) ? (
+                          <div className="text-blue-600 font-medium">👨‍💼 Admin</div>
+                        ) : (
+                          <>
+                            {activity.recipients?.length || 0} parent(s)
+                            {activity.recipients?.slice(0, 2).map((r: string, idx: number) => (
+                              <div key={idx} className="text-xs text-slate-500 truncate max-w-xs">
+                                📧 {r}
+                              </div>
+                            ))}
+                            {activity.recipients && activity.recipients.length > 2 && (
+                              <div className="text-xs text-slate-500">
+                                +{activity.recipients.length - 2} more
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {activity.subject}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      {activity.duration ? `${activity.duration} min` : "N/A"}
+                      <div className="text-sm text-slate-600 truncate max-w-xs">
+                        {activity.description || "No description"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {activity.attachments?.length || 0} file(s)
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(activity.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
+                        {isActivityUnread(activity.id) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => markAsRead(activity.id)}
+                            title="Mark as Read"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Mark as Read
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openEditDialog(activity)}
+                          onClick={() => openViewDialog(activity)}
+                          title="View Details"
                         >
-                          <Edit className="h-4 w-4" />
+                          View
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(activity.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {activeTab === 'sent' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(activity)}
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(activity.id)}
+                              className="text-red-600 hover:text-red-700"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -363,67 +647,96 @@ export default function ActivitiesPage() {
           )}
         </CardContent>
       </Card>
+      
+      {activeTab === 'sent' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-blue-900 mb-1">Sent Activities</h3>
+              <p className="text-sm text-blue-700">
+                Activities you have sent to parents will appear here. Click "Compose" to send a new announcement or message.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Activity Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Activity</DialogTitle>
+            <DialogTitle>Compose Activity</DialogTitle>
             <DialogDescription>
-              Record a new activity for a child
+              Create an activity that will be sent to selected parent emails
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="childId">Child *</Label>
-                <Select
-                  value={formData.childId}
-                  onValueChange={(value) => handleInputChange("childId", value)}
+            {/* Recipients */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>To *</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAllRecipients}
+                  className="text-xs"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select child" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {children.map((child) => (
-                      <SelectItem key={child.id} value={child.id.toString()}>
-                        {child.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {formData.recipients.length === allParents.length ? "Deselect All" : "Select All"}
+                </Button>
               </div>
-              <div>
-                <Label htmlFor="activityType">Activity Type *</Label>
-                <Select
-                  value={formData.activityType}
-                  onValueChange={(value) => handleInputChange("activityType", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select activity type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activityTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
+              <div className="border rounded-md p-4 max-h-48 overflow-y-auto">
+                {allParents.length === 0 ? (
+                  <div className="text-sm text-slate-500 space-y-2">
+                    <p>No parent emails available</p>
+                    <p className="text-xs text-orange-600">
+                      💡 Make sure you have registered children with parent email addresses in the Children page.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allParents.map((parent) => (
+                      <div key={parent.email} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`recipient-${parent.email}`}
+                          checked={formData.recipients.includes(parent.email)}
+                          onChange={() => handleRecipientToggle(parent.email)}
+                          className="rounded border-gray-300"
+                        />
+                        <label
+                          htmlFor={`recipient-${parent.email}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {parent.name} ({parent.email})
+                        </label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
+              {formData.recipients.length > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {formData.recipients.length} recipient(s) selected
+                </p>
+              )}
             </div>
 
+            {/* Subject */}
             <div>
-              <Label htmlFor="title">Activity Title *</Label>
+              <Label htmlFor="subject">Subject *</Label>
               <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="Enter activity title"
+                id="subject"
+                value={formData.subject}
+                onChange={(e) => handleInputChange("subject", e.target.value)}
+                placeholder="Enter activity subject"
               />
             </div>
 
+            {/* Description */}
             <div>
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -431,55 +744,35 @@ export default function ActivitiesPage() {
                 value={formData.description}
                 onChange={(e) => handleInputChange("description", e.target.value)}
                 placeholder="Describe the activity..."
-                rows={3}
+                rows={5}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date">Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleInputChange("date", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="duration">Duration (minutes)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  value={formData.duration}
-                  onChange={(e) => handleInputChange("duration", e.target.value)}
-                  placeholder="e.g., 30"
-                />
-              </div>
-            </div>
-
+            {/* Attachments */}
             <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Additional notes about the activity..."
-                rows={2}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="images">Activity Photos</Label>
+              <Label htmlFor="attachments">Attachments (Images or PDFs)</Label>
               <Input
-                id="images"
+                id="attachments"
                 type="file"
                 multiple
-                accept="image/*"
-                onChange={handleImageChange}
+                accept="image/*,.pdf"
+                onChange={handleAttachmentChange}
+                className="cursor-pointer"
               />
-              <p className="text-sm text-slate-500 mt-1">
-                You can select multiple images
-              </p>
+              {formData.attachments.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-slate-500 mb-1">
+                    {formData.attachments.length} file(s) selected:
+                  </p>
+                  <div className="space-y-1">
+                    {Array.from(formData.attachments).map((file, idx) => (
+                      <div key={idx} className="text-xs text-slate-600 bg-slate-50 p-2 rounded">
+                        {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -492,7 +785,7 @@ export default function ActivitiesPage() {
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={isLoading}>
-              {isLoading ? "Creating..." : "Create Activity"}
+              {isLoading ? "Sending..." : "Send Activity"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -500,7 +793,7 @@ export default function ActivitiesPage() {
 
       {/* Edit Activity Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Activity</DialogTitle>
             <DialogDescription>
@@ -509,43 +802,63 @@ export default function ActivitiesPage() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-activityType">Activity Type *</Label>
-                <Select
-                  value={formData.activityType}
-                  onValueChange={(value) => handleInputChange("activityType", value)}
+            {/* Recipients */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>To *</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAllRecipients}
+                  className="text-xs"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select activity type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activityTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
+                  {formData.recipients.length === allParents.length ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+              <div className="border rounded-md p-4 max-h-48 overflow-y-auto">
+                {allParents.length === 0 ? (
+                  <div className="text-sm text-slate-500 space-y-2">
+                    <p>No parent emails available</p>
+                    <p className="text-xs text-orange-600">
+                      💡 Make sure you have registered children with parent email addresses.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allParents.map((parent) => (
+                      <div key={parent.email} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`edit-recipient-${parent.email}`}
+                          checked={formData.recipients.includes(parent.email)}
+                          onChange={() => handleRecipientToggle(parent.email)}
+                          className="rounded border-gray-300"
+                        />
+                        <label
+                          htmlFor={`edit-recipient-${parent.email}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {parent.name} ({parent.email})
+                        </label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
-              <div>
-                <Label htmlFor="edit-date">Date *</Label>
-                <Input
-                  id="edit-date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleInputChange("date", e.target.value)}
-                />
-              </div>
+              {formData.recipients.length > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {formData.recipients.length} recipient(s) selected
+                </p>
+              )}
             </div>
 
             <div>
-              <Label htmlFor="edit-title">Activity Title *</Label>
+              <Label htmlFor="edit-subject">Subject *</Label>
               <Input
-                id="edit-title"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="Enter activity title"
+                id="edit-subject"
+                value={formData.subject}
+                onChange={(e) => handleInputChange("subject", e.target.value)}
+                placeholder="Enter activity subject"
               />
             </div>
 
@@ -556,46 +869,20 @@ export default function ActivitiesPage() {
                 value={formData.description}
                 onChange={(e) => handleInputChange("description", e.target.value)}
                 placeholder="Describe the activity..."
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-duration">Duration (minutes)</Label>
-                <Input
-                  id="edit-duration"
-                  type="number"
-                  value={formData.duration}
-                  onChange={(e) => handleInputChange("duration", e.target.value)}
-                  placeholder="e.g., 30"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="edit-notes">Notes</Label>
-              <Textarea
-                id="edit-notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Additional notes about the activity..."
-                rows={2}
+                rows={5}
               />
             </div>
 
             <div>
-              <Label htmlFor="edit-images">Add More Photos</Label>
+              <Label htmlFor="edit-attachments">Add More Attachments (Images or PDFs)</Label>
               <Input
-                id="edit-images"
+                id="edit-attachments"
                 type="file"
                 multiple
-                accept="image/*"
-                onChange={handleImageChange}
+                accept="image/*,.pdf"
+                onChange={handleAttachmentChange}
+                className="cursor-pointer"
               />
-              <p className="text-sm text-slate-500 mt-1">
-                You can select multiple images to add
-              </p>
             </div>
           </div>
 
@@ -609,6 +896,140 @@ export default function ActivitiesPage() {
             </Button>
             <Button onClick={handleEdit} disabled={isLoading}>
               {isLoading ? "Updating..." : "Update Activity"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Activity Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewingActivity?.subject}
+              {needsAttention(viewingActivity) && (
+                <Badge className="flex items-center gap-1 bg-blue-100 text-blue-800 border-blue-300">
+                  <AlertTriangle className="h-3 w-3" />
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Full activity details
+            </DialogDescription>
+          </DialogHeader>
+          
+          {viewingActivity && (
+            <div className="space-y-4">
+              {/* Sender Information */}
+              {(() => {
+                const parentInfo = getParentInfo(viewingActivity);
+                if (parentInfo) {
+                  return (
+                    <div>
+                      <Label className="font-semibold">From (Parent)</Label>
+                      <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                        <div className="space-y-1">
+                          <div className="text-sm">
+                            <span className="font-semibold">Name:</span> {parentInfo.name}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-semibold">Email:</span> {parentInfo.email}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-semibold">Child:</span> {parentInfo.childName}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div>
+                    <Label className="font-semibold">From</Label>
+                    <div className="mt-2 p-3 bg-slate-50 rounded-md">
+                      <div className="text-sm text-slate-500">Admin</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Recipients */}
+              <div>
+                <Label className="font-semibold">Recipients</Label>
+                <div className="mt-2 p-3 bg-slate-50 rounded-md">
+                  <div className="space-y-1">
+                    {viewingActivity.recipients?.map((recipient: string, idx: number) => (
+                      <div key={idx} className="text-sm">
+                        📧 {recipient}
+                      </div>
+                    ))}
+                    {(!viewingActivity.recipients || viewingActivity.recipients.length === 0) && (
+                      <p className="text-slate-500">No recipients</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <Label className="font-semibold">Description</Label>
+                <div className="mt-2 p-3 bg-slate-50 rounded-md min-h-[100px]">
+                  <p className="text-sm whitespace-pre-wrap">
+                    {viewingActivity.description || "No description provided"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Attachments */}
+              {viewingActivity.attachments && viewingActivity.attachments.length > 0 && (
+                <div>
+                  <Label className="font-semibold">Attachments ({viewingActivity.attachments.length})</Label>
+                  <div className="mt-2 space-y-2">
+                    {viewingActivity.attachments.map((attachment: string, idx: number) => (
+                      <a
+                        key={idx}
+                        href={attachment}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-2 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                      >
+                        <span className="text-lg">📎</span>
+                        <span className="text-sm text-blue-600 hover:underline">
+                          {attachment.split('/').pop()}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Date */}
+              <div>
+                <Label className="font-semibold">Date</Label>
+                <div className="mt-2 p-3 bg-slate-50 rounded-md">
+                  <p className="text-sm">
+                    {new Date(viewingActivity.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowViewDialog(false);
+                if (viewingActivity) {
+                  setReadActivities(prev => {
+                    const newSet = new Set(prev).add(viewingActivity.id);
+                    localStorage.setItem('readActivities', JSON.stringify(Array.from(newSet)));
+                    return newSet;
+                  });
+                }
+              }}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

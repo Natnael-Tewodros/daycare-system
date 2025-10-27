@@ -4,6 +4,9 @@ import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { 
   FileText, 
@@ -11,7 +14,11 @@ import {
   User, 
   MessageSquare,
   Download,
-  Eye
+  Eye,
+  Edit,
+  Trash2,
+  Save,
+  X
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
@@ -33,6 +40,9 @@ export default function ReportsPage() {
   const [selectedChild, setSelectedChild] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', content: '' });
+  const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -83,15 +93,15 @@ export default function ReportsPage() {
   const getReportType = (title: string) => {
     const titleLower = title.toLowerCase();
     if (titleLower.includes('medical') || titleLower.includes('health')) {
-      return { type: 'Medical', color: 'bg-red-100 text-red-800' };
+      return { type: 'Medical', color: 'bg-blue-100 text-blue-800' };
     } else if (titleLower.includes('behavior') || titleLower.includes('social')) {
       return { type: 'Behavioral', color: 'bg-blue-100 text-blue-800' };
     } else if (titleLower.includes('academic') || titleLower.includes('learning')) {
-      return { type: 'Academic', color: 'bg-green-100 text-green-800' };
+      return { type: 'Academic', color: 'bg-blue-100 text-blue-800' };
     } else if (titleLower.includes('incident') || titleLower.includes('accident')) {
-      return { type: 'Incident', color: 'bg-orange-100 text-orange-800' };
+      return { type: 'Incident', color: 'bg-blue-100 text-blue-800' };
     } else {
-      return { type: 'General', color: 'bg-gray-100 text-gray-800' };
+      return { type: 'General', color: 'bg-blue-100 text-blue-800' };
     }
   };
 
@@ -125,6 +135,81 @@ Generated from Parent Portal
     URL.revokeObjectURL(url);
   };
 
+  const handleEditReport = (report: Report) => {
+    setEditingReport(report);
+    setEditForm({ title: report.title, content: report.content });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingReport) return;
+    
+    try {
+      setError(null);
+      const response = await fetch(`/api/reports/${editingReport.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+
+      if (response.ok) {
+        // Update the report in the children data
+        setChildren(prevChildren => 
+          prevChildren.map(child => ({
+            ...child,
+            reports: child.reports.map(report => 
+              report.id === editingReport.id 
+                ? { ...report, title: editForm.title, content: editForm.content }
+                : report
+            )
+          }))
+        );
+        setEditingReport(null);
+        setEditForm({ title: '', content: '' });
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to update report');
+      }
+    } catch (err) {
+      console.error('Error updating report:', err);
+      setError('Failed to update report');
+    }
+  };
+
+  const handleDeleteReport = async (reportId: number) => {
+    if (!confirm('Are you sure you want to delete this report?')) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const response = await fetch(`/api/reports/${reportId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        // Remove the report from the children data
+        setChildren(prevChildren => 
+          prevChildren.map(child => ({
+            ...child,
+            reports: child.reports.filter(report => report.id !== reportId)
+          }))
+        );
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete report');
+      }
+    } catch (err) {
+      console.error('Error deleting report:', err);
+      setError('Failed to delete report');
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingReport(null);
+    setEditForm({ title: '', content: '' });
+    setError(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -150,7 +235,7 @@ Generated from Parent Portal
 
   const currentChild = children.find(child => child.id === selectedChild);
   const allReports = children.flatMap(child => 
-    child.reports.map(report => ({ ...report, childName: child.fullName, childId: child.id }))
+    (child.reports || []).map(report => ({ ...report, childName: child.fullName, childId: child.id }))
   ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
@@ -161,6 +246,12 @@ Generated from Parent Portal
           <p className="text-gray-600 mt-1">View reports and updates about your children</p>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
 
       {/* Report Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -183,7 +274,7 @@ Generated from Parent Portal
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-blue-600">
                   {allReports.filter(r => {
                     const reportDate = new Date(r.createdAt);
                     const now = new Date();
@@ -192,8 +283,8 @@ Generated from Parent Portal
                   }).length}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-green-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -204,10 +295,10 @@ Generated from Parent Portal
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-600">Children</p>
-                <p className="text-2xl font-bold text-purple-600">{children.length}</p>
+                <p className="text-2xl font-bold text-blue-600">{children.length}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-purple-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <User className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -225,8 +316,8 @@ Generated from Parent Portal
                   }
                 </p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-orange-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <MessageSquare className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -251,12 +342,14 @@ Generated from Parent Portal
             <div className="space-y-4">
               {allReports.map((report) => {
                 const reportType = getReportType(report.title);
+                const isEditing = editingReport?.id === report.id;
+                
                 return (
                   <div key={`${report.childId}-${report.id}`} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    {isEditing ? (
+                      // Edit Mode
+                      <div className="space-y-4">
                         <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-semibold text-gray-900">{report.title}</h4>
                           <Badge className={reportType.color}>
                             {reportType.type}
                           </Badge>
@@ -264,30 +357,93 @@ Generated from Parent Portal
                             {report.childName}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          {formatDate(report.createdAt)} at {formatTime(report.createdAt)}
-                        </p>
-                        <p className="text-gray-700 line-clamp-3">{report.content}</p>
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="edit-title">Title</Label>
+                            <Input
+                              id="edit-title"
+                              value={editForm.title}
+                              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                              placeholder="Enter report title"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-content">Content</Label>
+                            <Textarea
+                              id="edit-content"
+                              value={editForm.content}
+                              onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                              placeholder="Enter report content"
+                              rows={4}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={handleSaveEdit} size="sm">
+                              <Save className="h-4 w-4 mr-2" />
+                              Save
+                            </Button>
+                            <Button onClick={cancelEdit} variant="outline" size="sm">
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedReport(report)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => exportReport(report)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Export
-                        </Button>
+                    ) : (
+                      // View Mode
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-semibold text-gray-900">{report.title}</h4>
+                            <Badge className={reportType.color}>
+                              {reportType.type}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {report.childName}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">
+                            {formatDate(report.createdAt)} at {formatTime(report.createdAt)}
+                          </p>
+                          <p className="text-gray-700 line-clamp-3">{report.content}</p>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedReport(report)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditReport(report)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => exportReport(report)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Export
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteReport(report.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
