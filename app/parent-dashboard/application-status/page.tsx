@@ -59,10 +59,17 @@ export default function ApplicationStatusPage() {
       if (response.ok) {
         const data = await response.json();
         // Filter requests for this parent
-        const userRequests = data.data?.filter((req: EnrollmentRequest) => 
+        const userRequests: EnrollmentRequest[] = (data.data || []).filter((req: EnrollmentRequest) => 
           req.email.toLowerCase() === parentEmail.toLowerCase()
-        ) || [];
-        setEnrollmentRequests(userRequests);
+        );
+        // Group by same-day submissions (avoid duplicates from multi-child forms)
+        const byDayKey = (d: string) => new Date(d).toISOString().slice(0, 10);
+        const grouped = new Map<string, EnrollmentRequest>();
+        for (const r of userRequests) {
+          const key = `${byDayKey(r.createdAt)}|${r.email.toLowerCase()}`;
+          if (!grouped.has(key)) grouped.set(key, r);
+        }
+        setEnrollmentRequests(Array.from(grouped.values()));
       } else {
         setError("Failed to fetch enrollment requests");
       }

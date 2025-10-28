@@ -29,7 +29,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Edit, Save, X } from "lucide-react";
 
 interface ChildForm {
@@ -54,6 +54,8 @@ export default function AdminPage() {
   });
   const [childrenForms, setChildrenForms] = useState<ChildForm[]>([]);
   const [childrenList, setChildrenList] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 10;
   const [isLoading, setIsLoading] = useState(false); // Added for loading state
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingChild, setEditingChild] = useState<any>(null);
@@ -75,6 +77,7 @@ export default function AdminPage() {
       const res = await fetch("/api/children");
       const data = await res.json();
       setChildrenList(data);
+      setCurrentPage(1);
     } catch (error) {
       console.error("Error fetching children:", error);
     } finally {
@@ -161,6 +164,23 @@ export default function AdminPage() {
         alert(`❌ Parent with username "${parentInfo.username}" does not exist. Please register as a parent first.`);
         return;
       }
+      // Gate: ensure the parent has an approved enrollment request before allowing child form
+      try {
+        const reqRes = await fetch('/api/enrollment-requests');
+        const reqJson = await reqRes.json();
+        const requests = Array.isArray(reqJson?.data) ? reqJson.data : [];
+        const hasApproved = requests.some((r: any) => (
+          (r.email && result.user?.username && r.email.toLowerCase()) && r.status === 'approved'
+        ) || (r.parentName && r.parentName.toLowerCase() === (result.user?.name || '').toLowerCase() && r.status === 'approved'));
+        if (!hasApproved) {
+          alert("⚠️ This parent does not have an approved enrollment request yet. Please approve their request before registering a child.");
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to verify enrollment requests:', e);
+        alert('⚠️ Could not verify enrollment request status. Please try again or ensure a request is approved.');
+        return;
+      }
       
       // Username exists, proceed with adding the form
       setChildrenForms([
@@ -190,6 +210,19 @@ export default function AdminPage() {
       if (!child.fullName || !child.relationship || !child.gender || !child.dateOfBirth || !child.site || !child.organization) {
         alert("Please fill all required fields (name, relationship, gender, DOB, site, organization)");
         return;
+      }
+      // Pre-flight check: ensure approved enrollment request exists; backend enforces too
+      try {
+        const reqRes = await fetch('/api/enrollment-requests');
+        const reqJson = await reqRes.json();
+        const requests = Array.isArray(reqJson?.data) ? reqJson.data : [];
+        const hasApproved = requests.some((r: any) => r.status === 'approved');
+        if (!hasApproved) {
+          alert('⚠️ No approved enrollment request found. Registration is blocked.');
+          return;
+        }
+      } catch (e) {
+        console.error('Verify request failed', e);
       }
       const formData = new FormData();
       formData.append("parentUsername", parentInfo.username);
@@ -303,6 +336,172 @@ export default function AdminPage() {
     setChildrenForms([]);
   };
 
+  const ChildFormCard = ({ child, index }: { child: ChildForm; index: number }) => (
+    <Card
+      key={index}
+      className="shadow-lg border border-slate-200 rounded-xl transition-all hover:shadow-xl"
+    >
+      <CardHeader className="bg-slate-50 rounded-t-xl flex items-center justify-between">
+        <CardTitle className="text-xl font-semibold text-slate-800">
+          Child Information {childrenForms.length > 1 ? `#${index + 1}` : ""}
+        </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => removeChildForm(index)}
+          className="text-slate-500 hover:text-red-600"
+          aria-label="Remove child form"
+        >
+          ✖
+        </Button>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Full Name</Label>
+          <Input
+            value={child.fullName}
+            onChange={(e) =>
+              handleChildChange(index, "fullName", e.target.value)
+            }
+            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            placeholder="Enter child's full name"
+          />
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Relationship</Label>
+          <Select
+            value={child.relationship}
+            onValueChange={(v) =>
+              handleChildChange(index, "relationship", v)
+            }
+          >
+            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
+              <SelectValue placeholder="Select relationship" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="FATHER">Father</SelectItem>
+              <SelectItem value="MOTHER">Mother</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {child.relationship === "OTHER" && (
+          <div>
+            <Label className="text-sm font-medium text-slate-700">
+              Upload Document for Other (PDF only)
+            </Label>
+            <Input
+              type="file"
+              accept=".pdf"
+              onChange={(e) =>
+                handleChildChange(index, "otherFile", e.target.files?.[0] || null)
+              }
+              className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        )}
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Gender</Label>
+          <Select
+            value={child.gender}
+            onValueChange={(v) => handleChildChange(index, "gender", v)}
+          >
+            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
+              <SelectValue placeholder="Select gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MALE">Male</SelectItem>
+              <SelectItem value="FEMALE">Female</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Date of Birth</Label>
+          <Input
+            type="date"
+            value={child.dateOfBirth}
+            onChange={(e) =>
+              handleChildChange(index, "dateOfBirth", e.target.value)
+            }
+            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Site</Label>
+          <Select
+            value={child.site}
+            onValueChange={(v) => handleChildChange(index, "site", v)}
+          >
+            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
+              <SelectValue placeholder="Select site" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="HEADOFFICE">Head Office</SelectItem>
+              <SelectItem value="OPERATION">Operation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Organization</Label>
+          <Select
+            value={child.organization}
+            onValueChange={(v) => handleChildChange(index, "organization", v)}
+          >
+            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
+              <SelectValue placeholder="Select organization" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="INSA">INSA</SelectItem>
+              <SelectItem value="AI">AI</SelectItem>
+              <SelectItem value="MINISTRY_OF_PEACE">Ministry of Peace</SelectItem>
+              <SelectItem value="FINANCE_SECURITY">Finance Security</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Profile Picture (Images only)</Label>
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={(e) =>
+              handleChildChange(index, "profilePic", e.target.files?.[0] || null)
+            }
+            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium text-slate-700">Child Info File (PDF only)</Label>
+          <Input
+            type="file"
+            accept=".pdf"
+            onChange={(e) =>
+              handleChildChange(index, "childInfoFile", e.target.files?.[0] || null)
+            }
+            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </CardContent>
+      <CardFooter className="bg-slate-50 rounded-b-xl">
+        <Button
+          onClick={() => handleSubmitChild(child, index)}
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+          disabled={isLoading}
+        >
+          {isLoading ? "Registering..." : "✅ Register This Child"}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+
   return (
     <div className="container mx-auto py-12 px-4 sm:px-6 lg:px-8 space-y-8">
       {/* Parent Name + Add Child Button */}
@@ -365,169 +564,7 @@ export default function AdminPage() {
 
       {/* Dynamic Child Forms */}
       {childrenForms.map((child, index) => (
-        <Card
-          key={index}
-          className="shadow-lg border border-slate-200 rounded-xl transition-all hover:shadow-xl"
-        >
-          <CardHeader className="bg-slate-50 rounded-t-xl flex items-center justify-between">
-            <CardTitle className="text-xl font-semibold text-slate-800">
-              Child Information {childrenForms.length > 1 ? `#${index + 1}` : ""}
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => removeChildForm(index)}
-              className="text-slate-500 hover:text-red-600"
-              aria-label="Remove child form"
-            >
-              ✖
-            </Button>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Full Name</Label>
-              <Input
-                value={child.fullName}
-                onChange={(e) =>
-                  handleChildChange(index, "fullName", e.target.value)
-                }
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter child's full name"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Relationship</Label>
-              <Select
-                value={child.relationship}
-                onValueChange={(v) =>
-                  handleChildChange(index, "relationship", v)
-                }
-              >
-                <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Select relationship" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FATHER">Father</SelectItem>
-                  <SelectItem value="MOTHER">Mother</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {child.relationship === "OTHER" && (
-              <div>
-                <Label className="text-sm font-medium text-slate-700">
-                  Upload Document for Other (PDF only)
-                </Label>
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) =>
-                    handleChildChange(index, "otherFile", e.target.files?.[0] || null)
-                  }
-                  className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Gender</Label>
-              <Select
-                value={child.gender}
-                onValueChange={(v) => handleChildChange(index, "gender", v)}
-              >
-                <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MALE">Male</SelectItem>
-                  <SelectItem value="FEMALE">Female</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Date of Birth</Label>
-              <Input
-                type="date"
-                value={child.dateOfBirth}
-                onChange={(e) =>
-                  handleChildChange(index, "dateOfBirth", e.target.value)
-                }
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Site</Label>
-              <Select
-                value={child.site}
-                onValueChange={(v) => handleChildChange(index, "site", v)}
-              >
-                <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Select site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="HEADOFFICE">Head Office</SelectItem>
-                  <SelectItem value="OPERATION">Operation</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Organization</Label>
-              <Select
-                value={child.organization}
-                onValueChange={(v) => handleChildChange(index, "organization", v)}
-              >
-                <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Select organization" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INSA">INSA</SelectItem>
-                  <SelectItem value="AI">AI</SelectItem>
-                  <SelectItem value="MINISTRY_OF_PEACE">Ministry of Peace</SelectItem>
-                  <SelectItem value="FINANCE_SECURITY">Finance Security</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Profile Picture (Images only)</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) =>
-                  handleChildChange(index, "profilePic", e.target.files?.[0] || null)
-                }
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Child Info File (PDF only)</Label>
-              <Input
-                type="file"
-                accept=".pdf"
-                onChange={(e) =>
-                  handleChildChange(index, "childInfoFile", e.target.files?.[0] || null)
-                }
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="bg-slate-50 rounded-b-xl">
-            <Button
-              onClick={() => handleSubmitChild(child, index)}
-              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? "Registering..." : "✅ Register This Child"}
-            </Button>
-          </CardFooter>
-        </Card>
+        <ChildFormCard key={index} child={child} index={index} />
       ))}
 
       <Separator className="my-8" />
@@ -552,6 +589,7 @@ export default function AdminPage() {
               <TableHeader>
                 <TableRow className="bg-slate-100">
                   <TableHead className="font-semibold text-slate-800">ID</TableHead>
+                  <TableHead className="font-semibold text-slate-800">Photo</TableHead>
                   <TableHead className="font-semibold text-slate-800">Full Name</TableHead>
                   <TableHead className="font-semibold text-slate-800">Parent</TableHead>
                   <TableHead className="font-semibold text-slate-800">Gender</TableHead>
@@ -565,7 +603,7 @@ export default function AdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {childrenList.map((child, idx) => (
+                {childrenList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((child, idx) => (
                   <TableRow
                     key={child.id}
                     className={`${
@@ -573,6 +611,17 @@ export default function AdminPage() {
                     } hover:bg-blue-50 transition-colors`}
                   >
                     <TableCell className="text-slate-700">{child.id}</TableCell>
+                    <TableCell className="text-slate-700">
+                      {child.profilePic ? (
+                        <img
+                          src={`/uploads/${child.profilePic}`}
+                          alt={`${child.fullName} profile`}
+                          className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <span className="text-slate-400">No photo</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-slate-700">
                       <Link className="text-blue-600 hover:underline" href={`/dashboard/children/${child.id}`}>
                         {child.fullName}
@@ -618,6 +667,31 @@ export default function AdminPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {childrenList.length > pageSize && (
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, childrenList.length)} of {childrenList.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage * pageSize >= childrenList.length}
+                  onClick={() => setCurrentPage(p => (p * pageSize >= childrenList.length ? p : p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

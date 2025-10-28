@@ -309,6 +309,29 @@ export async function POST(req: Request) {
       }
     }
 
+    // Enforce: parent must have an approved enrollment request before registering children
+    if (!finalParentEmail) {
+      return NextResponse.json(
+        { error: 'Unable to determine parent email for enrollment verification.' },
+        { status: 400 }
+      );
+    }
+
+    const approvedRequest = await prisma.enrollmentRequest.findFirst({
+      where: {
+        email: { equals: finalParentEmail, mode: 'insensitive' },
+        status: 'approved'
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    if (!approvedRequest) {
+      return NextResponse.json(
+        { error: 'Parent must have an approved enrollment request before child registration.' },
+        { status: 403 }
+      );
+    }
+
     // Parse and validate date
     const dateOfBirth = new Date(dateOfBirthStr);
     if (isNaN(dateOfBirth.getTime())) {
@@ -380,19 +403,36 @@ export async function POST(req: Request) {
         throw new Error(`Organization not found${organizationIdStr ? ` with ID ${organizationIdStr}` : organizationName ? ` with name "${organizationName}"` : ''}`);
       }
 
-      // Check if parent already has children registered
-      const existingChildWithParent = await prisma.child.findFirst({
-        where: { 
-          OR: [
-            { parentEmail: { equals: finalParentEmail, mode: 'insensitive' } },
-            { parentId: parentUser?.id }
-          ]
+      // Strong duplicate check:
+      // 1) Block same full name within the same organization (case-insensitive)
+      // 2) Additionally, block same full name with the same parent (by email/id)
+      const existingSameNameInOrg = await prisma.child.findFirst({
+        where: {
+          organizationId: organization.id,
+          fullName: { equals: fullName, mode: 'insensitive' },
         }
       });
-      
-      if (existingChildWithParent) {
-        // Parent already exists, we can use the same email/password
-        console.log(`Parent already has children registered`);
+      if (existingSameNameInOrg) {
+        return NextResponse.json(
+          { error: 'A child with this name already exists in this organization.' },
+          { status: 409 }
+        );
+      }
+
+      const existingSameNameWithParent = await prisma.child.findFirst({
+        where: {
+          fullName: { equals: fullName, mode: 'insensitive' },
+          OR: [
+            { parentEmail: finalParentEmail ? { equals: finalParentEmail, mode: 'insensitive' } : undefined },
+            { parentId: parentUser?.id || undefined }
+          ].filter(Boolean) as any
+        }
+      });
+      if (existingSameNameWithParent) {
+        return NextResponse.json(
+          { error: 'This child is already registered under the same parent.' },
+          { status: 409 }
+        );
       }
 
       // Calculate age and automatically assign room if not already provided

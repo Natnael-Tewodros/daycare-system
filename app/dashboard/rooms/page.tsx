@@ -79,22 +79,25 @@ const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
 // Function to categorize children by age groups
 const categorizeChildrenByAge = (children: any[]) => {
   console.log('Categorizing children:', children);
+  // Deduplicate children by id to avoid duplicates across views
+  const uniqueChildrenMap = new Map(children.map((c: any) => [c.id, c]));
+  const uniqueChildren = Array.from(uniqueChildrenMap.values());
   
-  const infants = children.filter(child => {
+  const infants = uniqueChildren.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
     const isInfant = age >= 3 && age <= 12; // 3-12 months
     console.log(`Child ${child.fullName}: age=${age} months, isInfant=${isInfant}, dateOfBirth=${child.dateOfBirth}`);
     return isInfant;
   });
   
-  const toddlers = children.filter(child => {
+  const toddlers = uniqueChildren.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
     const isToddler = age >= 13 && age <= 24; // 13-24 months (1-2 years)
     console.log(`Child ${child.fullName}: age=${age} months, isToddler=${isToddler}, dateOfBirth=${child.dateOfBirth}`);
     return isToddler;
   });
   
-  const growingStars = children.filter(child => {
+  const growingStars = uniqueChildren.filter(child => {
     const age = calculateAgeInMonths(child.dateOfBirth);
     const isGrowingStar = age >= 25 && age <= 48; // 25-48 months (2-4 years)
     console.log(`Child ${child.fullName}: age=${age} months, isGrowingStar=${isGrowingStar}, dateOfBirth=${child.dateOfBirth}`);
@@ -126,8 +129,9 @@ export default function RoomPage() {
     try {
       setLoading(true);
       const res = await axios.get("/api/rooms");
-      // Sort rooms by name to display in order
-      const sortedRooms = res.data.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      // Deduplicate by name then sort
+      const uniqueByName = Array.from(new Map(res.data.map((r: any) => [r.name, r])).values());
+      const sortedRooms = uniqueByName.sort((a: any, b: any) => a.name.localeCompare(b.name));
       setRooms(sortedRooms);
       setError(null);
     } catch (e: any) {
@@ -138,15 +142,17 @@ export default function RoomPage() {
     }
   };
 
-    const fetchAllChildren = async () => {
+  const fetchAllChildren = async () => {
     try {
       const res = await axios.get("/api/children");
       console.log('Fetched children:', res.data);
-      setAllChildren(res.data);
+      // Deduplicate by child id at source
+      const unique = Array.from(new Map(res.data.map((c: any) => [c.id, c])).values());
+      setAllChildren(unique);
       
       // Organize children by caregiver ID
       const childrenByCaregiver: {[key: number]: any[]} = {};
-      res.data.forEach((child: any) => {
+      unique.forEach((child: any) => {
         if (child.servant && child.servant.id) {
           if (!childrenByCaregiver[child.servant.id]) {
             childrenByCaregiver[child.servant.id] = [];

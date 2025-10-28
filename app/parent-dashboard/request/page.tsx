@@ -1,56 +1,79 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, User, Baby, Building, FileText, CheckCircle } from "lucide-react";
+import { User, Baby, FileText, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+type ChildEntry = { childName: string; childAge: number | "" };
+
 type FormData = {
-  childName: string;
-  childAge: number;
-  gender: string;
-  dateOfBirth: string;
   parentName: string;
   email: string;
   phone: string;
-  organization: string;
-  site: string;
-  preferredStartDate: string;
-  notes: string;
+  organization?: string;
+  site?: string;
+  notes?: string;
 };
 
 export default function RequestPage() {
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>();
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>();
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const router = useRouter();
+  const [children, setChildren] = useState<ChildEntry[]>([{ childName: "", childAge: "" }]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/users/me', { credentials: 'include' as RequestCredentials });
+        if (!res.ok) return;
+        const user = await res.json();
+        if (user?.name) setValue('parentName', user.name);
+        if (user?.email) setValue('email', user.email);
+      } catch {}
+    })();
+  }, [setValue]);
 
   const onSubmit = async (data: FormData) => {
     setMessage("");
     setIsLoading(true);
 
     try {
+      // Validate children
+      for (const [idx, c] of children.entries()) {
+        if (!c.childName || c.childName.trim().length === 0) {
+          setMessage(`Child #${idx + 1}: name is required`);
+          setIsLoading(false);
+          return;
+        }
+        if (c.childAge === "" || Number(c.childAge) <= 0) {
+          setMessage(`Child #${idx + 1}: valid age is required`);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Submit a single request aggregating children
+      const childrenLines = children
+        .map((c, i) => `- Child ${i + 1}: ${c.childName.trim()} (Age: ${Number(c.childAge)})`)
+        .join('\n');
+
       const payload = {
-        childName: data.childName.trim(),
-        childAge: data.childAge,
-        gender: data.gender,
-        dateOfBirth: data.dateOfBirth,
-        parentName: data.parentName.trim(),
-        email: data.email.trim().toLowerCase(),
-        phone: data.phone.trim(),
-        organization: data.organization,
-        site: data.site,
-        preferredStartDate: data.preferredStartDate,
-        notes: data.notes.trim()
-      };
+        childName: children[0].childName.trim(), // primary child for title
+        childAge: Number(children[0].childAge),
+        parentName: (data.parentName || '').trim(),
+        email: (data.email || '').trim().toLowerCase(),
+        phone: (data.phone || '').trim(),
+        notes: `${(data.notes || '').trim()}${data.notes ? '\n\n' : ''}Organization: ${data.organization || 'N/A'}\nSite: ${data.site || 'N/A'}\n\nChildren:\n${childrenLines}`,
+      } as any;
 
       const res = await fetch("/api/enrollment-requests", {
         method: "POST",
@@ -58,17 +81,14 @@ export default function RequestPage() {
         body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
-
       if (!res.ok) {
-        setMessage(result.message || "Application submission failed");
-      } else {
-        setMessage("Application submitted successfully! We will review it and contact you soon.");
-        setIsSubmitted(true);
-        setTimeout(() => {
-          router.push("/parent-dashboard");
-        }, 3000);
+        const result = await res.json().catch(() => ({}));
+        throw new Error(result?.message || result?.error || 'Failed to submit application');
       }
+
+      setMessage("Application(s) submitted successfully! We will review it and contact you soon.");
+      setIsSubmitted(true);
+      setTimeout(() => { router.push("/parent-dashboard"); }, 2500);
     } catch (error) {
       console.error('Application error:', error);
       setMessage("An error occurred while submitting your application. Please try again.");
@@ -115,182 +135,81 @@ export default function RequestPage() {
         
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {/* Child Information */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Baby className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Child Information</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="childName">Child's Full Name *</Label>
-                  <Input
-                    id="childName"
-                    type="text"
-                    placeholder="Enter child's full name"
-                    {...register("childName", { required: "Child's name is required" })}
-                  />
-                  {errors.childName && <p className="text-sm text-red-600">{errors.childName.message}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="childAge">Child's Age *</Label>
-                  <Input
-                    id="childAge"
-                    type="number"
-                    min="1"
-                    max="12"
-                    placeholder="Enter age"
-                    {...register("childAge", { 
-                      required: "Child's age is required",
-                      min: { value: 1, message: "Age must be at least 1" },
-                      max: { value: 12, message: "Age must be 12 or less" }
-                    })}
-                  />
-                  {errors.childAge && <p className="text-sm text-red-600">{errors.childAge.message}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Gender *</Label>
-                  <Select onValueChange={(value) => setValue("gender", value)}>
-                    <SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MALE">Male</SelectItem>
-                        <SelectItem value="FEMALE">Female</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                      </SelectContent>
-                    </SelectTrigger>
-                  </Select>
-                  {errors.gender && <p className="text-sm text-red-600">{errors.gender.message}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                  <Input
-                    id="dateOfBirth"
-                    type="date"
-                    {...register("dateOfBirth", { required: "Date of birth is required" })}
-                  />
-                  {errors.dateOfBirth && <p className="text-sm text-red-600">{errors.dateOfBirth.message}</p>}
-                </div>
-              </div>
-            </div>
-
             {/* Parent Information */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 mb-4">
                 <User className="h-5 w-5 text-blue-600" />
                 <h3 className="text-lg font-semibold text-gray-900">Parent Information</h3>
               </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="parentName">Parent's Full Name *</Label>
-                  <Input
-                    id="parentName"
-                    type="text"
-                    placeholder="Enter parent's full name"
-                    {...register("parentName", { required: "Parent's name is required" })}
-                  />
+                  <Input id="parentName" type="text" placeholder="Enter parent's full name" {...register("parentName", { required: "Parent's name is required" })} />
                   {errors.parentName && <p className="text-sm text-red-600">{errors.parentName.message}</p>}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter email address"
-                    {...register("email", { 
-                      required: "Email is required",
-                      pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                        message: "Invalid email address"
-                      }
-                    })}
-                  />
+                  <Input id="email" type="email" placeholder="Enter email address" {...register("email", { required: "Email is required", pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: "Invalid email address" } })} />
                   {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="Enter phone number"
-                  {...register("phone", { required: "Phone number is required" })}
-                />
+                <Input id="phone" type="tel" placeholder="Enter phone number" {...register("phone", { required: "Phone number is required" })} />
                 {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
               </div>
-            </div>
-
-            {/* Organization and Site */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Building className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Organization & Site</h3>
-              </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="organization">Organization *</Label>
-                  <Select onValueChange={(value) => setValue("organization", value)}>
-                    <SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="INSA">INSA</SelectItem>
-                        <SelectItem value="AI">AI</SelectItem>
-                        <SelectItem value="MINISTRY_OF_PEACE">Ministry of Peace</SelectItem>
-                        <SelectItem value="FINANCE_SECURITY">Finance Security</SelectItem>
-                      </SelectContent>
-                    </SelectTrigger>
-                  </Select>
-                  {errors.organization && <p className="text-sm text-red-600">{errors.organization.message}</p>}
+                  <Label htmlFor="organization">Organization</Label>
+                  <Input id="organization" type="text" placeholder="Enter organization" {...register("organization")} />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="site">Preferred Site *</Label>
-                  <Select onValueChange={(value) => setValue("site", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select site" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="HEADOFFICE">Head Office</SelectItem>
-                        <SelectItem value="OPERATION">Operation</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.site && <p className="text-sm text-red-600">{errors.site.message}</p>}
+                  <Label htmlFor="site">Site</Label>
+                  <Input id="site" type="text" placeholder="Enter preferred site" {...register("site")} />
                 </div>
               </div>
             </div>
 
-            {/* Additional Information */}
+            {/* Children Information */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 mb-4">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Additional Information</h3>
+                <Baby className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Children Information</h3>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="preferredStartDate">Preferred Start Date</Label>
-                <Input
-                  id="preferredStartDate"
-                  type="date"
-                  {...register("preferredStartDate")}
-                />
+              {children.map((c, idx) => (
+                <div key={idx} className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-800">Child #{idx + 1}</h4>
+                    {children.length > 1 && (
+                      <Button type="button" variant="outline" onClick={() => setChildren(prev => prev.filter((_, i) => i !== idx))}>Remove</Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Child's Full Name *</Label>
+                      <Input value={c.childName} onChange={(e) => setChildren(prev => prev.map((it, i) => i === idx ? { ...it, childName: e.target.value } : it))} placeholder="Enter child's full name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Child's Age *</Label>
+                      <Input type="number" min="1" max="12" value={c.childAge} onChange={(e) => setChildren(prev => prev.map((it, i) => i === idx ? { ...it, childAge: e.target.value === '' ? '' : Number(e.target.value) } : it))} placeholder="Enter age" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div>
+                <Button type="button" variant="outline" onClick={() => setChildren(prev => [...prev, { childName: "", childAge: "" }])}>+ Add another child</Button>
               </div>
+            </div>
 
+            {/* Description */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Description</h3>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Any additional information, special requirements, medical conditions, or other important details..."
-                  rows={4}
-                  {...register("notes")}
-                />
+                <Label htmlFor="notes">Description</Label>
+                <Textarea id="notes" placeholder="Any additional information that can help us" rows={4} {...register("notes")} />
               </div>
             </div>
 

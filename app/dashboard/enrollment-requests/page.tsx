@@ -51,7 +51,16 @@ export default function AdminEnrollmentRequestsPage() {
       const response = await fetch('/api/enrollment-requests');
       if (response.ok) {
         const data = await response.json();
-        setRequests(data.data || []);
+        const list: EnrollmentRequest[] = data.data || [];
+        // Group multiple same-day submissions by same parent email
+        const byDayKey = (d: string) => new Date(d).toISOString().slice(0, 10);
+        const grouped = new Map<string, EnrollmentRequest>();
+        for (const r of list) {
+          const email = (r.email || '').toLowerCase();
+          const key = `${byDayKey(r.createdAt)}|${email}`;
+          if (!grouped.has(key)) grouped.set(key, r);
+        }
+        setRequests(Array.from(grouped.values()));
       } else {
         setError("Failed to fetch enrollment requests");
       }
@@ -254,11 +263,10 @@ export default function AdminEnrollmentRequestsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-100 rounded-full">
-                        <Baby className="h-5 w-5 text-blue-600" />
+                        <User className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <CardTitle className="text-xl">{request.childName}</CardTitle>
-                        <p className="text-sm text-gray-600">Age: {request.childAge} years</p>
+                        <CardTitle className="text-xl">{request.parentName}</CardTitle>
                       </div>
                     </div>
                     <Badge className={getStatusBadgeColor(request.status)}>
@@ -270,7 +278,7 @@ export default function AdminEnrollmentRequestsPage() {
                 
                 <CardContent>
                   <div className="space-y-4">
-                    {/* Application Details */}
+                    {/* Application Details (Parent first) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-3">
                         <div>
@@ -301,12 +309,12 @@ export default function AdminEnrollmentRequestsPage() {
                       </div>
 
                       <div className="space-y-3">
-                        {request.preferredStartDate && (
+                        {/* Organization and Site parsed from notes if present */}
+                        {request.notes && request.notes.includes('Organization:') && (
                           <div>
-                            <p className="text-sm font-medium text-gray-600">Preferred Start Date</p>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm">{new Date(request.preferredStartDate).toLocaleDateString()}</p>
+                            <p className="text-sm font-medium text-gray-600">Organization & Site</p>
+                            <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md whitespace-pre-line">
+                              {request.notes.split('\n').filter(Boolean).filter((l) => l.startsWith('Organization:') || l.startsWith('Site:')).join('\n')}
                             </div>
                           </div>
                         )}
@@ -331,8 +339,8 @@ export default function AdminEnrollmentRequestsPage() {
 
                     {request.notes && (
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Additional Notes</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md">{request.notes}</p>
+                        <p className="text-sm font-medium text-gray-600">Description</p>
+                        <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md whitespace-pre-line">{request.notes}</div>
                       </div>
                     )}
 
