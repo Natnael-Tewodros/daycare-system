@@ -1,80 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-// GET notifications for a specific parent by email
+// GET: Fetch notifications for a parent
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const parentEmail = searchParams.get('parentEmail');
+    const parentEmail = searchParams.get("parentEmail");
 
     if (!parentEmail) {
-      return NextResponse.json({ error: 'Parent email is required' }, { status: 400 });
+      return NextResponse.json({ error: "Parent email is required" }, { status: 400 });
     }
 
-    // Get all notifications for this parent
+    // Fetch notifications, including related activity (if any)
     const notifications = await prisma.notification.findMany({
-      where: {
-        parentEmail: parentEmail,
-      },
-      include: {
-        activity: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where: { parentEmail },
+      include: { activity: true },
+      orderBy: { createdAt: "desc" },
     });
 
-    // Count unread notifications
+    // Unread count
     const unreadCount = await prisma.notification.count({
-      where: {
-        parentEmail: parentEmail,
-        isRead: false,
-      },
+      where: { parentEmail, isRead: false },
     });
+
+    // Map for compatibility with frontend
+    const formatted = notifications.map((n) => ({
+      id: n.id,
+      parentEmail: n.parentEmail,
+      isRead: n.isRead,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+      activityId: n.activityId,
+      // 👇 if it's an activity, use its data; else fall back to title/message
+      activity: n.activity
+        ? {
+            id: n.activity.id,
+            subject: n.activity.subject,
+            description: n.activity.description,
+            attachments: n.activity.attachments,
+            createdAt: n.activity.createdAt,
+          }
+        : {
+            id: null,
+            subject: n.title || "Notification",
+            description: n.message || "",
+            attachments: [],
+            createdAt: n.createdAt,
+          },
+    }));
 
     return NextResponse.json({
-      notifications,
+      notifications: formatted,
       unreadCount,
-      totalCount: notifications.length,
+      totalCount: formatted.length,
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
-    return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
+    console.error("Error fetching notifications:", error);
+    return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 });
   }
 }
 
-// PATCH to mark notification as read
+// PATCH: Mark notification as read
 export async function PATCH(request: NextRequest) {
   try {
     const { id } = await request.json();
 
     if (!id) {
-      return NextResponse.json({ error: 'Notification ID is required' }, { status: 400 });
+      return NextResponse.json({ error: "Notification ID is required" }, { status: 400 });
     }
 
-    const updatedNotification = await prisma.notification.update({
+    const updated = await prisma.notification.update({
       where: { id },
       data: { isRead: true },
     });
 
-    return NextResponse.json({
-      success: true,
-      notification: updatedNotification,
-    });
+    return NextResponse.json({ success: true, notification: updated });
   } catch (error) {
-    console.error('Error updating notification:', error);
-    return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
+    console.error("Error updating notification:", error);
+    return NextResponse.json({ error: "Failed to update notification" }, { status: 500 });
   }
 }
 
-// DELETE to remove a notification
+// DELETE: Remove a notification
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json({ error: 'Notification ID is required' }, { status: 400 });
+      return NextResponse.json({ error: "Notification ID is required" }, { status: 400 });
     }
 
     await prisma.notification.delete({
@@ -83,11 +97,10 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Notification deleted successfully',
+      message: "Notification deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting notification:', error);
-    return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 });
+    console.error("Error deleting notification:", error);
+    return NextResponse.json({ error: "Failed to delete notification" }, { status: 500 });
   }
 }
-

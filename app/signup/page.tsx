@@ -7,17 +7,31 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useState } from "react";
 import Link from "next/link";
+import { Select } from '@/components/ui/select';
 
-type FormData = { id: string; name: string; username?: string; email: string; password: string; role: string };
+type FormData = { 
+  id: string; 
+  name: string; 
+  username?: string; 
+  email: string; 
+  password: string; 
+  role: string;
+  registrationType: string; // 'PERMANENT' | 'EVENT'
+  eventType?: string; // only needed if registrationType === 'EVENT'
+};
 
 export default function SignupPage() {
   const { register, handleSubmit, setValue, watch } = useForm<FormData>();
   const [message, setMessage] = useState("");
   // Set default role to PARENT for regular users
   const [selectedRole, setSelectedRole] = useState("PARENT");
+  const [registrationType, setRegistrationType] = useState('PERMANENT');
+  const [eventType, setEventType] = useState('');
 
   const onSubmit = async (data: FormData) => {
     setMessage("");
+    if (!registrationType) { setMessage("Please select a registration type."); return; }
+    if (registrationType === 'EVENT' && !eventType) { setMessage("Please select an event type."); return; }
     try {
       const payload = {
         id: (data.id || '').trim(),
@@ -26,6 +40,8 @@ export default function SignupPage() {
         email: (data.email || '').trim(),
         password: (data.password || '').trim(),
         role: selectedRole,
+        registrationType,
+        eventType: registrationType === 'EVENT' ? eventType : undefined
       };
       const res = await fetch("/api/auth/signup", {
         method: "POST",
@@ -76,7 +92,9 @@ export default function SignupPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
-              <Label htmlFor="id" className="text-sm font-medium text-gray-700">User ID</Label>
+              <Label htmlFor="id" className="text-sm font-medium text-gray-700">
+                User ID <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 {...register("id")} 
                 id="id"
@@ -86,7 +104,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</Label>
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                Full Name <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 {...register("name")} 
                 id="name"
@@ -96,16 +116,22 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username (Optional)</Label>
+              <Label htmlFor="username" className="text-sm font-medium text-gray-700">
+                Username <span className="text-red-500">*</span> <span className="text-xs text-gray-500">(required for registering children)</span>
+              </Label>
               <Input 
-                {...register("username")} 
+                {...register("username", { required: true })} 
                 id="username"
-                placeholder="Choose a username" 
+                placeholder="Choose a username (must remember for child registration)" 
                 className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                required
               />
+              <span className="block text-[13px] text-blue-600 mt-1">Important: You will need this username to register your child. Please save or write it down.</span>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address</Label>
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                Email Address <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 {...register("email")} 
                 id="email"
@@ -116,7 +142,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                Password <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 {...register("password")} 
                 id="password"
@@ -126,6 +154,43 @@ export default function SignupPage() {
                 required 
               />
             </div>
+            {/* Registration type dropdown */}
+            <div className="space-y-2">
+              <Label htmlFor="registrationType" className="text-sm font-medium text-gray-700">
+                Registration Type <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="registrationType"
+                className="h-11 w-full rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                value={registrationType}
+                onChange={e => setRegistrationType(e.target.value)}
+                required
+              >
+                <option value="PERMANENT">Permanent</option>
+                <option value="EVENT">Event</option>
+              </select>
+            </div>
+            {/* Event type dropdown, only display if 'EVENT' type selected */}
+            {registrationType === 'EVENT' && (
+              <div className="space-y-2">
+                <Label htmlFor="eventType" className="text-sm font-medium text-gray-700">
+                  Event Type <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="eventType"
+                  className="h-11 w-full rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  value={eventType}
+                  onChange={e => setEventType(e.target.value)}
+                  required
+                >
+                  <option value="">Select event type</option>
+                  <option value="SUMMER_CAMP">Summer Camp</option>
+                  <option value="WINTER_WORKSHOP">Winter Workshop</option>
+                  <option value="OPEN_DAY">Open Day</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+            )}
             <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium">
               Create Account
             </Button>

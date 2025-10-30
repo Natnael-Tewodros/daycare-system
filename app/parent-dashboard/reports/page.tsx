@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { 
   FileText, 
   Calendar, 
@@ -18,9 +17,12 @@ import {
   Edit,
   Trash2,
   Save,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Child {
   id: number;
@@ -37,6 +39,7 @@ interface Report {
 
 export default function ReportsPage() {
   const [children, setChildren] = useState<Child[]>([]);
+  const [submittedReports, setSubmittedReports] = useState<any[]>([]);
   const [selectedChild, setSelectedChild] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
@@ -44,11 +47,13 @@ export default function ReportsPage() {
   const [editForm, setEditForm] = useState({ title: '', content: '' });
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     if (userId) {
       fetchChildrenData(userId);
+      fetchSubmittedReports();
     }
   }, []);
 
@@ -74,6 +79,44 @@ export default function ReportsPage() {
       console.error('Error fetching children data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubmittedReports = async () => {
+    try {
+      // Get all activities directly without relying on parent email
+      const response = await fetch('/api/activities');
+      if (!response.ok) throw new Error('Failed to fetch activities');
+      
+      const activities = await response.json();
+      
+      // Filter for parent submissions based on content and recipient
+      const submitted = activities.filter((activity: any) => {
+        // Check if it's a parent submission by content
+        const subject = activity.subject?.toLowerCase() || '';
+        const description = activity.description?.toLowerCase() || '';
+        
+        const isParentSubmission = 
+          // Check for parent submission indicators in content
+          subject.includes('absence') ||
+          subject.includes('sick') ||
+          description.includes('child:') ||
+          description.includes('reason:') ||
+          // Or check if it's marked as from parent and to admin
+          (activity.senderType === 'parent' && 
+           activity.recipients?.includes('admin@daycare.com'));
+        
+        // Make sure it's not a system-generated message
+        const isNotSystemMessage = !subject.startsWith('system:') && 
+                                 !description.includes('system-generated');
+        
+        return isParentSubmission && isNotSystemMessage;
+      });
+      
+      setSubmittedReports(submitted);
+    } catch (error) {
+      console.error('Error fetching submitted reports:', error);
+      setError('Failed to load your submitted reports. Please try again later.');
     }
   };
 
@@ -140,68 +183,95 @@ Generated from Parent Portal
     setEditForm({ title: report.title, content: report.content });
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingReport) return;
-    
-    try {
-      setError(null);
-      const response = await fetch(`/api/reports/${editingReport.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
-      });
 
-      if (response.ok) {
-        // Update the report in the children data
-        setChildren(prevChildren => 
-          prevChildren.map(child => ({
-            ...child,
-            reports: child.reports.map(report => 
-              report.id === editingReport.id 
-                ? { ...report, title: editForm.title, content: editForm.content }
-                : report
-            )
-          }))
-        );
-        setEditingReport(null);
-        setEditForm({ title: '', content: '' });
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to update report');
-      }
-    } catch (err) {
-      console.error('Error updating report:', err);
-      setError('Failed to update report');
-    }
-  };
-
-  const handleDeleteReport = async (reportId: number) => {
+  const handleDeleteReport = async (activityId: number) => {
     if (!confirm('Are you sure you want to delete this report?')) {
       return;
     }
 
     try {
       setError(null);
-      const response = await fetch(`/api/reports/${reportId}`, {
-        method: 'DELETE'
+      const response = await fetch(`/api/activities`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: activityId })
       });
 
       if (response.ok) {
-        // Remove the report from the children data
-        setChildren(prevChildren => 
-          prevChildren.map(child => ({
-            ...child,
-            reports: child.reports.filter(report => report.id !== reportId)
-          }))
+        // Remove the report from the submitted reports
+        setSubmittedReports(prev => 
+          prev.filter(report => report.id !== activityId)
         );
+        toast.success('Report deleted successfully');
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to delete report');
+        const errorMessage = errorData.error || 'Failed to delete report';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (err) {
       console.error('Error deleting report:', err);
-      setError('Failed to delete report');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete report';
+      toast.error(errorMessage);
+      setError(errorMessage);
     }
+  };
+
+  const handleUpdateReport = async (activityId: number, updates: { subject?: string, description?: string }) => {
+    try {
+      setError(null);
+      const response = await fetch(`/api/activities/${activityId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        // Update the report in the submitted reports
+        setSubmittedReports(prev => 
+          prev.map(report => 
+            report.id === activityId 
+              ? { ...report, ...updates } 
+              : report
+          )
+        );
+        setEditingReport(null);
+        setEditForm({ title: '', content: '' });
+        toast.success('Report updated successfully');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update report');
+      }
+    } catch (err) {
+      console.error('Error updating report:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update report');
+    }
+  };
+
+  const startEditing = (report: any) => {
+    setEditingReport(report);
+    setEditForm({
+      title: report.subject,
+      content: report.description || ''
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingReport(null);
+    setEditForm({ title: '', content: '' });
+    setError(null);
+  };
+
+  const saveChanges = () => {
+    if (!editingReport) return;
+    handleUpdateReport(editingReport.id, {
+      subject: editForm.title,
+      description: editForm.content
+    });
   };
 
   const cancelEdit = () => {
@@ -221,13 +291,13 @@ Generated from Parent Portal
     );
   }
 
-  if (children.length === 0) {
+  if (children.length === 0 && submittedReports.length === 0) {
     return (
       <div className="text-center py-12">
         <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Children Found</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Reports Found</h3>
         <p className="text-gray-600 mb-6">
-          You don't have any children registered in the daycare system yet.
+          You don't have any submitted or daycare-provided reports yet.
         </p>
       </div>
     );
@@ -238,8 +308,62 @@ Generated from Parent Portal
     (child.reports || []).map(report => ({ ...report, childName: child.fullName, childId: child.id }))
   ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  // Add edit modal
+  const EditModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <h2 className="text-xl font-bold mb-4">Edit Report</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-title">Subject</Label>
+            <Input
+              id="edit-title"
+              value={editForm.title}
+              onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+              className="mt-1"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="edit-content">Message</Label>
+            <Textarea
+              id="edit-content"
+              value={editForm.content}
+              onChange={(e) => setEditForm({...editForm, content: e.target.value})}
+              className="mt-1 min-h-[200px]"
+            />
+          </div>
+          
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-3 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={cancelEditing}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={saveChanges}
+              disabled={!editForm.title.trim() || !editForm.content.trim()}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+      {editingReport && <EditModal />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Child Reports</h1>
@@ -253,244 +377,72 @@ Generated from Parent Portal
         </div>
       )}
 
-      {/* Report Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Total Reports</p>
-                <p className="text-2xl font-bold text-gray-900">{allReports.length}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <FileText className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {allReports.filter(r => {
-                    const reportDate = new Date(r.createdAt);
-                    const now = new Date();
-                    return reportDate.getMonth() === now.getMonth() && 
-                           reportDate.getFullYear() === now.getFullYear();
-                  }).length}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Children</p>
-                <p className="text-2xl font-bold text-blue-600">{children.length}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Latest Report</p>
-                <p className="text-sm font-bold text-gray-900">
-                  {allReports.length > 0 
-                    ? formatDate(allReports[0].createdAt)
-                    : 'No reports'
-                  }
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* All Reports List */}
+      {/* My Submitted Reports */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            All Children Reports
+            My Submitted Reports (Absences, Sick Notices)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {allReports.length === 0 ? (
+          {submittedReports.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No reports available for any of your children</p>
+              <p className="text-gray-500">You haven't submitted any reports yet</p>
+              <p className="text-sm text-gray-400 mt-2">Your absence notices and sick reports will appear here</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {allReports.map((report) => {
-                const reportType = getReportType(report.title);
-                const isEditing = editingReport?.id === report.id;
-                
-                return (
-                  <div key={`${report.childId}-${report.id}`} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    {isEditing ? (
-                      // Edit Mode
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <Badge className={reportType.color}>
-                            {reportType.type}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {report.childName}
-                          </Badge>
+              {submittedReports.map((report) => (
+                <div key={report.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium">{report.subject}</h3>
+                      <p className="text-sm text-gray-500">{formatDate(report.createdAt)}</p>
+                      {report.description && (
+                        <div className="mt-2 text-sm text-gray-700 whitespace-pre-line">
+                          {report.description.split('\n').map((line, i) => (
+                            <p key={i}>{line}</p>
+                          ))}
                         </div>
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor="edit-title">Title</Label>
-                            <Input
-                              id="edit-title"
-                              value={editForm.title}
-                              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                              placeholder="Enter report title"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="edit-content">Content</Label>
-                            <Textarea
-                              id="edit-content"
-                              value={editForm.content}
-                              onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                              placeholder="Enter report content"
-                              rows={4}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={handleSaveEdit} size="sm">
-                              <Save className="h-4 w-4 mr-2" />
-                              Save
-                            </Button>
-                            <Button onClick={cancelEdit} variant="outline" size="sm">
-                              <X className="h-4 w-4 mr-2" />
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      // View Mode
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-semibold text-gray-900">{report.title}</h4>
-                            <Badge className={reportType.color}>
-                              {reportType.type}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {report.childName}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-3">
-                            {formatDate(report.createdAt)} at {formatTime(report.createdAt)}
-                          </p>
-                          <p className="text-gray-700 line-clamp-3">{report.content}</p>
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedReport(report)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditReport(report)}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => exportReport(report)}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Export
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteReport(report.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => startEditing(report)}
+                        className="text-blue-600 hover:bg-blue-50"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleDeleteReport(report.id)}
+                        className="text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => exportReport(report)}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Report Detail Modal */}
-      {selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{selectedReport.title}</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedReport(null)}
-              >
-                Close
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="text-sm text-gray-600">
-                  <p>Child: {selectedReport.childName || 'Unknown Child'}</p>
-                  <p>Date: {formatDate(selectedReport.createdAt)}</p>
-                  <p>Time: {formatTime(selectedReport.createdAt)}</p>
-                </div>
-                <div className="prose max-w-none">
-                  <p className="whitespace-pre-wrap">{selectedReport.content}</p>
-                </div>
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={() => exportReport(selectedReport)}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export Report
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
-

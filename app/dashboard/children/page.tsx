@@ -1,148 +1,72 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  Plus,
+  Trash2,
+  Save,
+  RefreshCw,
+  Loader2,
+  UserPlus,
+  Edit3,
+  Calendar,
+  MapPin,
+  Building,
+  UserCheck,
+  Users,
+  Info,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit, Save, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import ChildFormCard from "@/components/children/ChildFormCard";
+import EditChildDialog from "@/components/children/EditChildDialog";
+import type { ChildForm, ParentInfo, ChildRow } from "./types";
 
-interface ChildForm {
-  fullName: string;
-  relationship: string;
-  gender: string;
-  dateOfBirth: string;
-  site: string;
-  organization: string;
-  profilePic: File | null;
-  childInfoFile: File | null;
-  otherFile: File | null;
-}
-
-interface ParentInfo {
-  username: string;
-}
+const EMPTY: ChildForm = {
+  fullName: "",
+  relationship: "",
+  gender: "",
+  dateOfBirth: "",
+  site: "",
+  organization: "",
+  profilePic: null,
+  childInfoFile: null,
+  otherFile: null,
+};
 
 export default function AdminPage() {
-  const [parentInfo, setParentInfo] = useState<ParentInfo>({
-    username: ""
-  });
-  const [childrenForms, setChildrenForms] = useState<ChildForm[]>([]);
-  const [childrenList, setChildrenList] = useState<any[]>([]);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 10;
-  const [isLoading, setIsLoading] = useState(false); // Added for loading state
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingChild, setEditingChild] = useState<any>(null);
-  const [editFormData, setEditFormData] = useState<ChildForm>({
-    fullName: "",
-    relationship: "",
-    gender: "",
-    dateOfBirth: "",
-    site: "",
-    organization: "",
-    profilePic: null,
-    childInfoFile: null,
-    otherFile: null,
-  });
+  const [parent, setParent] = useState<ParentInfo>({ username: "" });
+  const [forms, setForms] = useState<ChildForm[]>([]);
+  const [list, setList] = useState<ChildRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<ChildRow | null>(null);
+  const [editData, setEditData] = useState<ChildForm>(EMPTY);
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const fetchChildren = async () => {
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const res = await fetch("/api/children");
-      const data = await res.json();
-      setChildrenList(data);
-      setCurrentPage(1);
-    } catch (error) {
-      console.error("Error fetching children:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const openEditDialog = (child: any) => {
-    setEditingChild(child);
-    setEditFormData({
-      fullName: child.fullName || "",
-      relationship: child.relationship || "",
-      gender: child.gender || "",
-      dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth).toISOString().split('T')[0] : "",
-      site: child.site || "",
-      organization: child.organization?.name || "",
-      profilePic: null,
-      childInfoFile: null,
-      otherFile: null,
-    });
-    setShowEditDialog(true);
-  };
-
-  const handleEditSubmit = async () => {
-    if (!editingChild) return;
-    
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("fullName", editFormData.fullName);
-      formData.append("relationship", editFormData.relationship);
-      formData.append("gender", editFormData.gender);
-      formData.append("dateOfBirth", editFormData.dateOfBirth);
-      formData.append("site", editFormData.site);
-      formData.append("organization", editFormData.organization);
-      
-      if (editFormData.profilePic) {
-        formData.append("profilePic", editFormData.profilePic);
-      }
-      if (editFormData.childInfoFile) {
-        formData.append("childInfoFile", editFormData.childInfoFile);
-      }
-      if (editFormData.otherFile) {
-        formData.append("otherFile", editFormData.otherFile);
-      }
-
-      const response = await fetch(`/api/children/${editingChild.id}`, {
-        method: "PUT",
-        body: formData,
+      const r = await fetch("/api/children");
+      if (!r.ok) throw new Error("Failed");
+      const data: ChildRow[] = await r.json();
+      // Oldest first so newest appear at the bottom
+      const sorted = [...data].sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
+        if (aTime !== bTime) return aTime - bTime;
+        const aId = typeof a.id === 'number' ? a.id : parseInt(String(a.id), 10) || 0;
+        const bId = typeof b.id === 'number' ? b.id : parseInt(String(b.id), 10) || 0;
+        return aId - bId;
       });
-
-      if (response.ok) {
-        alert("Child information updated successfully!");
-        setShowEditDialog(false);
-        setEditingChild(null);
-        fetchChildren(); // Refresh the list
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error || "Failed to update child"}`);
-      }
-    } catch (error) {
-      console.error("Error updating child:", error);
-      alert("Error updating child information");
+      setList(sorted);
+    } catch (err) {
+      alert("Failed to load children");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -150,695 +74,418 @@ export default function AdminPage() {
     fetchChildren();
   }, []);
 
-  const addChildForm = async () => {
-    if (!parentInfo.username) {
-      return alert("Please fill in parent username first!");
+  // Validate parent
+  const validateParent = async (): Promise<boolean> => {
+    const u = parent.username.trim();
+    if (!u) {
+      alert("Enter username");
+      return false;
     }
-
-    // Validate that the username exists before allowing form creation
     try {
-      const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(parentInfo.username)}`);
-      const result = await res.json();
-      
-      if (!result.exists) {
-        alert(`❌ Parent with username "${parentInfo.username}" does not exist. Please register as a parent first.`);
-        return;
+      const r = await fetch(`/api/users/check-username?username=${encodeURIComponent(u)}`);
+      const { exists, user } = await r.json();
+      if (!exists) {
+        alert("Parent not found");
+        return false;
       }
-      // Gate: ensure the parent has an approved enrollment request before allowing child form
-      try {
-        const reqRes = await fetch('/api/enrollment-requests');
-        const reqJson = await reqRes.json();
-        const requests = Array.isArray(reqJson?.data) ? reqJson.data : [];
-        const hasApproved = requests.some((r: any) => (
-          (r.email && result.user?.username && r.email.toLowerCase()) && r.status === 'approved'
-        ) || (r.parentName && r.parentName.toLowerCase() === (result.user?.name || '').toLowerCase() && r.status === 'approved'));
-        if (!hasApproved) {
-          alert("⚠️ This parent does not have an approved enrollment request yet. Please approve their request before registering a child.");
-          return;
-        }
-      } catch (e) {
-        console.error('Failed to verify enrollment requests:', e);
-        alert('⚠️ Could not verify enrollment request status. Please try again or ensure a request is approved.');
-        return;
+
+      const req = await fetch("/api/enrollment-requests");
+      const { data = [] } = await req.json();
+      const ok = data.some(
+        (x: any) =>
+          x.status === "approved" &&
+          (x.email?.toLowerCase() === user?.email?.toLowerCase() ||
+            x.parentName?.toLowerCase() === user?.name?.toLowerCase())
+      );
+      if (!ok) {
+        alert("No approved request");
+        return false;
       }
-      
-      // Username exists, proceed with adding the form
-      setChildrenForms([
-        ...childrenForms,
-        emptyChildForm()
-      ]);
-    } catch (error) {
-      console.error("Error validating username:", error);
-      alert("❌ Error validating username. Please try again.");
+      return true;
+    } catch {
+      alert("Validation error");
+      return false;
     }
   };
 
-  const handleChildChange = (
-    index: number,
-    field: keyof ChildForm,
-    value: any
-  ) => {
-    const newForms = [...childrenForms];
-    newForms[index][field] = value;
-    setChildrenForms(newForms);
+  // Actions
+  const addForm = async () => {
+    if (!(await validateParent())) return;
+    const newIdx = forms.length;
+    setForms((p) => [...p, { ...EMPTY }]);
+    setOpenIdx(newIdx);
   };
 
-  const handleSubmitChild = async (child: ChildForm, index: number) => {
-    setIsLoading(true);
+  const removeForm = (i: number) => setForms((p) => p.filter((_, x) => x !== i));
+  const clearAll = () => {
+    setParent({ username: "" });
+    setForms([]);
+    setOpenIdx(null);
+  };
+
+  const submitOne = async (c: ChildForm, i: number) => {
+    if (!valid(c)) return;
+    setLoading(true);
     try {
-      // Basic required validation
-      if (!child.fullName || !child.relationship || !child.gender || !child.dateOfBirth || !child.site || !child.organization) {
-        alert("Please fill all required fields (name, relationship, gender, DOB, site, organization)");
-        return;
-      }
-      // Pre-flight check: ensure approved enrollment request exists; backend enforces too
-      try {
-        const reqRes = await fetch('/api/enrollment-requests');
-        const reqJson = await reqRes.json();
-        const requests = Array.isArray(reqJson?.data) ? reqJson.data : [];
-        const hasApproved = requests.some((r: any) => r.status === 'approved');
-        if (!hasApproved) {
-          alert('⚠️ No approved enrollment request found. Registration is blocked.');
-          return;
-        }
-      } catch (e) {
-        console.error('Verify request failed', e);
-      }
-      const formData = new FormData();
-      formData.append("parentUsername", parentInfo.username);
-      formData.append("fullName", child.fullName);
-      formData.append("relationship", child.relationship);
-      formData.append("gender", child.gender);
-      formData.append("dateOfBirth", child.dateOfBirth);
-      formData.append("site", child.site);
-      formData.append("organization", child.organization);
-      if (child.profilePic) formData.append("profilePic", child.profilePic);
-      if (child.childInfoFile) formData.append("childInfoFile", child.childInfoFile);
-      if (child.relationship === "OTHER" && child.otherFile) formData.append("otherFile", child.otherFile);
-
-      const res = await fetch("/api/children", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await res.json();
-      
-      if (res.ok && result.success) {
-        alert(`✅ Child ${child.fullName} registered successfully!`);
+      const fd = fdFrom(c, parent.username);
+      const r = await fetch("/api/children", { method: "POST", body: fd });
+      const j = await r.json();
+      if (r.ok) {
+        alert(`${c.fullName} saved`);
+        setForms((p) => p.map((f, x) => (x === i ? { ...EMPTY } : f)));
         fetchChildren();
-        // Clear this specific form by index
-        setChildrenForms((prev) => prev.map((f, i) => i === index ? emptyChildForm() : f));
-        // If all forms are empty after clearing this one, clear parent info
-        setChildrenForms((prev) => {
-          const allEmpty = prev.every(f => !f.fullName && !f.relationship && !f.gender && !f.dateOfBirth && !f.site && !f.organization && !f.profilePic && !f.childInfoFile && !f.otherFile);
-          if (allEmpty) {
-            setParentInfo({ username: "" });
-          }
-          return prev;
-        });
-      } else {
-        // Display the specific error message from the API
-        const errorMessage = result.error || "❌ Failed to register child";
-        alert(errorMessage);
-      }
-    } catch (error) {
-      alert("❌ Error registering child");
-      console.error("Error submitting child:", error);
+      } else alert(j.error ?? "Failed");
+    } catch {
+      alert("Error");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const emptyChildForm = (): ChildForm => ({
-    fullName: "",
-    relationship: "",
-    gender: "",
-    dateOfBirth: "",
-    site: "",
-    organization: "",
-    profilePic: null,
-    childInfoFile: null,
-    otherFile: null,
-  });
-
-  // Removed reference-based index finder; using index passed from render
-
-  const handleRegisterAll = async () => {
-    if (!parentInfo.username) {
-      return alert("Please fill in parent username first!");
+  const submitAll = async () => {
+    if (!parent.username || !forms.length) return;
+    if (forms.some((c) => !valid(c))) {
+      alert("Fill required fields");
+      return;
     }
-    if (childrenForms.length === 0) return alert("Add at least one child form.");
-    setIsLoading(true);
+    setLoading(true);
     try {
-      for (const child of childrenForms) {
-        if (!child.fullName || !child.relationship || !child.gender || !child.dateOfBirth || !child.site || !child.organization) {
-          alert("Please fill all required fields in every child form.");
-          setIsLoading(false);
-          return;
-        }
-        const formData = new FormData();
-        formData.append("parentUsername", parentInfo.username);
-        formData.append("fullName", child.fullName);
-        formData.append("relationship", child.relationship);
-        formData.append("gender", child.gender);
-        formData.append("dateOfBirth", child.dateOfBirth);
-        formData.append("site", child.site);
-        formData.append("organization", child.organization);
-        if (child.profilePic) formData.append("profilePic", child.profilePic);
-        if (child.childInfoFile) formData.append("childInfoFile", child.childInfoFile);
-        if (child.relationship === "OTHER" && child.otherFile) formData.append("otherFile", child.otherFile);
-
-        const res = await fetch("/api/children", { method: "POST", body: formData });
-        const result = await res.json();
-        if (!res.ok || !result.success) {
-          throw new Error(result.error || "Failed to register a child");
-        }
+      for (const c of forms) {
+        const fd = fdFrom(c, parent.username);
+        const r = await fetch("/api/children", { method: "POST", body: fd });
+        if (!r.ok) throw new Error((await r.json()).error);
       }
-      alert("✅ All children registered successfully!");
-      setChildrenForms([]);
-      setParentInfo({ username: "" });
+      alert("All saved");
+      clearAll();
       fetchChildren();
-    } catch (err) {
-      console.error("Bulk register error:", err);
-      const errorMessage = err instanceof Error ? err.message : "❌ Failed to register all children. Some may not be saved.";
-      alert(errorMessage);
+    } catch (e: any) {
+      alert(e.message ?? "Failed");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const removeChildForm = (index: number) => {
-    setChildrenForms(prev => prev.filter((_, i) => i !== index));
+  const openEdit = (c: ChildRow) => {
+    setEditing(c);
+    setEditData({
+      ...EMPTY,
+      fullName: c.fullName ?? "",
+      relationship: c.relationship ?? "",
+      gender: c.gender ?? "",
+      dateOfBirth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().split("T")[0] : "",
+      site: c.site ?? "",
+      organization: c.organization?.name ?? "",
+    });
+    setEditOpen(true);
   };
 
-  const clearAllForms = () => {
-    setParentInfo({ username: "" });
-    setChildrenForms([]);
+  const editSubmit = async () => {
+    if (!editing) return;
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      Object.entries(editData).forEach(([k, v]) => {
+        if (v instanceof File && v.size) fd.append(k, v);
+        else if (v) fd.append(k, v as string);
+      });
+      const r = await fetch(`/api/children/${editing.id}`, { method: "PUT", body: fd });
+      if (r.ok) {
+        alert("Updated");
+        setEditOpen(false);
+        fetchChildren();
+      } else alert((await r.json()).error ?? "Failed");
+    } catch {
+      alert("Error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const ChildFormCard = ({ child, index }: { child: ChildForm; index: number }) => (
-    <Card
-      key={index}
-      className="shadow-lg border border-slate-200 rounded-xl transition-all hover:shadow-xl"
-    >
-      <CardHeader className="bg-slate-50 rounded-t-xl flex items-center justify-between">
-        <CardTitle className="text-xl font-semibold text-slate-800">
-          Child Information {childrenForms.length > 1 ? `#${index + 1}` : ""}
-        </CardTitle>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => removeChildForm(index)}
-          className="text-slate-500 hover:text-red-600"
-          aria-label="Remove child form"
-        >
-          ✖
-        </Button>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Full Name</Label>
-          <Input
-            value={child.fullName}
-            onChange={(e) =>
-              handleChildChange(index, "fullName", e.target.value)
-            }
-            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-            placeholder="Enter child's full name"
-          />
-        </div>
+  const valid = (c: ChildForm) =>
+    ["fullName", "relationship", "gender", "dateOfBirth", "site", "organization"].every(
+      (f) => !!c[f as keyof ChildForm]
+    );
 
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Relationship</Label>
-          <Select
-            value={child.relationship}
-            onValueChange={(v) =>
-              handleChildChange(index, "relationship", v)
-            }
-          >
-            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-              <SelectValue placeholder="Select relationship" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="FATHER">Father</SelectItem>
-              <SelectItem value="MOTHER">Mother</SelectItem>
-              <SelectItem value="OTHER">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+  const fdFrom = (c: ChildForm, u: string) => {
+    const fd = new FormData();
+    fd.append("parentUsername", u);
+    (Object.keys(c) as (keyof ChildForm)[]).forEach((k) => {
+      const v = c[k];
+      if (v instanceof File && v.size) fd.append(k, v);
+      else if (typeof v === "string" && v) fd.append(k, v);
+    });
+    return fd;
+  };
 
-        {child.relationship === "OTHER" && (
-          <div>
-            <Label className="text-sm font-medium text-slate-700">
-              Upload Document for Other (PDF only)
-            </Label>
-            <Input
-              type="file"
-              accept=".pdf"
-              onChange={(e) =>
-                handleChildChange(index, "otherFile", e.target.files?.[0] || null)
-              }
-              className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        )}
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Gender</Label>
-          <Select
-            value={child.gender}
-            onValueChange={(v) => handleChildChange(index, "gender", v)}
-          >
-            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-              <SelectValue placeholder="Select gender" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="MALE">Male</SelectItem>
-              <SelectItem value="FEMALE">Female</SelectItem>
-              <SelectItem value="OTHER">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Date of Birth</Label>
-          <Input
-            type="date"
-            value={child.dateOfBirth}
-            onChange={(e) =>
-              handleChildChange(index, "dateOfBirth", e.target.value)
-            }
-            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Site</Label>
-          <Select
-            value={child.site}
-            onValueChange={(v) => handleChildChange(index, "site", v)}
-          >
-            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-              <SelectValue placeholder="Select site" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="HEADOFFICE">Head Office</SelectItem>
-              <SelectItem value="OPERATION">Operation</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Organization</Label>
-          <Select
-            value={child.organization}
-            onValueChange={(v) => handleChildChange(index, "organization", v)}
-          >
-            <SelectTrigger className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500">
-              <SelectValue placeholder="Select organization" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="INSA">INSA</SelectItem>
-              <SelectItem value="AI">AI</SelectItem>
-              <SelectItem value="MINISTRY_OF_PEACE">Ministry of Peace</SelectItem>
-              <SelectItem value="FINANCE_SECURITY">Finance Security</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Profile Picture (Images only)</Label>
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) =>
-              handleChildChange(index, "profilePic", e.target.files?.[0] || null)
-            }
-            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Child Info File (PDF only)</Label>
-          <Input
-            type="file"
-            accept=".pdf"
-            onChange={(e) =>
-              handleChildChange(index, "childInfoFile", e.target.files?.[0] || null)
-            }
-            className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-      </CardContent>
-      <CardFooter className="bg-slate-50 rounded-b-xl">
-        <Button
-          onClick={() => handleSubmitChild(child, index)}
-          className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-          disabled={isLoading}
-        >
-          {isLoading ? "Registering..." : "✅ Register This Child"}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
+  const toggle = (i: number) => setOpenIdx((p) => (p === i ? null : i));
 
   return (
-    <div className="container mx-auto py-12 px-4 sm:px-6 lg:px-8 space-y-8">
-      {/* Parent Name + Add Child Button */}
-      <Card className="shadow-lg border border-slate-200 rounded-xl transition-all hover:shadow-xl">
-        <CardHeader className="bg-slate-50 rounded-t-xl">
-          <CardTitle className="text-2xl font-semibold text-slate-800">
-            Parent Information
-          </CardTitle>
-          <CardDescription className="text-slate-600">
-            Enter the parent's username to register children. The parent must be registered in the system first.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 pt-6">
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Parent Username *</Label>
-              <Input
-                type="text"
-                value={parentInfo.username}
-                onChange={(e) => setParentInfo(prev => ({ ...prev, username: e.target.value }))}
-                className="mt-1 border-slate-300 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter parent's username"
-                required
-              />
-              <p className="text-sm text-slate-500 mt-1">
-                The parent must exist in the system before registering children
-              </p>
-            </div>
+    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* COMPACT PARENT BAR WITH DESCRIPTION */}
+      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200 px-5 py-3 flex items-center gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-blue-600" />
+            <Input
+              value={parent.username}
+              onChange={(e) => setParent({ username: e.target.value })}
+              placeholder="Parent username *"
+              aria-required="true"
+              className="w-48 h-8 text-sm border-slate-300 focus:border-blue-500"
+              disabled={loading}
+            />
           </div>
-          <div className="flex gap-4 items-end">
+          <p className="text-xs text-slate-500 pl-6 flex items-center gap-1">
+            <Info className="w-3 h-3" />
+            Must be registered & approved parent
+          </p>
+        </div>
+
+        <div className="flex gap-1.5">
+          <Button
+            size="sm"
+            onClick={addForm}
+            disabled={loading || !parent.username.trim()}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          </Button>
+          {forms.length > 1 && (
             <Button
-              onClick={addChildForm}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-              disabled={isLoading}
-            >
-              ➕ Add Child
-            </Button>
-            {childrenForms.length > 1 && (
-              <Button
-                onClick={handleRegisterAll}
-                className="bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
-                disabled={isLoading}
-              >
-                🚀 Register All
-              </Button>
-            )}
-            {(parentInfo.username || childrenForms.length > 0) && (
-              <Button
-                onClick={clearAllForms}
-                variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50 font-medium transition-colors"
-                disabled={isLoading}
-              >
-                🗑️ Clear All
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dynamic Child Forms */}
-      {childrenForms.map((child, index) => (
-        <ChildFormCard key={index} child={child} index={index} />
-      ))}
-
-      <Separator className="my-8" />
-
-      {/* Registered Children Table */}
-      <Card className="shadow-lg border border-slate-200 rounded-xl transition-all hover:shadow-xl">
-        <CardHeader className="bg-slate-50 rounded-t-xl">
-          <CardTitle className="text-2xl font-semibold text-slate-800">
-            📋 Registered Children
-          </CardTitle>
-          <CardDescription className="text-slate-600">
-            View all registered children below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-slate-600 animate-pulse">Loading children...</p>
-          ) : childrenList.length === 0 ? (
-            <p className="text-slate-500">No children registered yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-100">
-                  <TableHead className="font-semibold text-slate-800">ID</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Photo</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Full Name</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Parent</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Gender</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Relationship</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Site</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Organization</TableHead>
-                  <TableHead className="font-semibold text-slate-800">DOB</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Twin</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Document</TableHead>
-                  <TableHead className="font-semibold text-slate-800">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {childrenList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((child, idx) => (
-                  <TableRow
-                    key={child.id}
-                    className={`${
-                      idx % 2 === 0 ? "bg-white" : "bg-slate-50"
-                    } hover:bg-blue-50 transition-colors`}
-                  >
-                    <TableCell className="text-slate-700">{child.id}</TableCell>
-                    <TableCell className="text-slate-700">
-                      {child.profilePic ? (
-                        <img
-                          src={`/uploads/${child.profilePic}`}
-                          alt={`${child.fullName} profile`}
-                          className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                        />
-                      ) : (
-                        <span className="text-slate-400">No photo</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-slate-700">
-                      <Link className="text-blue-600 hover:underline" href={`/dashboard/children/${child.id}`}>
-                        {child.fullName}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-slate-700">{child.parentName}</TableCell>
-                    <TableCell className="text-slate-700">{child.gender}</TableCell>
-                    <TableCell className="text-slate-700">{child.relationship}</TableCell>
-                    <TableCell className="text-slate-700">{child.site}</TableCell>
-                    <TableCell className="text-slate-700">{child.organization?.name || 'N/A'}</TableCell>
-                    <TableCell className="text-slate-700">
-                      {new Date(child.dateOfBirth).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-slate-700">
-                      {childrenList.filter((c: any) => c.parentName === child.parentName).length > 1 ? "Yes" : "No"}
-                    </TableCell>
-                    <TableCell className="text-slate-700">
-                      {child.childInfoFile ? (
-                        <a
-                          className="text-blue-600 hover:underline"
-                          href={`/uploads/${child.childInfoFile}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">No file</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-slate-700">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(child)}
-                        className="flex items-center gap-2"
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          {childrenList.length > pageSize && (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, childrenList.length)} of {childrenList.length}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage * pageSize >= childrenList.length}
-                  onClick={() => setCurrentPage(p => (p * pageSize >= childrenList.length ? p : p + 1))}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Edit Child Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Child Information</DialogTitle>
-            <DialogDescription>
-              Update the child's information below.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-fullName">Full Name *</Label>
-                <Input
-                  id="edit-fullName"
-                  value={editFormData.fullName}
-                  onChange={(e) => setEditFormData({...editFormData, fullName: e.target.value})}
-                  placeholder="Enter child's full name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-relationship">Relationship *</Label>
-                <Input
-                  id="edit-relationship"
-                  value={editFormData.relationship}
-                  onChange={(e) => setEditFormData({...editFormData, relationship: e.target.value})}
-                  placeholder="e.g., Son, Daughter"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-gender">Gender *</Label>
-                <Select
-                  value={editFormData.gender}
-                  onValueChange={(value) => setEditFormData({...editFormData, gender: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-dateOfBirth">Date of Birth *</Label>
-                <Input
-                  id="edit-dateOfBirth"
-                  type="date"
-                  value={editFormData.dateOfBirth}
-                  onChange={(e) => setEditFormData({...editFormData, dateOfBirth: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-site">Site *</Label>
-                <Select
-                  value={editFormData.site}
-                  onValueChange={(value) => setEditFormData({...editFormData, site: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="HEADOFFICE">HEADOFFICE</SelectItem>
-                    <SelectItem value="BRANCH1">BRANCH1</SelectItem>
-                    <SelectItem value="BRANCH2">BRANCH2</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-organization">Organization *</Label>
-                <Select
-                  value={editFormData.organization}
-                  onValueChange={(value) => setEditFormData({...editFormData, organization: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select organization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="INSA">INSA</SelectItem>
-                    <SelectItem value="OTHER">OTHER</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="edit-profilePic">Profile Picture</Label>
-                <Input
-                  id="edit-profilePic"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setEditFormData({...editFormData, profilePic: e.target.files?.[0] || null})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-childInfoFile">Child Information File</Label>
-                <Input
-                  id="edit-childInfoFile"
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setEditFormData({...editFormData, childInfoFile: e.target.files?.[0] || null})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-otherFile">Other File</Label>
-                <Input
-                  id="edit-otherFile"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.png"
-                  onChange={(e) => setEditFormData({...editFormData, otherFile: e.target.files?.[0] || null})}
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
+              size="sm"
               variant="outline"
-              onClick={() => setShowEditDialog(false)}
-              disabled={isLoading}
+              onClick={submitAll}
+              disabled={loading}
+              className="border-green-300 text-green-700 hover:bg-green-50"
             >
-              <X className="h-4 w-4 mr-2" />
-              Cancel
+              <Save className="w-4 h-4" />
             </Button>
+          )}
+          {(parent.username || forms.length) && (
             <Button
-              onClick={handleEditSubmit}
-              disabled={isLoading}
+              size="sm"
+              variant="ghost"
+              onClick={clearAll}
+              disabled={loading}
+              className="text-red-600 hover:bg-red-50"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {isLoading ? "Updating..." : "Update Child"}
+              <Trash2 className="w-4 h-4" />
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )}
+        </div>
+      </div>
+
+      {/* COLLAPSIBLE FORMS */}
+      {forms.length > 0 && (
+        <div className="px-5 py-3 space-y-2 border-b border-slate-100 bg-white/50">
+          {forms.map((c, i) => (
+            <div key={i} className="bg-white rounded-lg border border-slate-200 shadow-sm">
+              <button
+                className="w-full px-4 py-2.5 flex justify-between items-center text-sm font-medium hover:bg-slate-50 transition"
+                onClick={() => toggle(i)}
+                disabled={loading}
+              >
+                <span>Child #{i + 1}</span>
+                {openIdx === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {openIdx === i && (
+                <div className="p-4 border-t border-slate-100">
+                  <ChildFormCard
+                    child={c}
+                    index={i}
+                    formCount={forms.length}
+                    isLoading={loading}
+                    onChildChange={(idx, f, v) =>
+                      setForms((p) => {
+                        const a = [...p];
+                        a[idx] = { ...a[idx], [f]: v };
+                        return a;
+                      })
+                    }
+                    onSubmit={() => submitOne(c, i)}
+                    onRemove={() => removeForm(i)}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MODERN TABLE */}
+      <div className="flex-1 p-5 overflow-hidden">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            {list.length} Registered {list.length === 1 ? "Child" : "Children"}
+          </span>
+          <Button size="sm" variant="ghost" onClick={fetchChildren} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="max-h-full overflow-y-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Child
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Relationship
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Gender
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    DOB
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Site
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Organization
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Child Doc
+                  </th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {list.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
+                      No children registered yet
+                    </td>
+                  </tr>
+                ) : (
+                  list.map((child, idx) => (
+                    <tr
+                      key={child.id}
+                      className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
+                        idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                      }`}
+                      onClick={() => openEdit(child)}
+                    >
+                      {/* NAME + AVATAR */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {child.profilePic ? (
+                            <img
+                              src={
+                                child.profilePic.startsWith("http") || child.profilePic.startsWith("/")
+                                  ? child.profilePic
+                                  : `/uploads/${child.profilePic}`
+                              }
+                              alt={child.fullName}
+                              className="w-9 h-9 rounded-full object-cover shadow-sm"
+                            />
+                          ) : (
+                            <div className="relative">
+                              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 blur-md opacity-70"></div>
+                              <div className="relative w-9 h-9 rounded-full bg-white flex items-center justify-center text-sm font-bold text-slate-700 shadow-inner">
+                                {child.fullName.charAt(0).toUpperCase()}
+                              </div>
+                            </div>
+                          )}
+                          <span className="font-medium text-slate-800">{child.fullName}</span>
+                        </div>
+                      </td>
+
+                      {/* RELATIONSHIP */}
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                          {child.relationship || "—"}
+                        </div>
+                      </td>
+
+                      {/* GENDER */}
+                      <td className="px-5 py-4 text-sm">
+                        <Badge variant="secondary">{child.gender || "—"}</Badge>
+                      </td>
+
+                      {/* DOB */}
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {child.dateOfBirth
+                            ? new Date(child.dateOfBirth).toLocaleDateString()
+                            : "—"}
+                        </div>
+                      </td>
+
+                      {/* SITE */}
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          {child.site || "—"}
+                        </div>
+                      </td>
+
+                      {/* ORGANIZATION */}
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                          {child.organization?.name || "—"}
+                        </div>
+                      </td>
+
+                      {/* CHILD DOC */}
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {child.childInfoFile ? (
+                          <a
+                            href={child.childInfoFile.startsWith("http") || child.childInfoFile.startsWith("/")
+                              ? child.childInfoFile
+                              : `/uploads/${child.childInfoFile}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+
+                      {/* ACTIONS */}
+                      <td className="px-5 py-4 text-center">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(child);
+                          }}
+                          className="text-blue-600 hover:bg-blue-50"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* EDIT DIALOG */}
+      <EditChildDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        isLoading={loading}
+        editFormData={editData}
+        setEditFormData={setEditData}
+        onSubmit={editSubmit}
+      />
     </div>
   );
 }

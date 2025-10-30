@@ -2,13 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   BarChart3, 
   PieChart, 
-  TrendingUp, 
   Calendar,
   Users,
   Building2,
@@ -16,10 +14,7 @@ import {
   Download,
   Filter,
   RefreshCw,
-  FileText,
-  Clock,
   CheckCircle,
-  XCircle,
   AlertCircle
 } from "lucide-react";
 import {
@@ -34,7 +29,7 @@ import {
   LineElement,
   PointElement,
 } from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
+import { Bar, Pie } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -316,8 +311,7 @@ export default function ReportPage() {
   };
 
   const exportReport = () => {
-    // This would implement PDF/Excel export functionality
-    console.log('Exporting report...');
+    // Export functionality not implemented; intentionally left blank to avoid noisy logs
   };
 
   if (loading) {

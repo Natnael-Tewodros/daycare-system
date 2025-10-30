@@ -194,27 +194,32 @@ model EventParticipation {
   @@unique([childId, eventId])
 }
 
+model Notification {
+  id          Int       @id @default(autoincrement())
+  parentEmail String
+  title       String
+  message     String
+  type        String    @default("info")
+  isRead      Boolean   @default(false)
+  activityId  Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  activity    Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+}
+
+
 model Activity {
-  id            Int            @id @default(autoincrement())
-  subject       String
-  description   String?
-  recipients    String[]
-  attachments   String[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          Int       @id @default(autoincrement())
+  subject     String
+  description String?
+  recipients  String[]
+  attachments String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  senderType  String    @default("admin") // "admin" or "parent"
+  parentEmail String?   // only for parent messages
   notifications Notification[]
 }
-
-model Notification {
-  id          Int      @id @default(autoincrement())
-  activityId  Int
-  parentEmail String
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-}
-
 enum UserRole {
   ADMIN
   PARENT
@@ -260,3 +265,6 @@ enum ParticipationStatus {
   ABSENT
   CANCELLED
 }
+
+
+

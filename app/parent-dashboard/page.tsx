@@ -1,37 +1,27 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Image from "next/image";
 import { 
-  Users, 
+  Baby, 
+  Mail, 
   Calendar, 
   FileText, 
-  Clock, 
-  User, 
-  Baby,
+  Send, 
+  AlertTriangle, 
+  User,
   Building,
-  HeartHandshake,
-  TrendingUp,
-  Activity,
-  CheckCircle,
-  XCircle,
-  Mail,
-  Phone,
-  Search,
-  Bell,
-  Trash2,
-  Plus,
-  Send,
-  AlertTriangle
+  Calendar as CalendarIcon,
+  FileText as FileTextIcon,
+  User as UserIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -42,6 +32,7 @@ interface Child {
   gender: string;
   parentName: string;
   site: string;
+  profilePic?: string;
   organization: {
     name: string;
     type: string;
@@ -116,7 +107,41 @@ export default function ParentDashboard() {
   const [composeData, setComposeData] = useState({ subject: '', description: '', attachments: [] as File[] });
   const [sickReportData, setSickReportData] = useState({ childId: '', symptoms: '', notes: '', attachments: [] as File[] });
   const [absenceData, setAbsenceData] = useState({ childId: '', reason: 'sick', expectedReturn: '', notes: '' });
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const submissionsRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  
+  // Get current date for greeting
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 18 ? 'Good Afternoon' : 'Good Evening';
+  
+  // Stats for the dashboard
+  const stats = [
+    {
+      title: 'Children Enrolled',
+      value: children.length,
+      icon: Baby,
+      color: 'bg-blue-100 text-blue-600',
+    },
+    {
+      title: 'Unread Messages',
+      value: unreadCount,
+      icon: Mail,
+      color: 'bg-green-100 text-green-600',
+    },
+    {
+      title: 'Upcoming Activities',
+      value: children.reduce((acc, child) => acc + (child.childActivities?.length || 0), 0),
+      icon: Calendar,
+      color: 'bg-purple-100 text-purple-600',
+    },
+    {
+      title: 'Submitted Reports',
+      value: submittedReports.length,
+      icon: FileText,
+      color: 'bg-amber-100 text-amber-600',
+    },
+  ];
 
   useEffect(() => {
     // Get parent info from localStorage (set during login) or URL params
@@ -377,10 +402,15 @@ export default function ParentDashboard() {
         return;
       }
 
-      const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const formData = new FormData();
-      formData.append("subject", `🚨 Absence Notice: ${selectedChild.fullName} - ${today}`);
-      formData.append("description", `⛔ ABSENT TODAY\n\nChild: ${selectedChild.fullName}\nReason: ${absenceData.reason}\nExpected Return: ${absenceData.expectedReturn || 'Not specified'}\nNotes: ${absenceData.notes || 'None'}`);
+      // Subject contains only the child's name (no extra text)
+      formData.append("subject", `${selectedChild.fullName}`);
+      // Description includes only the fields the parent filled (with simple labels, no extra phrases/emojis)
+      const lines: string[] = [];
+      if (absenceData.reason) lines.push(`Reason: ${absenceData.reason}`);
+      if (absenceData.expectedReturn) lines.push(`Expected Return: ${absenceData.expectedReturn}`);
+      if (absenceData.notes) lines.push(`Notes: ${absenceData.notes}`);
+      formData.append("description", lines.join("\n"));
       formData.append("recipients", JSON.stringify(['admin@daycare.com']));
 
       const response = await fetch("/api/activities", {
@@ -465,12 +495,25 @@ export default function ParentDashboard() {
     }
   };
 
+  const calculateAge = (dob: string) => {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+      <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+        <div className="text-center space-y-4">
+          <div className="animate-pulse flex justify-center">
+            <div className="h-16 w-16 rounded-full bg-gray-200"></div>
+          </div>
+          <div className="h-4 bg-gray-200 rounded w-48 mx-auto"></div>
           <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
@@ -493,14 +536,26 @@ export default function ParentDashboard() {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="w-full">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-              <TabsTrigger value="request">Request</TabsTrigger>
+              <TabsTrigger value="children">My Children</TabsTrigger>
             </TabsList>
-
             <TabsContent value="overview" className="space-y-6">
+              <div className="flex flex-wrap gap-2 justify-between items-center">
+                <div className="flex gap-2">
+                  <Button onClick={() => setShowAbsenceDialog(true)} className="flex items-center gap-2 bg-black text-white hover:bg-black/90">
+                    <AlertTriangle className="h-4 w-4" />
+                    Report Absence
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => router.push('/parent-dashboard/reports')} className="bg-black text-white hover:bg-black/90">
+                    My Reports
+                  </Button>
+                  <Button onClick={() => router.push('/parent-dashboard/application-status')}>Application Status</Button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {children.map((child) => (
                   <Card key={child.id} className="overflow-hidden">
@@ -554,266 +609,6 @@ export default function ParentDashboard() {
                   </Card>
                 ))}
               </div>
-
-              {/* My Submitted Reports Section in Overview */}
-              <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">My Submitted Reports</h3>
-                  <Button onClick={() => setShowAbsenceDialog(true)} variant="destructive" className="flex items-center gap-2 bg-red-600 hover:bg-red-700">
-                    <AlertTriangle className="h-4 w-4" />
-                    Report Absence
-                  </Button>
-                </div>
-                {submittedReports.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <FileText className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No submitted reports yet</p>
-                      <p className="text-sm text-gray-500 mt-2">When you submit absence reports or messages to admin, they will appear here</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {submittedReports.map((report) => (
-                      <Card key={report.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-gray-900 text-lg">
-                                  {report.subject}
-                                </h3>
-                                {(report.subject?.toLowerCase().includes('absence notice') || 
-                                  report.subject?.toLowerCase().includes('sick report')) && (
-                                  <Badge variant="destructive" className="flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    URGENT
-                                  </Badge>
-                                )}
-                              </div>
-                              {report.description && (
-                                <p className="text-sm text-gray-600 mb-2 whitespace-pre-line">
-                                  {report.description}
-                                </p>
-                              )}
-                              {report.attachments && report.attachments.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-xs text-gray-500 mb-1">Attachments:</p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {report.attachments.map((attachment: string, idx: number) => (
-                                      <a
-                                        key={idx}
-                                        href={attachment}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
-                                      >
-                                        📎 {attachment.split('/').pop()}
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>Sent to: {report.recipients?.join(', ') || 'admin@daycare.com'}</span>
-                                <span>•</span>
-                                <span>{new Date(report.createdAt).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="activity" className="space-y-6">
-              {/* Header */}
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold">Activities & Messages</h2>
-                  <p className="text-sm text-gray-600">View activities from daycare</p>
-                </div>
-              </div>
-
-              {/* Activities/Messages from Admin */}
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Activities from Daycare</h3>
-                {notifications.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <FileText className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No activities from daycare yet</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {notifications.map((notification) => (
-                      <Card key={notification.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-gray-900 text-lg">
-                                  {notification.activity.subject}
-                                </h3>
-                                {!notification.isRead && (
-                                  <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
-                                )}
-                              </div>
-                              {notification.activity.description && (
-                                <p className="text-sm text-gray-600 mb-2">
-                                  {notification.activity.description}
-                                </p>
-                              )}
-                              {notification.activity.attachments && notification.activity.attachments.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-xs text-gray-500 mb-1">Attachments:</p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {notification.activity.attachments.map((attachment, idx) => (
-                                      <a
-                                        key={idx}
-                                        href={attachment}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
-                                      >
-                                        📎 {attachment.split('/').pop()}
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              <p className="text-xs text-gray-500">
-                                {new Date(notification.createdAt).toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              {!notification.isRead && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => markAsRead(notification.id)}
-                                >
-                                  Mark as Read
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteNotification(notification.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* My Submissions Section */}
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">My Submitted Reports</h3>
-                {submittedReports.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <FileText className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No submitted reports yet</p>
-                      <p className="text-sm text-gray-500 mt-2">When you submit absence reports or messages to admin, they will appear here</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {submittedReports.map((report) => (
-                      <Card key={report.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-gray-900 text-lg">
-                                  {report.subject}
-                                </h3>
-                                {(report.subject?.toLowerCase().includes('absence notice') || 
-                                  report.subject?.toLowerCase().includes('sick report')) && (
-                                  <Badge variant="destructive" className="flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    URGENT
-                                  </Badge>
-                                )}
-                              </div>
-                              {report.description && (
-                                <p className="text-sm text-gray-600 mb-2 whitespace-pre-line">
-                                  {report.description}
-                                </p>
-                              )}
-                              {report.attachments && report.attachments.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-xs text-gray-500 mb-1">Attachments:</p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {report.attachments.map((attachment: string, idx: number) => (
-                                      <a
-                                        key={idx}
-                                        href={attachment}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
-                                      >
-                                        📎 {attachment.split('/').pop()}
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>Sent to: {report.recipients?.join(', ') || 'admin@daycare.com'}</span>
-                                <span>•</span>
-                                <span>{new Date(report.createdAt).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="request" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Apply for Daycare
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground">
-                      Submit an application to enroll your child in the daycare system.
-                    </p>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-semibold mb-2">Submit New Application</h4>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Apply to enroll a new child in the daycare system. Once approved, the admin will handle the child registration for you.
-                      </p>
-                      <Button 
-                        onClick={() => router.push('/parent-application')}
-                        className="w-full"
-                      >
-                        Start New Application
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
           </Tabs>
         )}
@@ -1025,7 +820,7 @@ export default function ParentDashboard() {
               <Button variant="outline" onClick={() => setShowAbsenceDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAbsenceSubmit} className="flex items-center gap-2 bg-red-600 hover:bg-red-700">
+              <Button onClick={handleAbsenceSubmit} className="flex items-center gap-2 bg-black text-white hover:bg-black/90">
                 <Send className="h-4 w-4" />
                 Report Absence
               </Button>

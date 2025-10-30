@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -15,17 +14,13 @@ import {
   Stethoscope,
   FileText,
   Calendar,
-  Users,
   Building,
-  Star,
   CheckCircle,
   Bell,
-  ArrowRight,
   Shield,
   Clock,
   Sparkles,
 } from "lucide-react";
-import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 

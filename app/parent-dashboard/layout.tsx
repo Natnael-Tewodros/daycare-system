@@ -3,17 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { 
   Home, 
   Users, 
   FileText, 
-  Calendar, 
   User,
   LogOut,
   Baby,
   HeartHandshake,
-  Building,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -188,6 +185,12 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
       badge: unreadCount
     },
     {
+      name: 'My Reports',
+      href: '/parent-dashboard/reports',
+      icon: FileText,
+      current: pathname.startsWith('/parent-dashboard/reports')
+    },
+    {
       name: 'Application Status',
       href: '/parent-dashboard/application-status',
       icon: FileText,
@@ -356,6 +359,7 @@ function getPageTitle(pathname: string): string {
     { name: "Dashboard", href: "/parent-dashboard" },
     { name: "My Children", href: "/parent-dashboard/children" },
     { name: "Messages", href: "/parent-dashboard/messages" },
+    { name: "My Reports", href: "/parent-dashboard/reports" },
     { name: "Application Status", href: "/parent-dashboard/application-status" },
     { name: "New Request", href: "/parent-dashboard/request" }
   ];

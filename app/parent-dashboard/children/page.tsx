@@ -7,13 +7,10 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { 
   Baby, 
-  Calendar, 
   Building, 
   User, 
   HeartHandshake,
   FileText,
-  MapPin,
-  Users,
   Phone,
   Mail
 } from "lucide-react";
@@ -42,6 +39,7 @@ interface Child {
   reports: Report[];
   createdAt: string;
   updatedAt: string;
+  profilePic?: string;
 }
 
 interface Report {
@@ -141,17 +139,27 @@ export default function ChildrenPage() {
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-sm">
-                  {child.profilePic && isValidUrl(child.profilePic) ? (
+                  {child.profilePic ? (
                     <Image
-                      src={child.profilePic}
+                      src={child.profilePic.startsWith('http') ? child.profilePic : `/uploads/${child.profilePic}`}
                       alt={`${child.fullName} profile`}
                       width={64}
                       height={64}
-                      className="object-cover"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // If image fails to load, show the default baby icon
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.style.display = 'none';
+                        target.nextElementSibling?.classList.remove('hidden');
+                      }}
                     />
                   ) : (
-                    <Baby className="h-8 w-8 text-blue-600" />
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <Baby className="h-8 w-8 text-blue-600" />
+                    </div>
                   )}
+                  <Baby className="h-8 w-8 text-blue-600 hidden" />
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-xl">{child.fullName}</CardTitle>

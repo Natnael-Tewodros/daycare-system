@@ -1,67 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { User, TrendingUp, TrendingDown, Clock, AlertCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  Area,
-  AreaChart
-} from 'recharts';
 import {
+  TrendingUp,
+  Clock,
+  AlertCircle,
   Users,
   Building2,
+  Backpack,
   Activity,
   CalendarDays,
   ArrowRight,
   Baby,
-  Heart,
-  Star,
-  Sparkles,
-  Clock as ClockIcon,
-  UserCheck,
-  Eye,
-  Plus,
-  Settings,
-  Bell,
-  Shield,
-  GraduationCap,
-  Home,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
-  UserPlus,
+  HeartHandshake,
   FileText,
-  AlertTriangle,
   CheckCircle,
   XCircle,
-  Timer,
-  Target,
   Zap,
-  Award,
-  BookOpen,
-  HeartHandshake,
-  Stethoscope,
   ClipboardList,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
+  Home,
+  Calendar,
+  UserPlus,
+  Bell,
+  Eye,
+  Download,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+} from "recharts";
 
 type OverviewData = {
   totalChildren?: number;
@@ -74,27 +62,19 @@ type OverviewData = {
 
 type Child = {
   id: number;
-  idOneToMoney: string;
   fullName: string;
   parentName: string;
-  option: string;
-  relationship: string;
-  officialDocument?: string | null;
-  dateOfBirth: string;
   gender: string;
-  profilePic?: string | null;
-  childInformationDoc?: string | null;
-  createdAt: string;
+  dateOfBirth: string;
 };
 
 type AttendanceItem = {
   id: number;
   status: string;
-  createdAt: string;
-  broughtBy: string | null;
-  takenBy: string | null;
   checkInTime: string | null;
   checkOutTime: string | null;
+  broughtBy: string | null;
+  takenBy: string | null;
   child: { id: number; fullName: string };
 };
 
@@ -105,14 +85,6 @@ type Servant = {
   phone: string;
   site: string;
   organizationType: string;
-  assignedRoom?: {
-    id: number;
-    name: string;
-  } | null;
-  children?: Array<{
-    id: number;
-    fullName: string;
-  }>;
 };
 
 export default function OverviewPage() {
@@ -122,686 +94,457 @@ export default function OverviewPage() {
   const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
   const [absentChildren, setAbsentChildren] = useState<Child[]>([]);
   const [servants, setServants] = useState<Servant[]>([]);
-  const [me, setMe] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingChildren, setLoadingChildren] = useState(true);
   const [loadingServants, setLoadingServants] = useState(true);
   const [attendanceTrendData, setAttendanceTrendData] = useState<any[]>([]);
   const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
 
+  /* ------------------------------------------------------------------ */
+  /* --------------------------- FETCH LOGIC -------------------------- */
+  /* ------------------------------------------------------------------ */
   useEffect(() => {
-    const fetchOverview = async () => {
+    const fetchAll = async () => {
       try {
-        const res = await fetch("/api/dashboard/overview");
-        if (!res.ok) {
-          throw new Error(`API error: ${res.status}`);
-        }
-        const json = await res.json();
-        console.log("Fetched overview data:", json); // Debug log
-        setData(json);
-        setError(null);
-      } catch (err) {
-        console.error("Fetch overview error:", err);
-        setError("Failed to load dashboard data. Please refresh the page.");
-      }
-    };
+        const [
+          overviewRes,
+          childrenRes,
+          attendanceRes,
+          servantsRes,
+          weekRes,
+          yearRes,
+        ] = await Promise.all([
+          fetch("/api/dashboard/overview"),
+          fetch("/api/children"),
+          fetch(`/api/attendance?start=${new Date().toISOString()}&includeAbsent=true`),
+          fetch("/api/servants"),
+          fetch("/api/attendance/trends?period=week"),
+          fetch("/api/attendance/trends?period=year"),
+        ]);
 
-    const fetchChildren = async () => {
-      try {
-        // Fetch all children (no employeeId param for global overview)
-        const res = await fetch("/api/children");
-        if (!res.ok) {
-          throw new Error(`Children API error: ${res.status}`);
-        }
-        const json = await res.json();
-        console.log("Fetched children data:", json); // Debug log: Verify 2 male, 1 female
-        setChildren(json);
+        if (!overviewRes.ok) throw new Error("overview");
+        if (!childrenRes.ok) throw new Error("children");
+        if (!attendanceRes.ok) throw new Error("attendance");
+        if (!servantsRes.ok) throw new Error("servants");
+        if (!weekRes.ok) throw new Error("week");
+        if (!yearRes.ok) throw new Error("year");
+
+        const [
+          overviewJson,
+          childrenJson,
+          attendanceJson,
+          servantsJson,
+          weekJson,
+          yearJson,
+        ] = await Promise.all([
+          overviewRes.json(),
+          childrenRes.json(),
+          attendanceRes.json(),
+          servantsRes.json(),
+          weekRes.json(),
+          yearRes.json(),
+        ]);
+
+        setData(overviewJson);
+        setChildren(childrenJson);
+        setAttendances(attendanceJson.attendances ?? attendanceJson);
+        setAbsentChildren(attendanceJson.absentChildren ?? []);
+        setServants(servantsJson);
+        setAttendanceTrendData(weekJson.data ?? []);
+        setMonthlyTrendData(yearJson.data ?? []);
+      } catch (err) {
+        setError("Failed to load dashboard data. Please refresh.");
+      } finally {
         setLoadingChildren(false);
-      } catch (err) {
-        console.error("Fetch children error:", err);
-        setError("Failed to load children data for charts.");
-        setLoadingChildren(false);
-      }
-    };
-
-    const fetchAttendances = async () => {
-      try {
-        // Fetch today's attendance with absent children
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const res = await fetch(`/api/attendance?start=${today.toISOString()}&includeAbsent=true`);
-        if (!res.ok) {
-          throw new Error(`Attendance API error: ${res.status}`);
-        }
-        const json = await res.json();
-        
-        if (json.attendances && json.absentChildren) {
-          setAttendances(json.attendances);
-          setAbsentChildren(json.absentChildren);
-        } else {
-          setAttendances(json);
-          setAbsentChildren([]);
-        }
-      } catch (err) {
-        console.error("Fetch attendance error:", err);
-        // Non-fatal for overview
-      }
-    };
-
-    const fetchServants = async () => {
-      try {
-        const res = await fetch("/api/servants");
-        if (!res.ok) {
-          throw new Error(`Servants API error: ${res.status}`);
-        }
-        const json = await res.json();
-        setServants(json);
-        setLoadingServants(false);
-      } catch (err) {
-        console.error("Fetch servants error:", err);
-        setError("Failed to load caregivers data.");
         setLoadingServants(false);
       }
     };
 
-    const fetchAttendanceTrends = async () => {
-      try {
-        const res = await fetch("/api/attendance/trends?period=week");
-        if (!res.ok) {
-          throw new Error(`Attendance trends API error: ${res.status}`);
-        }
-        const json = await res.json();
-        setAttendanceTrendData(json.data || []);
-      } catch (err) {
-        console.error("Fetch attendance trends error:", err);
-      }
-    };
-
-    const fetchMonthlyTrends = async () => {
-      try {
-        const res = await fetch("/api/attendance/trends?period=year");
-        if (!res.ok) {
-          throw new Error(`Monthly trends API error: ${res.status}`);
-        }
-        const json = await res.json();
-        setMonthlyTrendData(json.data || []);
-      } catch (err) {
-        console.error("Fetch monthly trends error:", err);
-      }
-    };
-
-    fetchOverview();
-    fetchChildren();
-    fetchAttendances();
-    fetchServants();
-    fetchAttendanceTrends();
-    fetchMonthlyTrends();
-    // Fetch current user (demo via localStorage userId)
-    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-    if (userId) {
-      fetch('/api/users/me', { headers: { 'x-user-id': userId }})
-        .then(r => r.json())
-        .then(setMe)
-        .catch(() => {});
-    }
+    fetchAll();
   }, []);
 
-  if (error) return <p className="text-center mt-10 text-destructive">{error}</p>;
-  if (!data || loadingChildren || loadingServants) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading dashboard...</p>
+  if (error)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-red-600 font-medium">{error}</p>
       </div>
-    </div>
-  );
+    );
 
-  // Use computed totalChildren if not provided by overview
-  const totalChildren = data.totalChildren || children.length;
+  if (!data || loadingChildren || loadingServants)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      </div>
+    );
 
-  // Helper functions for enhanced display
+  const totalChildren = data.totalChildren ?? children.length;
+
+  /* ------------------------------------------------------------------ */
+  /* --------------------------- HELPERS ----------------------------- */
+  /* ------------------------------------------------------------------ */
   const getAttendanceStatus = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'present': return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' };
-      case 'late': return { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' };
-      case 'absent': return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' };
-      default: return { icon: AlertCircle, color: 'text-gray-600', bg: 'bg-gray-50' };
+      case "present":
+        return { Icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50" };
+      case "late":
+        return { Icon: Clock, color: "text-amber-600", bg: "bg-amber-50" };
+      case "absent":
+        return { Icon: XCircle, color: "text-red-600", bg: "bg-red-50" };
+      default:
+        return { Icon: AlertCircle, color: "text-gray-600", bg: "bg-gray-50" };
     }
-  };
-
-  const getAgeGroup = (dateOfBirth: string) => {
-    const birthDate = new Date(dateOfBirth);
-    const now = new Date();
-    const ageInMonths = (now.getFullYear() - birthDate.getFullYear()) * 12 + (now.getMonth() - birthDate.getMonth());
-    
-    if (ageInMonths < 12) return { name: 'Tiny Tots', icon: Baby, color: 'text-pink-600' };
-    if (ageInMonths < 24) return { name: 'Little Explorers', icon: Heart, color: 'text-blue-600' };
-    if (ageInMonths < 48) return { name: 'Growing Stars', icon: Star, color: 'text-green-600' };
-    return { name: 'Big Kids', icon: GraduationCap, color: 'text-purple-600' };
   };
 
   const calculateAttendanceRate = () => {
-    if (attendances.length === 0) return 0;
-    const presentCount = attendances.filter(a => a.status === 'present').length;
-    return Math.round((presentCount / attendances.length) * 100);
+    if (!attendances.length) return 0;
+    const present = attendances.filter((a) => a.status === "present").length;
+    return Math.round((present / attendances.length) * 100);
   };
 
-  // Chart data preparation
-  const getAttendanceChartData = () => {
-    // Use real data from API if available, otherwise return empty array
-    if (attendanceTrendData.length > 0) {
-      return attendanceTrendData;
-    }
-    
-    // Return empty structure if no data yet
-    return [];
-  };
+  const genderData = [
+    { name: "Male", value: children.filter((c) => c.gender === "MALE").length, color: "#0EA5E9" },
+    { name: "Female", value: children.filter((c) => c.gender === "FEMALE").length, color: "#EC4899" },
+  ];
 
-  const getGenderDistribution = () => {
-    const male = children.filter(c => c.gender === 'MALE').length;
-    const female = children.filter(c => c.gender === 'FEMALE').length;
-    return [
-      { name: 'Male', value: male, color: '#3B82F6' },
-      { name: 'Female', value: female, color: '#EC4899' }
-    ];
-  };
-
-  const getAgeGroupDistribution = () => {
-    const ageGroups = {
-      '0-1': 0,
-      '1-2': 0,
-      '2-3': 0,
-      '3-4': 0,
-      '4-5': 0,
-      '5+': 0
-    };
-
-    children.forEach(child => {
-      const age = new Date().getFullYear() - new Date(child.dateOfBirth).getFullYear();
-      if (age < 1) ageGroups['0-1']++;
-      else if (age < 2) ageGroups['1-2']++;
-      else if (age < 3) ageGroups['2-3']++;
-      else if (age < 4) ageGroups['3-4']++;
-      else if (age < 5) ageGroups['4-5']++;
-      else ageGroups['5+']++;
+  const ageGroupData = (() => {
+    const groups: Record<string, number> = { "0-1": 0, "1-2": 0, "2-3": 0, "3-4": 0, "4-5": 0, "5+": 0 };
+    children.forEach((c) => {
+      const age = new Date().getFullYear() - new Date(c.dateOfBirth).getFullYear();
+      if (age < 1) groups["0-1"]++;
+      else if (age < 2) groups["1-2"]++;
+      else if (age < 3) groups["2-3"]++;
+      else if (age < 4) groups["3-4"]++;
+      else if (age < 5) groups["4-5"]++;
+      else groups["5+"]++;
     });
-
-    return Object.entries(ageGroups).map(([age, count]) => ({
+    return Object.entries(groups).map(([age, count]) => ({
       age,
       count,
-      percentage: Math.round((count / children.length) * 100)
+      percentage: Math.round((count / children.length) * 100),
     }));
-  };
+  })();
 
-  const getAttendanceStatusData = () => {
-    const present = attendances.filter(a => a.status === 'present').length;
-    const absent = attendances.filter(a => a.status === 'absent').length;
-    const late = attendances.filter(a => a.status === 'late').length;
-    
-    return [
-      { name: 'Present', value: present, color: '#10B981' },
-      { name: 'Absent', value: absent, color: '#EF4444' },
-      { name: 'Late', value: late, color: '#F59E0B' }
+  /* ------------------------------------------------------------------ */
+  /* -------------------------- DOWNLOAD CSV -------------------------- */
+  /* ------------------------------------------------------------------ */
+  const downloadAttendance = async (period: "day" | "week" | "month" | "year") => {
+    let start = new Date();
+    let end = new Date();
+
+    switch (period) {
+      case "day":
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case "week":
+        start.setDate(start.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case "month":
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case "year":
+        start = new Date(start.getFullYear(), 0, 1);
+        end = new Date(start.getFullYear(), 11, 31);
+        end.setHours(23, 59, 59, 999);
+        break;
+    }
+
+    const res = await fetch(
+      `/api/attendance?start=${start.toISOString()}&end=${end.toISOString()}&includeAbsent=true`
+    );
+    const json = await res.json();
+
+    const rows: string[] = [
+      "Child,Status,Check-In,Check-Out,Brought By,Taken By,Parent,Relationship",
     ];
+
+    (json.attendances ?? []).forEach((r: any) => {
+      rows.push(
+        [
+          r.child?.fullName ?? "",
+          r.status ?? "present",
+          r.checkInTime ? new Date(r.checkInTime).toLocaleString() : "-",
+          r.checkOutTime ? new Date(r.checkOutTime).toLocaleString() : "-",
+          r.broughtBy ?? "",
+          r.takenBy ?? "",
+          r.child?.parentName ?? "",
+          r.child?.relationship ?? "",
+        ]
+          .map((s) => s.replace(/,/g, " "))
+          .join(",")
+      );
+    });
+
+    (json.absentChildren ?? []).forEach((c: any) => {
+      rows.push(
+        [
+          c.fullName ?? "",
+          "absent",
+          "-",
+          "-",
+          "-",
+          "-",
+          c.parentName ?? "",
+          c.relationship ?? "",
+        ].join(",")
+      );
+    });
+
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-${period}-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const getMonthlyTrend = () => {
-    // Use real data from API if available
-    if (monthlyTrendData.length > 0) {
-      return monthlyTrendData;
-    }
-    
-    // Return empty structure if no data yet
-    return [];
-  };
-
-  // Download functions
-  const downloadAttendance = async (period: 'day' | 'week' | 'month' | 'year') => {
-    try {
-      let startDate = new Date();
-      let endDate = new Date();
-      
-      switch (period) {
-        case 'day':
-          startDate.setHours(0, 0, 0, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'week':
-          startDate.setDate(startDate.getDate() - 6);
-          startDate.setHours(0, 0, 0, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'month':
-          startDate.setDate(1);
-          startDate.setHours(0, 0, 0, 0);
-          endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'year':
-          startDate = new Date(startDate.getFullYear(), 0, 1);
-          endDate = new Date(startDate.getFullYear(), 11, 31);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-      }
-
-      const res = await fetch(`/api/attendance?start=${startDate.toISOString()}&end=${endDate.toISOString()}&includeAbsent=true`);
-      if (!res.ok) throw new Error("Failed to fetch attendance data");
-      const data = await res.json();
-      
-      const headers = ['Child','Status','Check-In','Check-Out','Brought By','Taken By','Parent','Relationship'];
-      const csvRows = [headers.join(',')];
-      
-      // Add present children
-      if (data.attendances) {
-        for (const r of data.attendances) {
-          const cols = [
-            (r.child?.fullName || '').replace(/,/g, ' '),
-            r.status || 'present',
-            r.checkInTime ? new Date(r.checkInTime).toLocaleString() : '-',
-            r.checkOutTime ? new Date(r.checkOutTime).toLocaleString() : '-',
-            (r.broughtBy || '').replace(/,/g, ' '),
-            (r.takenBy || '').replace(/,/g, ' '),
-            (r.child?.parentName || '').replace(/,/g, ' '),
-            (r.child?.relationship || '').replace(/,/g, ' '),
-          ];
-          csvRows.push(cols.join(','));
-        }
-      }
-      
-      // Add absent children
-      if (data.absentChildren) {
-        for (const child of data.absentChildren) {
-          const cols = [
-            (child.fullName || '').replace(/,/g, ' '),
-            'absent',
-            '-',
-            '-',
-            '-',
-            '-',
-            (child.parentName || '').replace(/,/g, ' '),
-            (child.relationship || '').replace(/,/g, ' '),
-          ];
-          csvRows.push(cols.join(','));
-        }
-      }
-      
-      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendance-${period}-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Download error:", err);
-      setError("Failed to download attendance data");
-    }
-  };
-
-  // Navigation handlers
-  const navigateToChildren = () => router.push('/dashboard/children');
-  const navigateToCaregivers = () => router.push('/dashboard/caregiver');
-  const navigateToOrganizations = () => router.push('/dashboard/organizations');
-  const navigateToTodaysAttendance = () => router.push('/dashboard/attendance?date=today');
-  const navigateToTotalAttendance = () => router.push('/dashboard/attendance');
-  const navigateToEnrollmentRequests = () => router.push('/dashboard/enrollment-requests');
-
+  /* ------------------------------------------------------------------ */
+  /* ------------------------------ UI ------------------------------- */
+  /* ------------------------------------------------------------------ */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Modern Header */}
-        <div className="mb-8">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-              Daycare Dashboard
-            </h1>
-            <p className="text-lg text-muted-foreground">Comprehensive overview of your daycare operations</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-teal-50">
+      {/* HERO HEADER */}
+      <header className="relative overflow-hidden bg-gradient-to-r from-teal-600 to-indigo-700 py-16 text-white">
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm"></div>
+        <div className="relative max-w-7xl mx-auto px-6 text-center">
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+            Daycare Dashboard Overview
+          </h1>
         </div>
+      </header>
 
-        {/* Professional KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Children Card */}
-          <Card 
-            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-blue-100 hover:border-blue-200"
-            onClick={navigateToChildren}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full">
-                  <Users className="h-6 w-6 text-blue-600" />
-                </div>
-                <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +12%
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1 text-blue-800">{totalChildren}</div>
-              <div className="text-blue-600 text-sm font-medium">Total Children</div>
-              <div className="flex items-center gap-1 mt-2 text-blue-500 text-xs">
-                <ArrowRight className="h-3 w-3" />
-                View all children
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Caregivers Card */}
-          <Card 
-            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-orange-100 hover:border-orange-200"
-            onClick={navigateToCaregivers}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-3 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-full">
-                  <HeartHandshake className="h-6 w-6 text-orange-600" />
-                </div>
-                <Badge className="bg-orange-50 text-orange-700 border-orange-200">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +8%
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1 text-orange-800">{data.totalServants}</div>
-              <div className="text-orange-600 text-sm font-medium">Caregivers</div>
-              <div className="flex items-center gap-1 mt-2 text-orange-500 text-xs">
-                <ArrowRight className="h-3 w-3" />
-                Manage caregivers
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attendance Card */}
-          <Card 
-            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-yellow-100 hover:border-yellow-200"
-            onClick={navigateToTodaysAttendance}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-3 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full">
-                  <Activity className="h-6 w-6 text-yellow-600" />
-                </div>
-                <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                  {calculateAttendanceRate()}%
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1 text-yellow-800">{data.todaysAttendance || 0}</div>
-              <div className="text-yellow-600 text-sm font-medium">Today's Attendance</div>
-              <div className="flex items-center gap-1 mt-2 text-yellow-500 text-xs">
-                <ArrowRight className="h-3 w-3" />
-                View attendance
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Organizations Card */}
-          <Card 
-            className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-orange-100 hover:border-orange-200"
-            onClick={navigateToOrganizations}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-3 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-full">
-                  <Building2 className="h-6 w-6 text-orange-600" />
-                </div>
-                <Badge className="bg-orange-50 text-orange-700 border-orange-200">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +5%
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold mb-1 text-orange-800">{data.totalOrganizations}</div>
-              <div className="text-orange-600 text-sm font-medium">Organizations</div>
-              <div className="flex items-center gap-1 mt-2 text-orange-500 text-xs">
-                <ArrowRight className="h-3 w-3" />
-                View organizations
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Enrollment Requests Card */}
-        {data.pendingEnrollmentRequests !== undefined && (
-          <div className="mt-6">
-            <Card 
-              className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-indigo-100 hover:border-indigo-200"
-              onClick={navigateToEnrollmentRequests}
+      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        {/* KPI CARDS */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            {
+              title: "Total Children Information",
+              value: totalChildren,
+              icon: Users,
+              color: "from-sky-500 to-blue-600",
+              badge: "+12%",
+              onClick: () => router.push("/dashboard/children"),
+            },
+            {
+              title: "Caregivers Information",
+              value: data.totalServants,
+              icon: HeartHandshake,
+              color: "from-emerald-500 to-teal-600",
+              badge: "+8%",
+              onClick: () => router.push("/dashboard/caregiver"),
+            },
+            {
+              title: " children Today's Attendance",
+              value: data.todaysAttendance || 0,
+              icon: Activity,
+              color: "from-amber-500 to-orange-600",
+              badge: `${calculateAttendanceRate()}%`,
+              onClick: () => router.push("/dashboard/attendance?date=today"),
+            },
+            {
+              title: "Registerd Organizations Information",
+              value: data.totalOrganizations,
+              icon: Building2,
+              color: "from-purple-500 to-indigo-600",
+              badge: "+5%",
+              onClick: () => router.push("/dashboard/organizations"),
+            },
+          ].map((kpi, idx) => (
+            <Card
+              key={idx}
+              className="group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-200 bg-white"
+              onClick={kpi.onClick}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="p-3 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-full">
-                    <FileText className="h-6 w-6 text-indigo-600" />
+                  <div className={`p-3 rounded-full bg-gradient-to-br ${kpi.color} text-white`}>
+                    <kpi.icon className="h-6 w-6" />
                   </div>
-                  {data.pendingEnrollmentRequests > 0 && (
-                    <Badge className="bg-red-500 text-white border-red-600 animate-pulse">
-                      <Bell className="h-3 w-3 mr-1" />
-                      New
-                    </Badge>
-                  )}
+                  <Badge className="bg-white/20 text-white border-0">
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    {kpi.badge}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="text-3xl font-bold mb-1 text-indigo-800">{data.pendingEnrollmentRequests}</div>
-                <div className="text-indigo-600 text-sm font-medium">
-                  {data.pendingEnrollmentRequests === 1 ? 'Enrollment Request' : 'Enrollment Requests'}
-                </div>
-                <div className="flex items-center gap-1 mt-2 text-indigo-500 text-xs">
+                <p className="text-3xl font-bold text-gray-800">{kpi.value}</p>
+                <p className="text-sm text-gray-600 mt-1">{kpi.title}</p>
+                <p className="flex items-center gap-1 mt-3 text-xs text-teal-600 font-medium">
                   <ArrowRight className="h-3 w-3" />
-                  Review requests
-                </div>
+                  View details
+                </p>
               </CardContent>
             </Card>
-          </div>
+          ))}
+        </section>
+
+        {/* ENROLLMENT REQUESTS */}
+        {data.pendingEnrollmentRequests !== undefined && (
+          <Card
+            className="cursor-pointer rounded-xl shadow-md hover:shadow-xl transition-all border border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50"
+            onClick={() => router.push("/dashboard/enrollment-requests")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-indigo-800">
+                    {data.pendingEnrollmentRequests}
+                  </p>
+                  <p className="text-sm text-indigo-600">
+                    {data.pendingEnrollmentRequests === 1 ? "Pending Request" : "Pending Requests"}
+                  </p>
+                </div>
+              </div>
+              {data.pendingEnrollmentRequests > 0 && (
+                <Badge className="bg-red-500 text-white animate-pulse">
+                  <Bell className="h-3 w-3 mr-1" />
+                  New
+                </Badge>
+              )}
+            </CardHeader>
+          </Card>
         )}
 
-        {/* Enhanced Information Sections */}
-        <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 mb-8">
-          {/* Attendance Information */}
-          <Card className="bg-white shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-purple-600" />
-                  Today's Attendance
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={navigateToTodaysAttendance}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    View All
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {/* Present Children */}
-              {attendances.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4" />
-                    Present Children ({attendances.length})
-                  </h4>
-                  <div className="space-y-3">
-                    {attendances.slice(0, 3).map((attendance) => {
-                      const statusInfo = getAttendanceStatus(attendance.status);
-                      const StatusIcon = statusInfo.icon;
-                      return (
-                        <div key={attendance.id} className="flex items-center gap-3 p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-                          <div className={`w-8 h-8 ${statusInfo.bg} rounded-full flex items-center justify-center`}>
-                            <StatusIcon className={`h-4 w-4 ${statusInfo.color}`} />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{attendance.child.fullName}</p>
-                            <div className="flex flex-col gap-1 mt-1">
-                              <p className={`text-xs ${statusInfo.color} font-medium`}>
-                                {attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1)}
-                              </p>
-                              {attendance.checkInTime && (
-                                <p className="text-xs text-gray-600">
-                                  Checked in: {new Date(attendance.checkInTime).toLocaleString()}
-                                </p>
-                              )}
-                              {attendance.checkOutTime && (
-                                <p className="text-xs text-gray-600">
-                                  Checked out: {new Date(attendance.checkOutTime).toLocaleString()}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {attendance.broughtBy && (
-                              <p className="text-xs text-muted-foreground">
-                                by {attendance.broughtBy}
-                              </p>
-                            )}
-                            {attendance.takenBy && (
-                              <p className="text-xs text-muted-foreground">
-                                taken by {attendance.takenBy}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {attendances.length > 3 && (
-                      <div className="text-center pt-2">
-                        <Button variant="ghost" size="sm" onClick={navigateToTodaysAttendance}>
-                          View {attendances.length - 3} more present
-                          <ArrowRight className="h-3 w-3 ml-1" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Absent Children */}
-              {absentChildren.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-semibold text-red-600 mb-3 flex items-center gap-2">
-                    <XCircle className="h-4 w-4" />
-                    Absent Children ({absentChildren.length})
-                  </h4>
-                  <div className="space-y-3">
-                    {absentChildren.slice(0, 3).map((child) => (
-                      <div key={child.id} className="flex items-center gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                          <XCircle className="h-4 w-4 text-red-600" />
+        {/* TODAY'S ATTENDANCE */}
+        <Card className="rounded-xl shadow-lg border-0 bg-white">
+          <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-xl font-semibold text-teal-800">
+                <Activity className="h-5 w-5 text-teal-600" />
+                Today's Attendance
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard/attendance?date=today")}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            {attendances.length > 0 && (
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold text-emerald-700 mb-3">
+                  <CheckCircle className="h-5 w-5" />
+                  Present ({attendances.length})
+                </h3>
+                <div className="space-y-3">
+                  {attendances.slice(0, 5).map((a) => {
+                    const { Icon, color, bg } = getAttendanceStatus(a.status);
+                    return (
+                      <div
+                        key={a.id}
+                        className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition"
+                      >
+                        <div className={`${bg} p-2 rounded-full`}>
+                          <Icon className={`h-4 w-4 ${color}`} />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-sm">{child.fullName}</p>
-                          <p className="text-xs text-red-600 font-medium">Absent</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">
-                            {child.parentName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {child.relationship}
+                          <p className="font-medium text-sm">{a.child.fullName}</p>
+                          <p className={`text-xs ${color} font-medium`}>
+                            {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
                           </p>
                         </div>
+                        <div className="text-right text-xs text-gray-600">
+                          {a.checkInTime && (
+                            <p>In: {new Date(a.checkInTime).toLocaleTimeString()}</p>
+                          )}
+                          {a.checkOutTime && (
+                            <p>Out: {new Date(a.checkOutTime).toLocaleTimeString()}</p>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                    {absentChildren.length > 3 && (
-                      <div className="text-center pt-2">
-                        <Button variant="ghost" size="sm" onClick={navigateToTodaysAttendance}>
-                          View {absentChildren.length - 3} more absent
-                          <ArrowRight className="h-3 w-3 ml-1" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              {/* No attendance recorded */}
-              {attendances.length === 0 && absentChildren.length === 0 && (
-                <div className="text-center py-8">
-                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No attendance recorded today</p>
-                  <Button className="mt-4" onClick={navigateToTodaysAttendance}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Record Attendance
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-
-        {/* Quick Actions Section */}
-        <div className="mt-8">
-          <Card className="bg-gradient-to-r from-slate-50 to-gray-50 border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Zap className="h-5 w-5 text-yellow-600" />
-                Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-200"
-                  onClick={navigateToChildren}
-                >
-                  <Baby className="h-6 w-6 text-blue-600" />
-                  <span className="text-sm">Add Child</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-green-50 hover:border-green-200"
-                  onClick={navigateToCaregivers}
-                >
-                  <UserPlus className="h-6 w-6 text-green-600" />
-                  <span className="text-sm">Add Caregiver</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-purple-50 hover:border-purple-200"
-                  onClick={navigateToTodaysAttendance}
-                >
-                  <ClipboardList className="h-6 w-6 text-purple-600" />
-                  <span className="text-sm">Record Attendance</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-orange-50 hover:border-orange-200"
-                  onClick={() => router.push('/dashboard/rooms')}
-                >
-                  <Home className="h-6 w-6 text-orange-600" />
-                  <span className="text-sm">Manage Rooms</span>
-                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
 
-        {/* Professional Analytics Dashboard */}
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">Analytics Dashboard</h2>
-          
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Attendance Trend Chart */}
-            <Card className="bg-white shadow-xl border-0">
+            {absentChildren.length > 0 && (
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold text-red-700 mb-3">
+                  <XCircle className="h-5 w-5" />
+                  Absent ({absentChildren.length})
+                </h3>
+                <div className="space-y-3">
+                  {absentChildren.slice(0, 5).map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-4 p-3 rounded-lg bg-red-50 hover:bg-red-100 transition"
+                    >
+                      <div className="bg-red-100 p-2 rounded-full">
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{c.fullName}</p>
+                        <p className="text-xs text-red-600 font-medium">Absent</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* QUICK ACTIONS */}
+        <Card className="rounded-xl shadow-lg bg-gradient-to-r from-gray-50 to-gray-100">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl font-semibold text-gray-800">
+              <Zap className="h-5 w-5 text-yellow-600" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { icon: Baby, label: "Add Child", path: "/dashboard/children" },
+                { icon: UserPlus, label: "Add Caregiver", path: "/dashboard/caregiver" },
+                { icon: ClipboardList, label: "Record Attendance", path: "/dashboard/attendance?date=today" },
+                { icon: Home, label: "Manage Rooms", path: "/dashboard/rooms" },
+              ].map((a, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  className="h-24 flex flex-col gap-2 hover:shadow-md hover:border-teal-300 transition"
+                  onClick={() => router.push(a.path)}
+                >
+                  <a.icon className="h-6 w-6 text-teal-600" />
+                  <span className="text-sm font-medium">{a.label}</span>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ANALYTICS DASHBOARD */}
+        <section className="space-y-8">
+          <h2 className="text-2xl font-bold text-gray-800">Analytics Dashboard</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* 7-Day Trend */}
+            <Card className="rounded-xl shadow-lg bg-white">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-teal-800">
+                  <TrendingUp className="h-5 w-5 text-teal-600" />
                   Attendance Trend (Last 7 Days)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {getAttendanceChartData().length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={getAttendanceChartData()}>
+                {attendanceTrendData.length ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={attendanceTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="day" />
                       <YAxis />
@@ -812,36 +555,32 @@ export default function OverviewPage() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-[300px]">
-                    <p className="text-muted-foreground">No attendance data available for the last 7 days</p>
-                  </div>
+                  <p className="text-center text-gray-500 py-12">No data available</p>
                 )}
               </CardContent>
             </Card>
 
             {/* Gender Distribution */}
-            <Card className="bg-white shadow-xl border-0">
+            <Card className="rounded-xl shadow-lg bg-white">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-pink-800">
                   <Users className="h-5 w-5 text-pink-600" />
                   Gender Distribution
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
-                      data={getGenderDistribution()}
+                      data={genderData}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
+                      outerRadius={90}
                       dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
-                      {getGenderDistribution().map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {genderData.map((e, i) => (
+                        <Cell key={`cell-${i}`} fill={e.color} />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -850,17 +589,17 @@ export default function OverviewPage() {
               </CardContent>
             </Card>
 
-            {/* Age Group Distribution */}
-            <Card className="bg-white shadow-xl border-0">
+            {/* Age Groups */}
+            <Card className="rounded-xl shadow-lg bg-white">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <Baby className="h-5 w-5 text-green-600" />
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-emerald-800">
+                  <Baby className="h-5 w-5 text-emerald-600" />
                   Age Group Distribution
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={getAgeGroupDistribution()}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={ageGroupData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="age" />
                     <YAxis />
@@ -870,51 +609,20 @@ export default function OverviewPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-
-            {/* Attendance Status */}
-            <Card className="bg-white shadow-xl border-0">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-purple-600" />
-                  Today's Attendance Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={getAttendanceStatusData()}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {getAttendanceStatusData().map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Monthly Trend Chart */}
-          <Card className="bg-white shadow-xl border-0 mb-8">
+          {/* Yearly Trend */}
+          <Card className="rounded-xl shadow-lg bg-white">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-indigo-800">
                 <TrendingUp className="h-5 w-5 text-indigo-600" />
-                Monthly Trends (Last 12 Months)
+                Yearly Overview (Last 12 Months)
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {getMonthlyTrend().length > 0 ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={getMonthlyTrend()}>
+              {monthlyTrendData.length ? (
+                <ResponsiveContainer width="100%" height={360}>
+                  <LineChart data={monthlyTrendData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -924,62 +632,42 @@ export default function OverviewPage() {
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-[400px]">
-                  <p className="text-muted-foreground">No monthly trend data available</p>
-                </div>
+                <p className="text-center text-gray-500 py-20">No yearly data available</p>
               )}
             </CardContent>
           </Card>
-        </div>
+        </section>
 
-        {/* Download Attendance Section */}
-        <div className="mt-8">
-          <Card className="bg-gradient-to-r from-indigo-50 to-blue-50 border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <FileText className="h-5 w-5 text-indigo-600" />
-                Download Attendance Reports
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-indigo-50 hover:border-indigo-200"
-                  onClick={() => downloadAttendance('day')}
+        {/* DOWNLOAD REPORTS */}
+        <Card className="rounded-xl shadow-lg bg-gradient-to-r from-indigo-50 to-teal-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl font-semibold text-indigo-800">
+              <Download className="h-5 w-5 text-indigo-600" />
+              Download Attendance Reports
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Today", period: "day" as const, icon: Calendar },
+                { label: "Week", period: "week" as const, icon: CalendarDays },
+                { label: "Month", period: "month" as const, icon: Calendar },
+                { label: "Year", period: "year" as const, icon: Calendar },
+              ].map((btn) => (
+                <Button
+                  key={btn.period}
+                  variant="outline"
+                  className="h-20 flex flex-col gap-2 hover:bg-indigo-100 hover:border-indigo-300 transition"
+                  onClick={() => downloadAttendance(btn.period)}
                 >
-                  <Calendar className="h-6 w-6 text-indigo-600" />
-                  <span className="text-sm">Today's Report</span>
+                  <btn.icon className="h-6 w-6 text-indigo-600" />
+                  <span className="text-sm font-medium">{btn.label}</span>
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-indigo-50 hover:border-indigo-200"
-                  onClick={() => downloadAttendance('week')}
-                >
-                  <CalendarDays className="h-6 w-6 text-indigo-600" />
-                  <span className="text-sm">Weekly Report</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-indigo-50 hover:border-indigo-200"
-                  onClick={() => downloadAttendance('month')}
-                >
-                  <Calendar className="h-6 w-6 text-indigo-600" />
-                  <span className="text-sm">Monthly Report</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col gap-2 hover:bg-indigo-50 hover:border-indigo-200"
-                  onClick={() => downloadAttendance('year')}
-                >
-                  <Calendar className="h-6 w-6 text-indigo-600" />
-                  <span className="text-sm">Yearly Report</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 }

@@ -104,13 +104,30 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       });
     }
 
+    // Resolve Site by provided code/name and set siteId
+    let resolvedSiteId: number | null = null;
+    if (site) {
+      const siteName = site.toUpperCase() === 'HEADOFFICE' ? 'Head Office'
+        : site.toUpperCase() === 'OPERATION' ? 'Operation Center'
+        : site.toUpperCase() === 'BRANCH1' ? 'Branch 1'
+        : site.toUpperCase() === 'BRANCH2' ? 'Branch 2'
+        : site;
+      let foundSite = await prisma.site.findFirst({
+        where: { name: { equals: siteName, mode: 'insensitive' } },
+      });
+      if (!foundSite) {
+        foundSite = await prisma.site.create({ data: { name: siteName } });
+      }
+      resolvedSiteId = foundSite.id;
+    }
+
     // Update child data
     const updateData: any = {
       fullName,
       relationship,
       gender,
       dateOfBirth: new Date(dateOfBirth),
-      site,
+      siteId: resolvedSiteId,
       organizationId: organizationRecord.id,
     };
 
@@ -126,6 +143,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         organization: true,
         servant: true,
         room: true,
+        site: true,
       },
     });
 

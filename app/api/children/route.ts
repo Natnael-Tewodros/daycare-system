@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
-import { Gender, Relationship, Site } from '@prisma/client';
+import { Gender, Relationship } from '@prisma/client';
 
 // Function to calculate age in months
 const calculateAgeInMonths = (dateOfBirth: string | Date): number => {
@@ -146,6 +146,7 @@ export async function GET(request: Request) {
         organization: true,
         servant: true,
         room: true,
+        site: true,
         parent: true, // Include parent user info
         attendances: {
           orderBy: { createdAt: 'desc' },
@@ -166,7 +167,7 @@ export async function GET(request: Request) {
       parentEmail: c.parentEmail, // Add parentEmail field
       gender: c.gender,
       relationship: c.relationship,
-      site: c.site,
+      site: c.site?.name || 'Head Office',
       organization: {
         name: c.organization?.name ?? '',
         id: c.organization?.id ?? 0
@@ -182,8 +183,16 @@ export async function GET(request: Request) {
       } : null,
       dateOfBirth: c.dateOfBirth,
       createdAt: c.createdAt,
-      profilePic: c.profilePic,
-      childInfoFile: c.childInfoFile,
+      profilePic: c.profilePic
+        ? (c.profilePic.startsWith('http') || c.profilePic.startsWith('/')
+            ? c.profilePic
+            : `/uploads/${c.profilePic}`)
+        : null,
+      childInfoFile: c.childInfoFile
+        ? (c.childInfoFile.startsWith('http') || c.childInfoFile.startsWith('/')
+            ? c.childInfoFile
+            : `/uploads/${c.childInfoFile}`)
+        : null,
       // TODO: Add approvalStatus after migration: approvalStatus: c.approvalStatus || 'pending',
       activities: c.attendances.map(a => ({
         id: a.id,
@@ -403,6 +412,25 @@ export async function POST(req: Request) {
         throw new Error(`Organization not found${organizationIdStr ? ` with ID ${organizationIdStr}` : organizationName ? ` with name "${organizationName}"` : ''}`);
       }
 
+      // Resolve site by provided code/name and set siteId
+      let resolvedSiteId: number | null = null;
+      if (site) {
+        const siteName = site.toUpperCase() === 'HEADOFFICE' ? 'Head Office'
+          : site.toUpperCase() === 'OPERATION' ? 'Operation Center'
+          : site.toUpperCase() === 'BRANCH1' ? 'Branch 1'
+          : site.toUpperCase() === 'BRANCH2' ? 'Branch 2'
+          : site;
+        let foundSite = await prisma.site.findFirst({
+          where: { name: { equals: siteName, mode: 'insensitive' } },
+        });
+        if (!foundSite) {
+          foundSite = await prisma.site.create({
+            data: { name: siteName }
+          });
+        }
+        resolvedSiteId = foundSite.id;
+      }
+
       // Strong duplicate check:
       // 1) Block same full name within the same organization (case-insensitive)
       // 2) Additionally, block same full name with the same parent (by email/id)
@@ -446,34 +474,33 @@ export async function POST(req: Request) {
         console.log(`Assigned to room: ${finalRoomId}`);
       }
 
-      // Create the child record with pending approval status
-      const child = await prisma.$transaction(async (tx) => {
-        const childData: any = {
-          parentName: finalParentName,
-          parentEmail: finalParentEmail || null,
-          parentPassword: parentPassword || null,
-          fullName,
-          relationship: relationship as Relationship,
-          gender: gender as Gender,
-          dateOfBirth,
-          organizationId: organization.id,
-          servantId,
-          roomId: finalRoomId,
-          option,
-          profilePic: profilePic as string | null,
-          childInfoFile: (childInfo || otherFilePath) as string | null,
-          parentId: parentUser?.id || null, // Link to parent user
-        };
+      // Create the child record (no interactive transaction needed)
+      const childData: any = {
+        parentName: finalParentName,
+        parentEmail: finalParentEmail || null,
+        parentPassword: parentPassword || null,
+        fullName,
+        relationship: relationship as Relationship,
+        gender: gender as Gender,
+        dateOfBirth,
+        siteId: resolvedSiteId,
+        organizationId: organization.id,
+        servantId,
+        roomId: finalRoomId,
+        option,
+        profilePic: profilePic as string | null,
+        childInfoFile: (childInfo || otherFilePath) as string | null,
+        parentId: parentUser?.id || null,
+      };
 
-        return await tx.child.create({
-          data: childData,
-          include: {
-            organization: true,
-            servant: true,
-            room: true,
-            parent: true
-          }
-        });
+      const child = await prisma.child.create({
+        data: childData,
+        include: {
+          organization: true,
+          servant: true,
+          room: true,
+          parent: true,
+        },
       });
 
       return NextResponse.json({ 

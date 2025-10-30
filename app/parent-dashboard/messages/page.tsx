@@ -7,8 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Bell, Send, Plus, AlertTriangle, Mail, FileText, Edit, Trash2, Save, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Bell, Send, AlertTriangle, FileText, Edit, Trash2, Save, X } from "lucide-react";
 
 interface Notification {
   id: number;
@@ -31,7 +30,7 @@ export default function MessagesPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [submittedReports, setSubmittedReports] = useState<any[]>([]);
   const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
-  const [absenceData, setAbsenceData] = useState({ childId: '', reason: 'sick', expectedReturn: '', notes: '' });
+  const [absenceData, setAbsenceData] = useState({ childId: '', subject: '', description: '', reason: 'sick', expectedReturn: '', notes: '' });
   const [children, setChildren] = useState<any[]>([]);
   const [editingReport, setEditingReport] = useState<any>(null);
   const [editForm, setEditForm] = useState({ subject: '', description: '' });
@@ -77,27 +76,29 @@ export default function MessagesPage() {
 
   const fetchSubmittedReports = async () => {
     try {
+      const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
+      const parentEmail = parentInfo.email;
+      const userId = localStorage.getItem('userId');
       const response = await fetch('/api/activities');
       if (response.ok) {
         const activities = await response.json();
-        // Filter activities that look like they were sent by parents (absence notices, sick reports, etc.)
-        const submitted = activities.filter((activity: any) => {
+        // Filter for absence/sick reports submitted BY current parent only
+        const submitted = activities.filter((activity) => {
           const subject = activity.subject?.toLowerCase() || '';
           const description = activity.description?.toLowerCase() || '';
-          
-          // Check if it's an activity sent TO admin (indicating it came from a parent)
-          const sentToAdmin = activity.recipients?.some((recipient: string) => 
-            recipient.toLowerCase().includes('admin') || 
-            recipient === 'admin@daycare.com'
+          const sentToAdmin = activity.recipients?.some((recipient) =>
+            recipient.toLowerCase().includes('admin') || recipient === 'admin@daycare.com'
           );
-          
-          // Check if it contains parent submission keywords
-          const isParentSubmission = subject.includes('absence notice') || 
-                                      subject.includes('sick report') ||
-                                      description.includes('⛔ absent') ||
-                                      description.includes('child:');
-          
-          return sentToAdmin && isParentSubmission;
+          const isParentSubmission =
+            subject.includes('absence notice') ||
+            subject.includes('sick report') ||
+            description.includes('⛔ absent') ||
+            description.includes('child:');
+          // *** Only keep absence reports from THIS parent ***
+          const matchesCurrentParent =
+            (activity.parentId && activity.parentId == userId) ||
+            (activity.parentEmail && activity.parentEmail === parentEmail);
+          return sentToAdmin && isParentSubmission && matchesCurrentParent;
         });
         setSubmittedReports(submitted);
       }
@@ -140,30 +141,32 @@ export default function MessagesPage() {
       alert("Please select a child");
       return;
     }
-
+    if (!absenceData.subject || !absenceData.description) {
+      alert("Please enter subject and description");
+      return;
+    }
     try {
       const selectedChild = children.find(c => c.id === parseInt(absenceData.childId));
       if (!selectedChild) {
         alert("Child not found");
         return;
       }
-
-      const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
+      const parentEmail = parentInfo.email;
       const formData = new FormData();
-      formData.append("subject", `🚨 Absence Notice: ${selectedChild.fullName} - ${today}`);
-      formData.append("description", `⛔ ABSENT TODAY\n\nChild: ${selectedChild.fullName}\nReason: ${absenceData.reason}\nExpected Return: ${absenceData.expectedReturn || 'Not specified'}\nNotes: ${absenceData.notes || 'None'}`);
+      formData.append("subject", absenceData.subject);
+      formData.append("description", absenceData.description);
       formData.append("recipients", JSON.stringify(['admin@daycare.com']));
-
       const response = await fetch("/api/activities", {
         method: "POST",
         body: formData,
+        headers: parentEmail ? { 'x-parent-email': parentEmail } : {},
       });
-
       if (response.ok) {
         alert("Absence notice sent to daycare successfully!");
         setShowAbsenceDialog(false);
-        setAbsenceData({ childId: '', reason: 'sick', expectedReturn: '', notes: '' });
-        fetchSubmittedReports(); // Refresh submitted reports
+        setAbsenceData({ childId: '', subject: '', description: '', reason: 'sick', expectedReturn: '', notes: '' });
+        fetchSubmittedReports();
       } else {
         alert("Failed to send absence notice");
       }
@@ -204,6 +207,7 @@ export default function MessagesPage() {
         );
         setEditingReport(null);
         setEditForm({ subject: '', description: '' });
+        fetchSubmittedReports(); // Refresh to show latest edit immediately
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to update report');
@@ -228,6 +232,7 @@ export default function MessagesPage() {
       if (response.ok) {
         // Remove the report from the submitted reports
         setSubmittedReports(prev => prev.filter(report => report.id !== reportId));
+        fetchSubmittedReports(); // Refresh to show immediate deletion
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to delete report');
@@ -512,6 +517,17 @@ export default function MessagesPage() {
             </div>
             
             <div className="space-y-2">
+              <Label htmlFor="absenceSubject">Subject *</Label>
+              <Input
+                id="absenceSubject"
+                className="w-full px-3 py-2 border rounded-md"
+                value={absenceData.subject}
+                onChange={e => setAbsenceData({ ...absenceData, subject: e.target.value })}
+                placeholder="Absence Notice (can be customized)"
+              />
+            </div>
+            
+            <div className="space-y-2">
               <Label htmlFor="reason">Reason for Absence *</Label>
               <select
                 id="reason"
@@ -539,13 +555,14 @@ export default function MessagesPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="absenceNotes">Additional Notes</Label>
+              <Label htmlFor="absenceDescription">Description *</Label>
               <Textarea
-                id="absenceNotes"
-                placeholder="Any additional information..."
+                id="absenceDescription"
+                className="w-full px-3 py-2 border rounded-md"
+                value={absenceData.description}
+                onChange={e => setAbsenceData({ ...absenceData, description: e.target.value })}
+                placeholder="Explain absence details, notes, or reason here..."
                 rows={4}
-                value={absenceData.notes}
-                onChange={(e) => setAbsenceData({ ...absenceData, notes: e.target.value })}
               />
             </div>
             

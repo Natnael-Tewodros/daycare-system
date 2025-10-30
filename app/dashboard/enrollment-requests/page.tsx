@@ -14,8 +14,6 @@ import {
   Phone, 
   Calendar,
   User,
-  Baby,
-  Building,
   RefreshCw
 } from "lucide-react";
 
