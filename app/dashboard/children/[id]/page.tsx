@@ -34,7 +34,7 @@ export default function ChildProfilePage() {
   if (error) return <p className="p-6 text-red-600">{error}</p>;
   if (!child) return <p className="p-6">Not found</p>;
 
-  const profileImageUrl = child.profilePic ? `/uploads/${child.profilePic}` : "/placeholder-avatar.png";
+  const profileImageUrl = child.profilePic ? `/uploads/${child.profilePic}` : "/placeholder-avatar.svg";
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">

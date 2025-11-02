@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const totalChildren = await prisma.child.count();
-    const totalServants = await prisma.servant.count();
-    const totalOrganizations = await prisma.organization.count();
+    const [totalChildren, totalCaregivers, totalOrganizations] = await Promise.all([
+      prisma.child.count(),
+      prisma.caregiver.count(),
+      prisma.organization.count()
+    ]);
 
     // Optional: count today's attendance
     const today = new Date();
@@ -28,7 +30,8 @@ export async function GET() {
 
     return NextResponse.json({
       totalChildren,
-      totalServants,
+      totalServants: totalCaregivers, // Alias for backward compatibility
+      totalCaregivers, // Also include the new name
       totalOrganizations,
       todaysAttendance,
       pendingEnrollmentRequests,

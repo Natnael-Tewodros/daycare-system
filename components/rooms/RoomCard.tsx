@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Baby, CheckCircle, AlertCircle } from "lucide-react";
-import { getRoomIcon, getRoomIconColors } from "./utils";
+import { getRoomIcon, getRoomIconColors, getRoomDisplayName } from "./utils";
 
 type Props = {
   room: any;
@@ -26,7 +26,7 @@ export default function RoomCard({ room, caregiverChildren, onClick }: Props) {
           </div>
           <div className="space-y-2">
             <CardTitle className="text-2xl font-bold text-gray-800">
-              {room.name}
+              {getRoomDisplayName(room.name)}
             </CardTitle>
             <p className="text-lg text-gray-600 font-medium">
               {room.ageRange}
@@ -53,7 +53,7 @@ export default function RoomCard({ room, caregiverChildren, onClick }: Props) {
             </div>
             <div className="flex items-center justify-center gap-2 text-gray-600">
               <Baby className="h-5 w-5" />
-              <span className="text-sm font-medium">{room.children?.length || 0} Children</span>
+              <span className="text-sm font-medium">{room.childrenCount || 0} Children</span>
             </div>
             {room.servants && room.servants.length > 0 && (
               <div className="flex items-center justify-center gap-2 text-green-600">

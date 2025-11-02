@@ -1,27 +1,40 @@
-import { Baby, Flower2, Rainbow } from "lucide-react";
+import React from "react";
+import { Baby, BabyIcon, Star, Heart } from "lucide-react";
+
+// Function to normalize room display names
+export const getRoomDisplayName = (roomName: string): string => {
+  if (roomName.toLowerCase().includes('growing start')) {
+    return roomName.replace(/growing start/gi, 'Growing Star');
+  }
+  return roomName;
+};
 
 export const getRoomIcon = (roomName: string) => {
   const name = roomName.toLowerCase();
-  if (name.includes('infants') || name.includes('room 1')) {
+  if (name.includes('infant')) {
+    // Baby icon for infants - pink theme
     return <Baby className="h-8 w-8 text-white" />;
-  } else if (name.includes('toddlers') || name.includes('room 2')) {
-    return <Flower2 className="h-8 w-8 text-white" />;
-  } else if (name.includes('growing stars') || name.includes('room 3')) {
-    return <Rainbow className="h-8 w-8 text-white" />;
+  } else if (name.includes('toddler')) {
+    // BabyIcon for toddlers - blue theme  
+    return <BabyIcon className="h-8 w-8 text-white" />;
+  } else if (name.includes('growing star') || name.includes('growing start')) {
+    // Star icon for growing stars - purple theme (matches the name!)
+    return <Star className="h-8 w-8 text-white" />;
   }
-  return <Baby className="h-8 w-8 text-white" />;
+  // Default fallback for other rooms
+  return <Heart className="h-8 w-8 text-white" />;
 };
 
 export const getRoomIconColors = (roomName: string) => {
   const name = roomName.toLowerCase();
-  if (name.includes('infants') || name.includes('room 1')) {
+  if (name.includes('infant')) {
     return 'from-pink-500 to-rose-500';
-  } else if (name.includes('toddlers') || name.includes('room 2')) {
+  } else if (name.includes('toddler')) {
     return 'from-blue-500 to-cyan-500';
-  } else if (name.includes('growing stars') || name.includes('room 3')) {
+  } else if (name.includes('growing star') || name.includes('growing start')) {
     return 'from-purple-500 to-violet-500';
   }
-  return 'from-blue-500 to-indigo-500';
+  return 'from-gray-500 to-gray-600';
 };
 
 export const calculateAgeInMonths = (dateOfBirth: string | Date): number => {

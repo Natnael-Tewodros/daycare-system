@@ -7,22 +7,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Bell, Send, AlertTriangle, FileText, Edit, Trash2, Save, X } from "lucide-react";
+import { toast } from "sonner";
+import { Bell, Send, AlertTriangle, FileText, Edit, Trash2, Save, X, MessageSquare } from "lucide-react";
 
 interface Notification {
-  id: number;
-  activityId: number;
-  parentEmail: string;
-  isRead: boolean;
+  id: string;
+  isNotification: boolean;
+  subject: string;
+  description?: string;
+  attachments: string[];
   createdAt: string;
-  updatedAt: string;
-  activity: {
-    id: number;
-    subject: string;
-    description?: string;
-    attachments: string[];
-    createdAt: string;
-  };
+  isRead: boolean;
+  parentEmail?: string;
+  activityId?: number;
+  updatedAt?: string;
 }
 
 export default function MessagesPage() {
@@ -47,16 +45,180 @@ export default function MessagesPage() {
     }
   }, []);
 
+  // Track deleted message IDs to prevent them from reappearing
+  const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
+
+  const markNotificationsAsRead = async (messageIds: string[]): Promise<boolean> => {
+    if (!messageIds?.length) {
+      console.log('No message IDs provided to mark as read');
+      return true;
+    }
+
+    try {
+      // Separate notification IDs (starting with 'notif_') from activity IDs
+      const { notificationIds, activityIds } = messageIds.reduce((acc, id) => {
+        if (id?.startsWith('notif_')) {
+          acc.notificationIds.push(id.replace('notif_', ''));
+        } else if (id?.startsWith('activity_')) {
+          acc.activityIds.push(id.replace('activity_', ''));
+        }
+        return acc;
+      }, { notificationIds: [], activityIds: [] } as { notificationIds: string[], activityIds: string[] });
+
+      // Mark notifications as read if there are any
+      if (notificationIds.length > 0) {
+        console.log('Marking notifications as read:', notificationIds);
+        
+        // Mark each notification as read individually since the API only supports one at a time
+        const results = await Promise.allSettled(
+          notificationIds.map(async id => {
+            try {
+              const response = await fetch('/api/notifications', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(
+                  `Failed to mark notification ${id} as read: ` +
+                  `${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+                );
+              }
+              return await response.json();
+            } catch (error) {
+              console.error(`Error marking notification ${id} as read:`, error);
+              throw error; // Re-throw to be caught by Promise.allSettled
+            }
+          })
+        );
+
+        // Check for any failures
+        const failed = results.filter(
+          (result): result is PromiseRejectedResult => result.status === 'rejected'
+        );
+
+        if (failed.length > 0) {
+          console.error(`Failed to mark ${failed.length} notifications as read`);
+          failed.forEach((error, index) => {
+            console.error(`Error ${index + 1}:`, error.reason);
+          });
+          return false;
+        }
+        
+        console.log('Successfully marked all notifications as read');
+        return true;
+      }
+
+      // Mark activities as read if there are any
+      if (activityIds.length > 0) {
+        console.log('Marking activities as read:', activityIds);
+        // Activities are already marked as read when fetched, so we just update the UI
+        // No need to make an API call for activities
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+      return false; // Don't throw, just return false to indicate partial failure
+    }
+  };
+
   const fetchNotifications = async (parentEmail: string) => {
     try {
-      const response = await fetch(`/api/notifications?parentEmail=${encodeURIComponent(parentEmail)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+      // First, get all notifications
+      const [notificationsRes, activitiesRes] = await Promise.all([
+        fetch(`/api/notifications?parentEmail=${encodeURIComponent(parentEmail)}`),
+        fetch(`/api/activities?parentEmail=${encodeURIComponent(parentEmail)}`)
+      ]);
+      
+      if (!notificationsRes.ok) throw new Error('Failed to fetch notifications');
+      if (!activitiesRes.ok) throw new Error('Failed to fetch activities');
+      
+      const { notifications } = await notificationsRes.json();
+      const activities = await activitiesRes.json();
+      
+      // Process notifications
+      const notificationMessages = notifications
+        .filter((n: any) => n.activity) // Only include notifications with activities
+        .map((notification: any) => ({
+          id: `notif_${notification.id}`,
+          isNotification: true,
+          subject: notification.activity.subject || 'No subject',
+          description: notification.activity.description,
+          attachments: notification.activity.attachments || [],
+          createdAt: notification.activity.createdAt || new Date().toISOString(),
+          isRead: notification.isRead,
+          parentEmail: notification.parentEmail,
+          activityId: notification.activityId,
+          senderType: 'admin' // All notifications are from admin
+        }));
+      
+      // Process activities (only admin messages, not reports)
+      const activityMessages = activities
+        .filter((activity: any) => 
+          activity.recipients.includes(parentEmail.toLowerCase()) && 
+          activity.senderType === 'admin' &&
+          !activity.isReport
+        )
+        .map((activity: any) => ({
+          id: `activity_${activity.id}`,
+          isNotification: false,
+          subject: activity.subject || 'No subject',
+          description: activity.description,
+          attachments: activity.attachments || [],
+          createdAt: activity.createdAt || new Date().toISOString(),
+          isRead: true, // Activities from admin are always considered read
+          parentEmail: activity.parentEmail,
+          activityId: activity.id,
+          senderType: 'admin'
+        }));
+      
+      // Combine and deduplicate by activityId or id
+      const allMessages = [...notificationMessages, ...activityMessages];
+      const uniqueMessages = Array.from(
+        new Map(allMessages.map(m => [m.activityId || m.id, m])).values()
+      );
+      
+      // Filter out deleted messages and only show admin messages
+      const filteredMessages = uniqueMessages.filter((message: any) => 
+        !deletedMessageIds.has(message.id) && message.senderType === 'admin'
+      );
+      
+      // Sort by creation date, newest first
+      const sortedMessages = [...filteredMessages].sort((a: any, b: any) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      // Get unread message IDs to mark as read (both notifications and activities)
+      const unreadMessages = sortedMessages.filter((m: any) => !m.isRead);
+      
+      // Mark messages as read in the UI immediately
+      const updatedMessages = sortedMessages.map((m: any) => 
+        unreadMessages.some(n => n.id === m.id) ? { ...m, isRead: true } : m
+      );
+      
+      // Update state
+      setNotifications(updatedMessages);
+      
+      // Mark messages as read on the server and update unread count
+      if (unreadMessages.length > 0) {
+        const unreadCount = updatedMessages.filter((m: any) => !m.isRead).length;
+        setUnreadCount(unreadCount);
+        
+        // Only mark notifications as read, not activities (they're already marked as read when fetched)
+        const notificationIds = unreadMessages
+          .filter((m: any) => m.isNotification)
+          .map((m: any) => m.id);
+          
+        if (notificationIds.length > 0) {
+          await markNotificationsAsRead(notificationIds);
+        }
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('Error fetching messages:', error);
+      setError('Failed to load messages. Please try again.');
     }
   };
 
@@ -77,66 +239,211 @@ export default function MessagesPage() {
   const fetchSubmittedReports = async () => {
     try {
       const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
-      const parentEmail = parentInfo.email;
+      const parentEmail = parentInfo.email || parentInfo.parentEmail;
       const userId = localStorage.getItem('userId');
-      const response = await fetch('/api/activities');
-      if (response.ok) {
-        const activities = await response.json();
-        // Filter for absence/sick reports submitted BY current parent only
-        const submitted = activities.filter((activity) => {
-          const subject = activity.subject?.toLowerCase() || '';
-          const description = activity.description?.toLowerCase() || '';
-          const sentToAdmin = activity.recipients?.some((recipient) =>
-            recipient.toLowerCase().includes('admin') || recipient === 'admin@daycare.com'
-          );
-          const isParentSubmission =
+      
+      console.log('Fetching reports for:', { parentEmail, userId });
+      
+      if (!parentEmail && !userId) {
+        console.error('No parent email or user ID found');
+        return;
+      }
+
+      // Build the query string with parentId as the primary filter
+      const params = new URLSearchParams();
+      if (userId) {
+        params.append('parentId', userId);
+      } else if (parentEmail) {
+        params.append('parentEmail', parentEmail);
+      }
+      // Ensure we only get parent-submitted reports
+      params.append('senderType', 'parent');
+
+      const apiUrl = `/api/activities?${params.toString()}`;
+      console.log('API URL:', apiUrl);
+      
+      try {
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API Error Response:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText
+          });
+          setSubmittedReports([]); // Clear any existing reports on error
+          return;
+        }
+        
+        const responseData = await response.json();
+        
+        // Handle case where the response is an error object
+        if (responseData.error) {
+          console.error('API returned error:', responseData.error);
+          setSubmittedReports([]);
+          return;
+        }
+        
+        // Handle case where activities is an array in a nested property
+        let activities = Array.isArray(responseData) ? responseData : 
+                        Array.isArray(responseData.activities) ? responseData.activities : [];
+                        
+        console.log('Raw activities from API:', activities);
+        
+        // Additional client-side filtering as a safeguard
+        activities = activities.filter((activity: any) => {
+          if (!activity) return false;
+          
+          // Check if the activity belongs to the current parent
+          const isCurrentParentActivity = 
+            (userId && activity.parentId?.toString() === userId) || 
+            (parentEmail && activity.parentEmail?.toLowerCase() === parentEmail.toLowerCase());
+          
+          // Check if it's a report type
+          const subject = String(activity.subject || '').toLowerCase();
+          const description = String(activity.description || '').toLowerCase();
+          const isReport = (
             subject.includes('absence notice') ||
             subject.includes('sick report') ||
             description.includes('⛔ absent') ||
-            description.includes('child:');
-          // *** Only keep absence reports from THIS parent ***
-          const matchesCurrentParent =
-            (activity.parentId && activity.parentId == userId) ||
-            (activity.parentEmail && activity.parentEmail === parentEmail);
-          return sentToAdmin && isParentSubmission && matchesCurrentParent;
+            description.includes('child:')
+          );
+          
+          return isReport && isCurrentParentActivity;
         });
-        setSubmittedReports(submitted);
+        
+        console.log('Filtered reports for current parent:', activities);
+        setSubmittedReports(activities);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+        setSubmittedReports([]); // Clear on error
       }
     } catch (error) {
       console.error('Error fetching submitted reports:', error);
     }
   };
 
-  const markAsRead = async (notificationId: number) => {
+  const markAsRead = async (notificationId: string) => {
     try {
-      await fetch('/api/notifications', {
+      // Extract the numeric ID if it's in 'notif_123' format
+      const id = notificationId.startsWith('notif_') 
+        ? notificationId.replace('notif_', '') 
+        : notificationId;
+      
+      const response = await fetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: notificationId }),
+        body: JSON.stringify({ id }),
       });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error('Failed to mark notification as read:', {
+          status: response.status,
+          statusText: response.statusText,
+          error
+        });
+        return false;
+      }
+
+      // Update the local state to mark the notification as read
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
       
-      setNotifications(prev => prev.map(n => 
-        n.id === notificationId ? { ...n, isRead: true } : n
-      ));
+      // Decrement unread count if the notification was unread
       setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      return true;
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      return false;
+    }
+  };
+  
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.isRead);
+      if (unreadNotifications.length === 0) return;
+      
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          notificationIds: unreadNotifications.map(n => 
+            n.id.startsWith('notif_') ? n.id.replace('notif_', '') : n.id
+          )
+        }),
+      });
+
+      if (response.ok) {
+        // Update all notifications to read
+        setNotifications(prev => 
+          prev.map(n => ({ ...n, isRead: true }))
+        );
+        
+        // Reset unread count
+        setUnreadCount(0);
+        
+        // Show success feedback
+        toast.success('All messages marked as read');
+      } else {
+        throw new Error('Failed to mark all as read');
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast.error('Failed to mark all as read');
     }
   };
 
-  const deleteNotification = async (notificationId: number) => {
+  const deleteNotification = async (notificationId: string) => {
     try {
-      await fetch(`/api/notifications?id=${notificationId}`, {
-        method: 'DELETE',
+      // Add to deleted set first to prevent flicker
+      setDeletedMessageIds(prev => new Set(prev).add(notificationId));
+      
+      // Update local state immediately for better UX
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      
+      // Only call delete API for actual notifications (not activities)
+      if (notificationId.startsWith('notif_')) {
+        const id = notificationId.replace('notif_', '');
+        const response = await fetch(`/api/notifications?id=${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete notification');
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      // If there's an error, remove from deleted set and reload the message
+      setDeletedMessageIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(notificationId);
+        return newSet;
       });
       
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    } catch (error) {
-      console.error('Error deleting notification:', error);
+      // Reload messages to restore the deleted one
+      const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
+      const parentEmail = parentInfo.email || parentInfo.parentEmail;
+      if (parentEmail) {
+        fetchNotifications(parentEmail);
+      }
+      
+      alert('Failed to delete message. Please try again.');
     }
   };
 
-  const handleAbsenceSubmit = async () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAbsenceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // Prevent default form submission
+    
+    if (isSubmitting) return; // Prevent multiple submissions
+    
     if (!absenceData.childId) {
       alert("Please select a child");
       return;
@@ -145,34 +452,79 @@ export default function MessagesPage() {
       alert("Please enter subject and description");
       return;
     }
+    
+    setIsSubmitting(true);
+    
     try {
       const selectedChild = children.find(c => c.id === parseInt(absenceData.childId));
       if (!selectedChild) {
         alert("Child not found");
+        setIsSubmitting(false);
         return;
       }
+      
       const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
-      const parentEmail = parentInfo.email;
+      const parentEmail = parentInfo.email || parentInfo.parentEmail;
+      const userId = localStorage.getItem('userId');
+      
+      if (!parentEmail) {
+        alert("Parent email not found. Please log in again.");
+        setIsSubmitting(false);
+        return;
+      }
+      
       const formData = new FormData();
-      formData.append("subject", absenceData.subject);
-      formData.append("description", absenceData.description);
+      // Format the subject to be recognized as a report
+      const reportSubject = `⛔ Absence - ${selectedChild.name} - ${absenceData.reason}`;
+      // Format the description with clear markers for the reports page
+      const reportDescription = `⛔ ABSENT NOTIFICATION
+
+Child: ${selectedChild.name}
+Reason: ${absenceData.reason}
+
+Details:
+${absenceData.description || 'No additional details provided.'}
+
+Submitted at: ${new Date().toLocaleString()}`;
+      
+      formData.append("subject", reportSubject);
+      formData.append("description", reportDescription);
       formData.append("recipients", JSON.stringify(['admin@daycare.com']));
+      formData.append("senderType", "parent");
+      formData.append("isReport", "true");
+      formData.append("parentId", localStorage.getItem('userId') || '');
+      formData.append("parentEmail", parentEmail);
+      
+      const headers: HeadersInit = {};
+      if (parentEmail) headers['x-parent-email'] = parentEmail;
+      if (userId) headers['x-parent-id'] = userId;
+      
       const response = await fetch("/api/activities", {
         method: "POST",
         body: formData,
-        headers: parentEmail ? { 'x-parent-email': parentEmail } : {},
+        headers,
       });
+      
       if (response.ok) {
-        alert("Absence notice sent to daycare successfully!");
+        alert("Message sent to admin successfully!");
         setShowAbsenceDialog(false);
         setAbsenceData({ childId: '', subject: '', description: '', reason: 'sick', expectedReturn: '', notes: '' });
-        fetchSubmittedReports();
+        
+        // Refresh the reports and navigate to reports page
+        await fetchSubmittedReports();
+        // Navigate to reports page after a short delay
+        setTimeout(() => {
+          window.location.href = '/parent-dashboard/reports';
+        }, 1000);
       } else {
-        alert("Failed to send absence notice");
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || "Failed to send message. Please try again.");
       }
     } catch (error) {
       console.error("Error sending absence notice:", error);
-      alert("Error sending absence notice");
+      alert("An error occurred while sending the absence notice. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -252,15 +604,9 @@ export default function MessagesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Messages & Activities</h1>
-          <p className="text-gray-600 mt-1">View activities from daycare and report absences</p>
-        </div>
-        <Button onClick={() => setShowAbsenceDialog(true)} className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white">
-          <AlertTriangle className="h-4 w-4" />
-          Report Absence
-        </Button>
+      <div className="mb-6">
+      <h1 className="text-3xl font-bold text-gray-900">Notifications from Daycare</h1>
+        <p className="text-gray-600 mt-1">View communications from the daycare admin</p>
       </div>
 
       {error && (
@@ -272,21 +618,33 @@ export default function MessagesPage() {
       {/* Notifications from Admin */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-blue-600" />
-            Activities from Daycare
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              Notifications from Daycare
+              {unreadCount > 0 && (
+                <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
+                  {unreadCount} {unreadCount === 1 ? 'Notification' : 'Notifications'}
+                </span>
+              )}
+            </CardTitle>
             {unreadCount > 0 && (
-              <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
-                {unreadCount} New
-              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={markAllAsRead}
+                className="text-blue-600 hover:bg-blue-50"
+              >
+                Mark all as read
+              </Button>
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
-          {notifications.length === 0 ? (
+              {notifications.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No activities from daycare yet</p>
+              <MessageSquare className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No notifications from daycare yet</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -297,24 +655,37 @@ export default function MessagesPage() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                           <h3 className="font-semibold text-gray-900 text-lg">
-                            {notification.activity.subject}
+                            {notification.subject}
                           </h3>
                           {!notification.isRead && (
-                            <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markAsRead(notification.id);
+                                }}
+                                className="text-xs text-blue-600 hover:bg-blue-50 border-blue-200 hover:border-blue-300"
+                              >
+                                Mark as read
+                              </Button>
+                            </div>
                           )}
                         </div>
-                        {notification.activity.description && (
+                        {notification.description && (
                           <p className="text-sm text-gray-600 mb-3 whitespace-pre-line">
-                            {notification.activity.description}
+                            {notification.description}
                           </p>
                         )}
-                        {notification.activity.attachments && notification.activity.attachments.length > 0 && (
+                        {notification.attachments && notification.attachments.length > 0 && (
                           <div className="mb-3">
                             <p className="text-xs text-gray-500 mb-1">Attachments:</p>
                             <div className="flex flex-wrap gap-2">
-                              {notification.activity.attachments.map((attachment, idx) => (
+                              {notification.attachments.map((attachment, idx) => (
                                 <a
                                   key={idx}
                                   href={attachment}
@@ -359,231 +730,6 @@ export default function MessagesPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* My Submitted Reports Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
-            My Submitted Reports
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {submittedReports.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No submitted reports yet</p>
-              <p className="text-sm text-gray-500 mt-2">When you submit absence reports or messages to admin, they will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {submittedReports.map((report) => {
-                const isEditing = editingReport?.id === report.id;
-                
-                return (
-                  <Card key={report.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      {isEditing ? (
-                        // Edit Mode
-                        <div className="space-y-4">
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor="edit-subject">Subject</Label>
-                              <Input
-                                id="edit-subject"
-                                value={editForm.subject}
-                                onChange={(e) => setEditForm({ ...editForm, subject: e.target.value })}
-                                placeholder="Enter report subject"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-description">Description</Label>
-                              <Textarea
-                                id="edit-description"
-                                value={editForm.description}
-                                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                                placeholder="Enter report description"
-                                rows={4}
-                              />
-                            </div>
-                            <div className="flex gap-2">
-                              <Button onClick={handleSaveEdit} size="sm">
-                                <Save className="h-4 w-4 mr-2" />
-                                Save
-                              </Button>
-                              <Button onClick={cancelEdit} variant="outline" size="sm">
-                                <X className="h-4 w-4 mr-2" />
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        // View Mode
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-semibold text-gray-900 text-lg">
-                                {report.subject}
-                              </h3>
-                            </div>
-                            {report.description && (
-                              <p className="text-sm text-gray-600 mb-3 whitespace-pre-line">
-                                {report.description}
-                              </p>
-                            )}
-                            {report.attachments && report.attachments.length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-xs text-gray-500 mb-1">Attachments:</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {report.attachments.map((attachment: string, idx: number) => (
-                                    <a
-                                      key={idx}
-                                      href={attachment}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
-                                    >
-                                      📎 {attachment.split('/').pop()}
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <span>Sent to: {report.recipients?.join(', ') || 'admin@daycare.com'}</span>
-                              <span>•</span>
-                              <span>{new Date(report.createdAt).toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditReport(report)}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteReport(report.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Absence Report Dialog */}
-      <Dialog open={showAbsenceDialog} onOpenChange={setShowAbsenceDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              Report Child Absence
-            </DialogTitle>
-            <DialogDescription>
-              Inform the daycare that your child will not be attending today
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="absentChild">Select Child *</Label>
-              <select
-                id="absentChild"
-                className="w-full px-3 py-2 border rounded-md"
-                value={absenceData.childId}
-                onChange={(e) => setAbsenceData({ ...absenceData, childId: e.target.value })}
-              >
-                <option value="">Select a child</option>
-                {children.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.fullName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="absenceSubject">Subject *</Label>
-              <Input
-                id="absenceSubject"
-                className="w-full px-3 py-2 border rounded-md"
-                value={absenceData.subject}
-                onChange={e => setAbsenceData({ ...absenceData, subject: e.target.value })}
-                placeholder="Absence Notice (can be customized)"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason for Absence *</Label>
-              <select
-                id="reason"
-                className="w-full px-3 py-2 border rounded-md"
-                value={absenceData.reason}
-                onChange={(e) => setAbsenceData({ ...absenceData, reason: e.target.value })}
-              >
-                <option value="sick">Sick</option>
-                <option value="family emergency">Family Emergency</option>
-                <option value="appointment">Medical/Dental Appointment</option>
-                <option value="vacation">Vacation</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="expectedReturn">Expected Return Date</Label>
-              <Input
-                id="expectedReturn"
-                type="text"
-                placeholder="e.g., Tomorrow, Next Monday, etc."
-                value={absenceData.expectedReturn}
-                onChange={(e) => setAbsenceData({ ...absenceData, expectedReturn: e.target.value })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="absenceDescription">Description *</Label>
-              <Textarea
-                id="absenceDescription"
-                className="w-full px-3 py-2 border rounded-md"
-                value={absenceData.description}
-                onChange={e => setAbsenceData({ ...absenceData, description: e.target.value })}
-                placeholder="Explain absence details, notes, or reason here..."
-                rows={4}
-              />
-            </div>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                ℹ️ This will notify the daycare admin that your child will not be attending today.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAbsenceDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAbsenceSubmit} className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white">
-              <Send className="h-4 w-4" />
-              Report Absence
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
-

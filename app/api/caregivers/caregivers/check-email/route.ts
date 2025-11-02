@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
       whereClause.id = { not: parseInt(excludeId) };
     }
 
-    const existingServant = await prisma.servant.findFirst({
+    const existingCaregiver = await prisma.caregiver.findFirst({
       where: whereClause,
       select: { id: true }
     });
 
-    return NextResponse.json({ exists: !!existingServant });
+    return NextResponse.json({ exists: !!existingCaregiver });
   } catch (error) {
     console.error('Error checking email:', error);
     return NextResponse.json({ error: 'Failed to check email' }, { status: 500 });

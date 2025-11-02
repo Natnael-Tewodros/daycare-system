@@ -4,257 +4,248 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  Users,
-  UserCog,
-  LayoutDashboard,
-  LogOut,
-  FileText,
-  Activity,
-  UserCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
-  DoorOpen,
-  Briefcase,
-  MapPin,
-  Bell,
-  Shield,
-  Settings,
-  User,
-  ChevronDown,
-  BarChart3,
+  LayoutDashboard, Users, UserCog, Activity, Bell, UserCheck,
+  DoorOpen, Briefcase, MapPin, FileText, BarChart3, Shield,
+  Settings, LogOut, PanelLeftClose, PanelLeftOpen, ChevronDown
 } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 
-interface SidebarItem {
+interface MenuItem {
   name: string;
   href: string;
-  icon: any;
-  badge?: number;
+  icon: React.FC<any>;
+  showBadge?: boolean;
+  badgeCount?: number;
 }
 
-const sidebarItems: SidebarItem[] = [
+const MENU_ITEMS: MenuItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Children", href: "/dashboard/children", icon: Users },
   { name: "Caregiver", href: "/dashboard/caregiver", icon: UserCog },
-  { name: "Activities", href: "/dashboard/activities", icon: Activity }, // FIXED: No "00"
+  { name: "Activities", href: "/dashboard/activities", icon: Activity },
+  { 
+    name: "Notifications", 
+    href: "/dashboard/notifications", 
+    icon: Bell,
+    showBadge: true,
+    badgeCount: 0
+  },
   { name: "Attendance", href: "/dashboard/attendance", icon: UserCheck },
   { name: "Rooms", href: "/dashboard/rooms", icon: DoorOpen },
   { name: "Organization", href: "/dashboard/organization", icon: Briefcase },
   { name: "Sites", href: "/dashboard/sites", icon: MapPin },
-  { name: "Enrollment Requests", href: "/dashboard/enrollment-requests", icon: FileText },
+  { 
+    name: "Enrollment", 
+    href: "/dashboard/enrollment-requests", 
+    icon: FileText,
+    showBadge: true,
+    badgeCount: 0
+  },
   { name: "Announcements", href: "/dashboard/announcements", icon: Bell },
-  { name: "Report", href: "/dashboard/report", icon: BarChart3 },
-  { name: "User Management", href: "/dashboard/admin-management", icon: Shield },
+  { name: "Reports", href: "/dashboard/report", icon: BarChart3 },
+  { name: "Admins", href: "/dashboard/admin-management", icon: Shield },
 ];
 
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
-  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
-  const [activitiesBadge, setActivitiesBadge] = useState<number>(0);
+  const [collapsed, setCollapsed] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [badge, setBadge] = useState(0);
+  const [pendingEnrollments, setPendingEnrollments] = useState(0);
+  const [user, setUser] = useState({ name: "Admin User", image: null as string | null });
 
-  // Fetch unread activities
+  /* ────── Fetch user, notifications & enrollment requests ────── */
   useEffect(() => {
-    const fetchUnreadActivities = async () => {
+    const init = async () => {
       try {
-        const response = await fetch("/api/activities");
-        if (response.ok) {
-          const activities = await response.json();
-          const readActivitiesJson = localStorage.getItem("readActivities");
-          const readActivities = readActivitiesJson
-            ? new Set(JSON.parse(readActivitiesJson))
-            : new Set();
+        const userId = localStorage.getItem("userId");
+        const [userRes, notifRes, enrollmentRes] = await Promise.all([
+          fetch("/api/users/me", { credentials: "include", headers: userId ? { "x-user-id": userId } : {} }),
+          fetch("/api/activities?senderType=parent&recipientEmail=admin@daycare.com&isRead=false"),
+          fetch("/api/enrollment-requests?status=pending")
+        ]);
 
-          const unread = activities.filter((activity: any) => {
-            const needsAttention =
-              activity.subject?.toLowerCase().includes("absence notice") ||
-              activity.subject?.toLowerCase().includes("sick report");
-            return !readActivities.has(activity.id) && needsAttention;
-          }).length;
-
-          setActivitiesBadge(unread);
+        if (userRes.ok) {
+          const data = await userRes.json();
+          setUser({ name: data.name || "Admin User", image: data.profileImage });
         }
-      } catch (error) {
-        console.error("Error fetching activities:", error);
+
+        if (notifRes.ok) {
+          const data = await notifRes.json();
+          const count = data.length;
+          setBadge(count);
+          const notificationsItem = MENU_ITEMS.find(item => item.name === "Notifications");
+          if (notificationsItem) {
+            notificationsItem.badgeCount = count;
+          }
+        }
+
+        if (enrollmentRes.ok) {
+          const data = await enrollmentRes.json();
+          const count = data.length || 0;
+          setPendingEnrollments(count);
+          const enrollmentItem = MENU_ITEMS.find(item => item.name === "Enrollment");
+          if (enrollmentItem) {
+            enrollmentItem.badgeCount = count;
+          }
+        }
+      } catch (e) { 
+        console.error("Error in dashboard init:", e); 
       }
     };
 
-    fetchUnreadActivities();
-    const interval = setInterval(fetchUnreadActivities, 30000);
-    return () => clearInterval(interval);
+    init();
+    const interval = setInterval(init, 10_000);
+    const handler = () => init();
+    window.addEventListener("notifications:updated", handler);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notifications:updated", handler);
+    };
   }, []);
 
-  const handleLogout = async (): Promise<void> => {
-    try {
-      setIsLoggingOut(true);
-      localStorage.removeItem("token");
-      localStorage.removeItem("userId");
-      sessionStorage.removeItem("token");
-      document.cookie = "userId=; Max-Age=0; path=/";
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setIsLoggingOut(false);
-    }
+  const logout = async () => {
+    setLoggingOut(true);
+    localStorage.clear();
+    sessionStorage.clear();
+    document.cookie = "userId=; Max-Age=0; path=/";
+    setTimeout(() => router.push("/"), 300);
   };
 
-  const getPageTitle = (path: string): string => {
-    const item = sidebarItems.find(
-      (i) => path === i.href || path.startsWith(i.href + "/")
-    );
-    return item?.name || "Dashboard";
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(href) && pathname.charAt(href.length) === "/";
   };
+
+  const title = MENU_ITEMS.find(i => isActive(i.href))?.name ?? "Dashboard";
+  const initials = user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-gray-100 font-sans antialiased">
+      {/* ────── Sidebar (hidden when collapsed) ────── */}
       <aside
         className={cn(
-          "bg-[#1A202C] text-white flex flex-col transition-all duration-300 border-r border-gray-700",
-          isCollapsed ? "w-16" : "w-64"
+          "bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 border-r border-slate-700 shadow-2xl",
+          collapsed ? "w-0 overflow-hidden" : "w-64"
         )}
       >
-        {/* Logo & Title */}
-        <div
-          className={cn(
-            "flex items-center border-b border-gray-700",
-            isCollapsed ? "p-3 justify-center" : "p-4 justify-start gap-3"
-          )}
-        >
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center overflow-hidden shadow-sm">
-            <Image
-              src="/Logo_of_Ethiopian_INSA.png"
-              alt="INSA Logo"
-              width={36}
-              height={36}
-              className="object-contain"
-            />
-          </div>
-          {!isCollapsed && (
-            <div>
-              <h2 className="text-lg font-bold text-white">Daycare Admin</h2>
-              <p className="text-xs text-gray-400 leading-tight">
-                INSA Management System
-              </p>
+        {/* Logo only - no collapse button here */}
+        <div className="flex items-center p-4 border-b border-slate-700 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl shadow-md overflow-hidden p-1">
+              <Image src="/Logo_of_Ethiopian_INSA.png" alt="INSA" width={36} height={36} className="rounded-lg" />
             </div>
-          )}
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Daycare Admin</h2>
+              <p className="text-xs text-slate-400">INSA Management</p>
+            </div>
+          </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarItems.map((item) => {
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {MENU_ITEMS.map(item => {
             const Icon = item.icon;
-
-            // Only highlight exact match or child routes (not parent)
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
-
-            const badge = item.name === "Activities" ? activitiesBadge : item.badge;
+            const active = isActive(item.href);
+            const hasBadge = item.showBadge && (item.badgeCount ?? 0) > 0;
 
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                  isCollapsed ? "justify-center" : "justify-start gap-3",
-                  isActive
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                )}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                {!isCollapsed && <span>{item.name}</span>}
+              <div key={item.href} className="relative group">
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    active ? "bg-blue-600 text-white shadow-md" : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                  )}
+                >
+                  <div className="flex items-center">
+                    <div className="relative">
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      {hasBadge && (
+                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                          {item.badgeCount}
+                        </span>
+                      )}
+                    </div>
+                    <span className={cn("ml-3", collapsed && "hidden")}>
+                      {item.name}
+                    </span>
+                  </div>
+                </Link>
 
-                {/* Badge - Only show if > 0 */}
-                {badge && badge > 0 && !isCollapsed && (
-                  <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1">
-                    {badge}
-                  </span>
-                )}
-                {badge && badge > 0 && isCollapsed && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {badge}
-                  </span>
-                )}
-              </Link>
+                {/* Hover tooltip */}
+                <div
+                  className={cn(
+                    "absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg",
+                    "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none whitespace-nowrap z-50",
+                    "shadow-xl border border-slate-700 flex items-center gap-2"
+                  )}
+                >
+                  <span>{item.name}</span>
+                  {hasBadge && (
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </div>
+              </div>
             );
           })}
         </nav>
-
-        {/* Collapse Toggle */}
-        <div className="p-3 border-t border-gray-700">
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn(
-              "w-full flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-              isCollapsed ? "justify-center" : "justify-start gap-3",
-              "text-gray-300 hover:bg-gray-800 hover:text-white"
-            )}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="h-5 w-5" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-5 w-5" />
-                <span>Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ────── Main area ────── */}
+      <div className={cn("flex-1 flex flex-col min-w-0", collapsed && "ml-0")}>
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 shadow-sm">
+        <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">
-                {getPageTitle(pathname)}
-              </h1>
+            <div className="flex items-center gap-4">
+              {/* Only the icon - no text */}
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-blue-600 transition"
+                aria-label={collapsed ? "Open sidebar" : "Collapse sidebar"}
+              >
+                {collapsed ? (
+                  <PanelLeftOpen className="h-5 w-5" />
+                ) : (
+                  <PanelLeftClose className="h-5 w-5" />
+                )}
+              </button>
+              
+              <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             </div>
 
-            {/* User Dropdown */}
+            {/* User dropdown */}
             <div className="relative group">
-              <button
-                className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-haspopup="true"
-              >
-                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  A
-                </div>
-                <ChevronDown className="h-4 w-4 text-gray-600" />
+              <button className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {user.image ? (
+                  <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-blue-500">
+                    <Image src={`/uploads/${user.image}`} alt="Avatar" width={36} height={36} className="object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                    {initials}
+                  </div>
+                )}
+                <span className="font-medium text-gray-700 hidden sm:block">{user.name}</span>
+                <ChevronDown className="h-4 w-4 text-gray-500" />
               </button>
 
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50 opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200">
                 <div className="p-2">
-                  <Link
-                    href="/dashboard/profile"
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <Settings className="h-4 w-4" />
-                    <span>Profile & Settings</span>
+                  <Link href="/dashboard/profile" className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <Settings className="h-4 w-4" /> Settings
                   </Link>
                   <hr className="my-1 border-gray-200" />
                   <button
-                    onClick={handleLogout}
-                    disabled={isLoggingOut}
+                    onClick={logout}
+                    disabled={loggingOut}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
-                    <LogOut className="h-4 w-4" />
-                    <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
+                    <LogOut className="h-4 w-4" /> {loggingOut ? "Logging out..." : "Logout"}
                   </button>
                 </div>
               </div>
@@ -262,16 +253,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-gray-50">
+        {/* Page content */}
+        <main className="flex-1 overflow-auto bg-gradient-to-b from-gray-50 to-white">
           <div className="p-6 lg:p-8">{children}</div>
         </main>
       </div>
 
-      {/* Dropdown visibility fix */}
+      {/* Tooltip visibility fix */}
       <style jsx>{`
-        button[aria-haspopup="true"]:focus ~ div,
-        button[aria-haspopup="true"]:focus-within ~ div,
         .group:hover > div,
         .group:focus-within > div {
           opacity: 1;
@@ -280,4 +269,4 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       `}</style>
     </div>
   );
-} 
+}

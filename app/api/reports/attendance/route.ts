@@ -17,13 +17,27 @@ export async function GET(request: NextRequest) {
       startDate = new Date(date);
       endDate = new Date(date);
       endDate.setDate(endDate.getDate() + 1);
-    } else if (period === 'weekly' && date) {
-      const selectedDate = new Date(date);
-      const dayOfWeek = selectedDate.getDay();
-      startDate = new Date(selectedDate);
-      startDate.setDate(selectedDate.getDate() - dayOfWeek);
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 7);
+    } else if (period === 'weekly') {
+      if (date) {
+        const selectedDate = new Date(date);
+        const dayOfWeek = selectedDate.getDay();
+        startDate = new Date(selectedDate);
+        startDate.setDate(selectedDate.getDate() - dayOfWeek);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 7);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // Default to current week if no date provided
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - dayOfWeek);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 7);
+        endDate.setHours(23, 59, 59, 999);
+      }
     } else if (period === 'monthly' && year && month) {
       startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
       endDate = new Date(parseInt(year), parseInt(month), 1);

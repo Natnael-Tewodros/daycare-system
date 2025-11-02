@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Baby, CheckCircle, AlertCircle, Mail, Phone, UserCheck, Calendar, Star, Gamepad2 } from "lucide-react";
-import { getRoomIcon, getRoomIconColors, categorizeChildrenByAge, calculateAgeInMonths } from "./utils";
+import { getRoomIcon, getRoomIconColors, categorizeChildrenByAge, calculateAgeInMonths, getRoomDisplayName } from "./utils";
 
 type Props = {
   selectedRoom: any;
@@ -56,7 +56,7 @@ export default function RoomDetailModal({ selectedRoom, onClose, caregiverChildr
                 {getRoomIcon(selectedRoom.name)}
               </div>
               <div>
-                <CardTitle className="text-2xl font-bold text-gray-800">{selectedRoom.name}</CardTitle>
+                <CardTitle className="text-2xl font-bold text-gray-800">{getRoomDisplayName(selectedRoom.name)}</CardTitle>
                 <p className="text-lg text-gray-600 font-medium mt-1">{selectedRoom.ageRange}</p>
               </div>
             </div>
@@ -102,9 +102,11 @@ export default function RoomDetailModal({ selectedRoom, onClose, caregiverChildr
                 <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">{selectedRoom.servants?.length || 0}</Badge>
               </div>
               <Dialog open={showAssignChildDialog} onOpenChange={setShowAssignChildDialog}>
-                <Button variant="outline" size="sm" onClick={() => setAssignChildData({ childId: '', caregiverId: '' })}>
-                  Assign Child
-                </Button>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => setAssignChildData({ childId: '', caregiverId: '' })}>
+                    Assign Child
+                  </Button>
+                </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
                     <DialogTitle>Assign Child to Caregiver</DialogTitle>

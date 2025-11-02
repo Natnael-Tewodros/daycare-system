@@ -8,11 +8,61 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const parentEmail = searchParams.get("parentEmail");
+    const parentId = searchParams.get("parentId");
     const senderType = searchParams.get("senderType"); // "admin" or "parent"
+    const recipientEmail = searchParams.get("recipientEmail");
+    const isReadParam = searchParams.get("isRead");
+    const isRead =
+      isReadParam === null
+        ? undefined
+        : isReadParam.toLowerCase() === "true"
+        ? true
+        : isReadParam.toLowerCase() === "false"
+        ? false
+        : undefined;
 
     let filter: any = {};
-    if (parentEmail) filter.recipients = { has: parentEmail };
-    if (senderType) filter.senderType = senderType;
+    
+    // Initialize filter conditions
+    const filterConditions = [];
+
+    // If parentId is provided, add it to the filter
+    if (parentId) {
+      filterConditions.push({ parentId });
+    }
+    
+    // If parentEmail is provided, add it to the filter
+    if (parentEmail) {
+      filterConditions.push(
+        { parentEmail },
+        { recipients: { has: parentEmail } }
+      );
+    }
+    
+    // If we have any filter conditions, combine them with OR
+    if (filterConditions.length > 0) {
+      filter.OR = filterConditions;
+    }
+    
+    // Filter by sender type if provided
+    if (senderType) {
+      filter.senderType = senderType;
+    } else if (parentId || parentEmail) {
+      // If parent is specified but no senderType, default to parent
+      filter.senderType = 'parent';
+    }
+    
+    // Filter activities by recipient notification state if provided
+    if (recipientEmail) {
+      filter.notifications = {
+        some: {
+          parentEmail: recipientEmail,
+          ...(isRead !== undefined ? { isRead } : {}),
+        },
+      };
+    }
+
+    
 
     const activities = await prisma.activity.findMany({
       where: filter,
@@ -56,28 +106,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine sender type based on the request origin or content
+    // Get parent information from headers
     const parentEmail = request.headers.get('x-parent-email');
-    const isParentSubmission = parentEmail || 
+    const parentId = request.headers.get('x-parent-id');
+    
+    // Determine if this is a parent submission
+    const formSenderType = formData.get('senderType') as string;
+    const isParentSubmission = formSenderType === 'parent' || 
+                             parentEmail || 
                              (subject?.toLowerCase().includes('absence') || 
                               subject?.toLowerCase().includes('sick') ||
                               description?.toLowerCase().includes('child:') ||
                               description?.toLowerCase().includes('reason:'));
 
-    // If this is a parent submission, ensure it's marked as such in the recipients
+    // If this is a parent submission, ensure admin is in recipients
     if (isParentSubmission && !recipients.includes('admin@daycare.com')) {
       recipients.push('admin@daycare.com');
     }
 
+    // Create activity data with proper sender type and parent info
+    const activityData: any = {
+      subject,
+      description: description || null,
+      recipients,
+      attachments: attachmentPaths,
+      senderType: isParentSubmission ? "parent" : "admin",
+      parentEmail: isParentSubmission ? (parentEmail || null) : null,
+      parentId: isParentSubmission ? (parentId || null) : null
+    };
+
     // Create activity
     const activity = await prisma.activity.create({
-      data: {
-        subject,
-        description: description || null,
-        recipients,
-        attachments: attachmentPaths,
-        senderType: isParentSubmission ? "parent" : "admin",
-      },
+      data: activityData,
     });
 
     // Create notifications

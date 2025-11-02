@@ -1,23 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Plus,
-  Trash2,
-  Save,
-  RefreshCw,
-  Loader2,
-  UserPlus,
-  Edit3,
-  Calendar,
-  MapPin,
-  Building,
-  UserCheck,
-  Users,
-  Info,
-  ChevronUp,
-  ChevronDown,
-} from "lucide-react";
+import { Plus, Trash2, Save, RefreshCw, Loader2, UserPlus, Edit3, Calendar, MapPin, Building, UserCheck, Users, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,116 +9,78 @@ import ChildFormCard from "@/components/children/ChildFormCard";
 import EditChildDialog from "@/components/children/EditChildDialog";
 import type { ChildForm, ParentInfo, ChildRow } from "./types";
 
-const EMPTY: ChildForm = {
-  fullName: "",
-  relationship: "",
-  gender: "",
-  dateOfBirth: "",
-  site: "",
-  organization: "",
-  profilePic: null,
-  childInfoFile: null,
-  otherFile: null,
+const EMPTY_FORM: ChildForm = {
+  fullName: "", relationship: "", gender: "", dateOfBirth: "", site: "", organization: "", profilePic: null, childInfoFile: null, otherFile: null
 };
 
 export default function AdminPage() {
   const [parent, setParent] = useState<ParentInfo>({ username: "" });
   const [forms, setForms] = useState<ChildForm[]>([]);
-  const [list, setList] = useState<ChildRow[]>([]);
+  const [children, setChildren] = useState<ChildRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<ChildRow | null>(null);
-  const [editData, setEditData] = useState<ChildForm>(EMPTY);
+  const [editData, setEditData] = useState<ChildForm>(EMPTY_FORM);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const fetchChildren = async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/children");
-      if (!r.ok) throw new Error("Failed");
-      const data: ChildRow[] = await r.json();
-      // Oldest first so newest appear at the bottom
-      const sorted = [...data].sort((a, b) => {
-        const aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
-        if (aTime !== bTime) return aTime - bTime;
-        const aId = typeof a.id === 'number' ? a.id : parseInt(String(a.id), 10) || 0;
-        const bId = typeof b.id === 'number' ? b.id : parseInt(String(b.id), 10) || 0;
-        return aId - bId;
-      });
-      setList(sorted);
-    } catch (err) {
+      const res = await fetch("/api/children");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data: ChildRow[] = await res.json();
+      const sorted = [...data].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+      setChildren(sorted);
+    } catch {
       alert("Failed to load children");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchChildren();
-  }, []);
+  useEffect(() => { fetchChildren(); }, []);
 
-  // Validate parent
   const validateParent = async (): Promise<boolean> => {
-    const u = parent.username.trim();
-    if (!u) {
-      alert("Enter username");
-      return false;
-    }
+    const username = parent.username.trim();
+    if (!username) return alert("Enter username"), false;
+    
     try {
-      const r = await fetch(`/api/users/check-username?username=${encodeURIComponent(u)}`);
-      const { exists, user } = await r.json();
-      if (!exists) {
-        alert("Parent not found");
-        return false;
-      }
+      const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
+      const { exists, user } = await res.json();
+      if (!exists) return alert("Parent not found"), false;
 
-      const req = await fetch("/api/enrollment-requests");
-      const { data = [] } = await req.json();
-      const ok = data.some(
-        (x: any) =>
-          x.status === "approved" &&
-          (x.email?.toLowerCase() === user?.email?.toLowerCase() ||
-            x.parentName?.toLowerCase() === user?.name?.toLowerCase())
+      const reqRes = await fetch("/api/enrollment-requests");
+      const { data = [] } = await reqRes.json();
+      const hasApproval = data.some((x: any) => 
+        x.status === "approved" && (x.email?.toLowerCase() === user?.email?.toLowerCase() || x.parentName?.toLowerCase() === user?.name?.toLowerCase())
       );
-      if (!ok) {
-        alert("No approved request");
-        return false;
-      }
-      return true;
+      return hasApproval ? true : (alert("No approved request"), false);
     } catch {
-      alert("Validation error");
-      return false;
+      return alert("Validation error"), false;
     }
   };
 
-  // Actions
   const addForm = async () => {
     if (!(await validateParent())) return;
     const newIdx = forms.length;
-    setForms((p) => [...p, { ...EMPTY }]);
+    setForms(prev => [...prev, { ...EMPTY_FORM }]);
     setOpenIdx(newIdx);
   };
 
-  const removeForm = (i: number) => setForms((p) => p.filter((_, x) => x !== i));
-  const clearAll = () => {
-    setParent({ username: "" });
-    setForms([]);
-    setOpenIdx(null);
-  };
+  const removeForm = (index: number) => setForms(prev => prev.filter((_, i) => i !== index));
+  const clearAll = () => { setParent({ username: "" }); setForms([]); setOpenIdx(null); };
 
-  const submitOne = async (c: ChildForm, i: number) => {
-    if (!valid(c)) return;
+  const submitForm = async (child: ChildForm, index: number) => {
+    if (!isValid(child)) return;
     setLoading(true);
     try {
-      const fd = fdFrom(c, parent.username);
-      const r = await fetch("/api/children", { method: "POST", body: fd });
-      const j = await r.json();
-      if (r.ok) {
-        alert(`${c.fullName} saved`);
-        setForms((p) => p.map((f, x) => (x === i ? { ...EMPTY } : f)));
+      const formData = createFormData(child, parent.username);
+      const res = await fetch("/api/children", { method: "POST", body: formData });
+      if (res.ok) {
+        alert(`${child.fullName} saved`);
+        setForms(prev => prev.map((f, i) => i === index ? { ...EMPTY_FORM } : f));
         fetchChildren();
-      } else alert(j.error ?? "Failed");
+      } else alert((await res.json()).error ?? "Failed");
     } catch {
       alert("Error");
     } finally {
@@ -143,38 +89,36 @@ export default function AdminPage() {
   };
 
   const submitAll = async () => {
-    if (!parent.username || !forms.length) return;
-    if (forms.some((c) => !valid(c))) {
-      alert("Fill required fields");
-      return;
-    }
+    if (!parent.username || !forms.length || forms.some(c => !isValid(c))) 
+      return alert("Fill all required fields");
+    
     setLoading(true);
     try {
-      for (const c of forms) {
-        const fd = fdFrom(c, parent.username);
-        const r = await fetch("/api/children", { method: "POST", body: fd });
-        if (!r.ok) throw new Error((await r.json()).error);
+      for (const child of forms) {
+        const formData = createFormData(child, parent.username);
+        const res = await fetch("/api/children", { method: "POST", body: formData });
+        if (!res.ok) throw new Error((await res.json()).error);
       }
-      alert("All saved");
+      alert("All children saved");
       clearAll();
       fetchChildren();
-    } catch (e: any) {
-      alert(e.message ?? "Failed");
+    } catch (error: any) {
+      alert(error.message ?? "Failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const openEdit = (c: ChildRow) => {
-    setEditing(c);
+  const openEdit = (child: ChildRow) => {
+    setEditing(child);
     setEditData({
-      ...EMPTY,
-      fullName: c.fullName ?? "",
-      relationship: c.relationship ?? "",
-      gender: c.gender ?? "",
-      dateOfBirth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().split("T")[0] : "",
-      site: c.site ?? "",
-      organization: c.organization?.name ?? "",
+      ...EMPTY_FORM,
+      fullName: child.fullName ?? "",
+      relationship: child.relationship ?? "",
+      gender: child.gender ?? "",
+      dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth).toISOString().split("T")[0] : "",
+      site: child.site ?? "",
+      organization: child.organization?.name ?? "",
     });
     setEditOpen(true);
   };
@@ -183,17 +127,18 @@ export default function AdminPage() {
     if (!editing) return;
     setLoading(true);
     try {
-      const fd = new FormData();
-      Object.entries(editData).forEach(([k, v]) => {
-        if (v instanceof File && v.size) fd.append(k, v);
-        else if (v) fd.append(k, v as string);
+      const formData = new FormData();
+      Object.entries(editData).forEach(([key, value]) => {
+        if (value instanceof File && value.size) formData.append(key, value);
+        else if (value) formData.append(key, value as string);
       });
-      const r = await fetch(`/api/children/${editing.id}`, { method: "PUT", body: fd });
-      if (r.ok) {
-        alert("Updated");
+      
+      const res = await fetch(`/api/children/${editing.id}`, { method: "PUT", body: formData });
+      if (res.ok) {
+        alert("Child updated");
         setEditOpen(false);
         fetchChildren();
-      } else alert((await r.json()).error ?? "Failed");
+      } else alert((await res.json()).error ?? "Failed");
     } catch {
       alert("Error");
     } finally {
@@ -201,109 +146,106 @@ export default function AdminPage() {
     }
   };
 
-  const valid = (c: ChildForm) =>
-    ["fullName", "relationship", "gender", "dateOfBirth", "site", "organization"].every(
-      (f) => !!c[f as keyof ChildForm]
-    );
+  const isValid = (child: ChildForm) => 
+    ["fullName", "relationship", "gender", "dateOfBirth", "site", "organization"].every(field => !!child[field as keyof ChildForm]);
 
-  const fdFrom = (c: ChildForm, u: string) => {
-    const fd = new FormData();
-    fd.append("parentUsername", u);
-    (Object.keys(c) as (keyof ChildForm)[]).forEach((k) => {
-      const v = c[k];
-      if (v instanceof File && v.size) fd.append(k, v);
-      else if (typeof v === "string" && v) fd.append(k, v);
+  const createFormData = (child: ChildForm, username: string) => {
+    const formData = new FormData();
+    formData.append("parentUsername", username);
+    Object.entries(child).forEach(([key, value]) => {
+      if (value instanceof File && value.size) formData.append(key, value);
+      else if (typeof value === "string" && value) formData.append(key, value);
     });
-    return fd;
+    return formData;
   };
 
-  const toggle = (i: number) => setOpenIdx((p) => (p === i ? null : i));
+  const toggleForm = (index: number) => setOpenIdx(prev => prev === index ? null : index);
+
+  const TableHeader = ({ children }: { children: React.ReactNode }) => (
+    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+      {children}
+    </th>
+  );
+
+  const TableCell = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+    <td className={`px-4 py-3 text-sm text-gray-600 ${className}`}>{children}</td>
+  );
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* COMPACT PARENT BAR WITH DESCRIPTION */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200 px-5 py-3 flex items-center gap-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-blue-600" />
-            <Input
-              value={parent.username}
-              onChange={(e) => setParent({ username: e.target.value })}
-              placeholder="Parent username *"
-              aria-required="true"
-              className="w-48 h-8 text-sm border-slate-300 focus:border-blue-500"
-              disabled={loading}
-            />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Children Management</h1>
+            <p className="text-gray-600 mt-1">Register and manage children information</p>
           </div>
-          <p className="text-xs text-slate-500 pl-6 flex items-center gap-1">
-            <Info className="w-3 h-3" />
-            Must be registered & approved parent
-          </p>
-        </div>
-
-        <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            onClick={addForm}
-            disabled={loading || !parent.username.trim()}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </Button>
-          {forms.length > 1 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={submitAll}
-              disabled={loading}
-              className="border-green-300 text-green-700 hover:bg-green-50"
-            >
-              <Save className="w-4 h-4" />
-            </Button>
-          )}
-          {(parent.username || forms.length) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={clearAll}
-              disabled={loading}
-              className="text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* COLLAPSIBLE FORMS */}
+      {/* Parent Input Section */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-1">
+            <UserPlus className="w-5 h-5 text-blue-600" />
+            <Input
+              value={parent.username}
+              onChange={(e) => setParent({ username: e.target.value })}
+              placeholder="Enter parent username *"
+              className="max-w-xs"
+              disabled={loading}
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Button onClick={addForm} disabled={loading || !parent.username.trim()} className="bg-blue-600 hover:bg-blue-700">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add Child
+            </Button>
+            
+            {forms.length > 1 && (
+              <Button onClick={submitAll} disabled={loading} variant="outline" className="border-green-200 text-green-700 hover:bg-green-50">
+                <Save className="w-4 h-4" />
+                Save All
+              </Button>
+            )}
+            
+            {(parent.username || forms.length > 0) && (
+              <Button onClick={clearAll} disabled={loading} variant="ghost" className="text-red-600 hover:bg-red-50">
+                <Trash2 className="w-4 h-4" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Forms Section */}
       {forms.length > 0 && (
-        <div className="px-5 py-3 space-y-2 border-b border-slate-100 bg-white/50">
-          {forms.map((c, i) => (
-            <div key={i} className="bg-white rounded-lg border border-slate-200 shadow-sm">
+        <div className="px-6 py-4 space-y-3 bg-gray-50/50 border-b border-gray-200">
+          {forms.map((form, index) => (
+            <div key={index} className="bg-white rounded-lg border border-gray-200 shadow-sm">
               <button
-                className="w-full px-4 py-2.5 flex justify-between items-center text-sm font-medium hover:bg-slate-50 transition"
-                onClick={() => toggle(i)}
+                onClick={() => toggleForm(index)}
                 disabled={loading}
+                className="w-full px-4 py-3 flex justify-between items-center hover:bg-gray-50 transition-colors"
               >
-                <span>Child #{i + 1}</span>
-                {openIdx === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <span className="font-medium text-gray-900">Child #{index + 1} - {form.fullName || "Unnamed"}</span>
+                {openIdx === index ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
-              {openIdx === i && (
-                <div className="p-4 border-t border-slate-100">
+              
+              {openIdx === index && (
+                <div className="p-4 border-t border-gray-100">
                   <ChildFormCard
-                    child={c}
-                    index={i}
+                    child={form}
+                    index={index}
                     formCount={forms.length}
                     isLoading={loading}
-                    onChildChange={(idx, f, v) =>
-                      setForms((p) => {
-                        const a = [...p];
-                        a[idx] = { ...a[idx], [f]: v };
-                        return a;
-                      })
+                    onChildChange={(idx, field, value) => 
+                      setForms(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f))
                     }
-                    onSubmit={() => submitOne(c, i)}
-                    onRemove={() => removeForm(i)}
+                    onSubmit={() => submitForm(form, index)}
+                    onRemove={() => removeForm(index)}
                   />
                 </div>
               )}
@@ -312,131 +254,104 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* MODERN TABLE */}
-      <div className="flex-1 p-5 overflow-hidden">
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            {list.length} Registered {list.length === 1 ? "Child" : "Children"}
-          </span>
-          <Button size="sm" variant="ghost" onClick={fetchChildren} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
+      {/* Children Table */}
+      <div className="p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-gray-600" />
+              <span className="font-semibold text-gray-900">
+                {children.length} Registered {children.length === 1 ? "Child" : "Children"}
+              </span>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchChildren} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="max-h-full overflow-y-auto">
+          <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Child
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Relationship
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Gender
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    DOB
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Site
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Organization
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Child Doc
-                  </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <TableHeader>Child</TableHeader>
+                  <TableHeader>Relationship</TableHeader>
+                  <TableHeader>Gender</TableHeader>
+                  <TableHeader>Date of Birth</TableHeader>
+                  <TableHeader>Site</TableHeader>
+                  <TableHeader>Organization</TableHeader>
+                  <TableHeader>Documents</TableHeader>
+                  <TableHeader>Actions</TableHeader>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {list.length === 0 ? (
+              <tbody className="divide-y divide-gray-200">
+                {children.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
+                    <td colSpan={8} className="text-center py-8 text-gray-500">
                       No children registered yet
                     </td>
                   </tr>
                 ) : (
-                  list.map((child, idx) => (
-                    <tr
-                      key={child.id}
-                      className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
-                        idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                      }`}
+                  children.map((child) => (
+                    <tr 
+                      key={child.id} 
+                      className="hover:bg-blue-50/30 transition-colors cursor-pointer"
                       onClick={() => openEdit(child)}
                     >
-                      {/* NAME + AVATAR */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <TableCell>
                         <div className="flex items-center gap-3">
                           {child.profilePic ? (
                             <img
-                              src={
-                                child.profilePic.startsWith("http") || child.profilePic.startsWith("/")
-                                  ? child.profilePic
-                                  : `/uploads/${child.profilePic}`
-                              }
+                              src={child.profilePic.startsWith("http") || child.profilePic.startsWith("/") 
+                                ? child.profilePic 
+                                : `/uploads/${child.profilePic}`}
                               alt={child.fullName}
-                              className="w-9 h-9 rounded-full object-cover shadow-sm"
+                              className="w-8 h-8 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="relative">
-                              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 blur-md opacity-70"></div>
-                              <div className="relative w-9 h-9 rounded-full bg-white flex items-center justify-center text-sm font-bold text-slate-700 shadow-inner">
-                                {child.fullName.charAt(0).toUpperCase()}
-                              </div>
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">
+                              {child.fullName?.charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <span className="font-medium text-slate-800">{child.fullName}</span>
+                          <span className="font-medium text-gray-900">{child.fullName}</span>
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* RELATIONSHIP */}
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <UserCheck className="w-4 h-4 text-gray-400" />
                           {child.relationship || "—"}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* GENDER */}
-                      <td className="px-5 py-4 text-sm">
-                        <Badge variant="secondary">{child.gender || "—"}</Badge>
-                      </td>
+                      <TableCell>
+                        <Badge variant="secondary" className="capitalize">
+                          {child.gender || "—"}
+                        </Badge>
+                      </TableCell>
 
-                      {/* DOB */}
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {child.dateOfBirth
-                            ? new Date(child.dateOfBirth).toLocaleDateString()
-                            : "—"}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          {child.dateOfBirth ? new Date(child.dateOfBirth).toLocaleDateString() : "—"}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* SITE */}
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400" />
                           {child.site || "—"}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* ORGANIZATION */}
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Building className="w-4 h-4 text-gray-400" />
                           {child.organization?.name || "—"}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      {/* CHILD DOC */}
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <TableCell>
                         {child.childInfoFile ? (
                           <a
                             href={child.childInfoFile.startsWith("http") || child.childInfoFile.startsWith("/")
@@ -444,20 +359,19 @@ export default function AdminPage() {
                               : `/uploads/${child.childInfoFile}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-blue-600 hover:underline"
+                            className="text-blue-600 hover:underline text-sm"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            View
+                            View Document
                           </a>
                         ) : (
                           "—"
                         )}
-                      </td>
+                      </TableCell>
 
-                      {/* ACTIONS */}
-                      <td className="px-5 py-4 text-center">
+                      <TableCell>
                         <Button
-                          size="icon"
+                          size="sm"
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -467,7 +381,7 @@ export default function AdminPage() {
                         >
                           <Edit3 className="w-4 h-4" />
                         </Button>
-                      </td>
+                      </TableCell>
                     </tr>
                   ))
                 )}
@@ -477,7 +391,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* EDIT DIALOG */}
+      {/* Edit Dialog */}
       <EditChildDialog
         open={editOpen}
         onOpenChange={setEditOpen}

@@ -36,7 +36,7 @@ export default function LoginPage() {
       let adminResult: any = {};
       try {
         const contentType = adminRes.headers.get('content-type');
-        console.log('Admin login response status:', adminRes.status);
+      console.log('Admin login response status:', adminRes.status);
         console.log('Admin login response content-type:', contentType);
         
         if (contentType && contentType.includes('application/json')) {

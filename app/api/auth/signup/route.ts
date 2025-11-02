@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Create user with registration type
     const user = await prisma.user.create({
       data: {
         id,
@@ -82,8 +82,35 @@ export async function POST(req: Request) {
         email,
         password: hashedPassword,
         role: body.role || "PARENT", // default to PARENT for regular users
+        registrationType: body.registrationType || 'PERMANENT',
       },
     });
+
+    // Create event participation if this is an event registration
+    if (body.registrationType === 'EVENT' && body.eventType) {
+      // Find or create the event
+      const event = await prisma.event.upsert({
+        where: { title: body.eventType },
+        update: {},
+        create: {
+          title: body.eventType,
+          description: `Event for ${body.eventType}`,
+          eventDate: new Date(),
+          location: 'Daycare Center',
+          maxParticipants: 100,
+        },
+      });
+
+      // Create event participation
+      await prisma.eventParticipation.create({
+        data: {
+          eventId: event.id,
+          userId: user.id,
+          status: 'REGISTERED',
+          registrationDate: new Date(),
+        },
+      });
+    }
 
     // Return created user (without password)
     const { password: _, ...userWithoutPassword } = user;

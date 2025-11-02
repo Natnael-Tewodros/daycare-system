@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       where: { parentId: parentId },
       include: {
         organization: {
-          select: { name: true, type: true }
+          select: { name: true }
         },
         servant: {
           select: { fullName: true }

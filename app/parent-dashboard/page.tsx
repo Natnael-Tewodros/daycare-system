@@ -21,7 +21,8 @@ import {
   Building,
   Calendar as CalendarIcon,
   FileText as FileTextIcon,
-  User as UserIcon
+  User as UserIcon,
+  HeartHandshake
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -124,7 +125,7 @@ export default function ParentDashboard() {
       color: 'bg-blue-100 text-blue-600',
     },
     {
-      title: 'Unread Messages',
+      title: 'Unread Notifications',
       value: unreadCount,
       icon: Mail,
       color: 'bg-green-100 text-green-600',
@@ -252,28 +253,39 @@ export default function ParentDashboard() {
 
   const fetchSubmittedReports = async () => {
     try {
-      const response = await fetch('/api/activities');
+      const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
+      const parentEmail = parentInfo.email;
+      const userId = localStorage.getItem('userId');
+      
+      if (!parentEmail && !userId) {
+        console.error('No parent email or user ID found');
+        return;
+      }
+
+      // Fetch activities with senderType filter for parent
+      const response = await fetch(`/api/activities?senderType=parent`);
       if (response.ok) {
         const activities = await response.json();
-        // Filter activities that look like they were sent by parents (absence notices, sick reports, etc.)
+        
+        // Filter for reports submitted by the current parent only
         const submitted = activities.filter((activity: any) => {
+          // Check if the activity is from the current parent
+          const isFromCurrentParent = 
+            (activity.parentId && activity.parentId.toString() === userId) ||
+            (activity.parentEmail && activity.parentEmail === parentEmail);
+          
+          // Check if it's a report (absence notice, sick report, etc.)
           const subject = activity.subject?.toLowerCase() || '';
           const description = activity.description?.toLowerCase() || '';
+          const isParentSubmission =
+            subject.includes('absence notice') ||
+            subject.includes('sick report') ||
+            description.includes('⛔ absent') ||
+            description.includes('child:');
           
-          // Check if it's an activity sent TO admin (indicating it came from a parent)
-          const sentToAdmin = activity.recipients?.some((recipient: string) => 
-            recipient.toLowerCase().includes('admin') || 
-            recipient === 'admin@daycare.com'
-          );
-          
-          // Check if it contains parent submission keywords
-          const isParentSubmission = subject.includes('absence notice') || 
-                                      subject.includes('sick report') ||
-                                      description.includes('⛔ absent') ||
-                                      description.includes('child:');
-          
-          return sentToAdmin && isParentSubmission;
+          return isFromCurrentParent && isParentSubmission;
         });
+        
         setSubmittedReports(submitted);
       }
     } catch (error) {
@@ -329,6 +341,10 @@ export default function ParentDashboard() {
 
       const response = await fetch("/api/activities", {
         method: "POST",
+        headers: {
+          'x-parent-id': localStorage.getItem('userId') || '',
+          'x-parent-email': (JSON.parse(localStorage.getItem('parentInfo') || '{}').email || JSON.parse(localStorage.getItem('parentInfo') || '{}').parentEmail || '')
+        },
         body: formData,
       });
 
@@ -372,6 +388,10 @@ export default function ParentDashboard() {
 
       const response = await fetch("/api/activities", {
         method: "POST",
+        headers: {
+          'x-parent-id': localStorage.getItem('userId') || '',
+          'x-parent-email': (JSON.parse(localStorage.getItem('parentInfo') || '{}').email || JSON.parse(localStorage.getItem('parentInfo') || '{}').parentEmail || '')
+        },
         body: formData,
       });
 
@@ -415,6 +435,10 @@ export default function ParentDashboard() {
 
       const response = await fetch("/api/activities", {
         method: "POST",
+        headers: {
+          'x-parent-id': localStorage.getItem('userId') || '',
+          'x-parent-email': (JSON.parse(localStorage.getItem('parentInfo') || '{}').email || JSON.parse(localStorage.getItem('parentInfo') || '{}').parentEmail || '')
+        },
         body: formData,
       });
 

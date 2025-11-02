@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id           String   @id
+  id           String     @id
   name         String
-  email        String   @unique
+  email        String     @unique
   password     String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
-  username     String?  @unique
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+  username     String?    @unique
   profileImage String?
-  role         UserRole @default(ADMIN)
-  children     Child[]  @relation("ParentChildren")
+  role         UserRole   @default(ADMIN)
+  children     Child[]    @relation("ParentChildren")
+  activities   Activity[] @relation("ParentActivities")
 }
 
 model Child {
@@ -27,7 +28,7 @@ model Child {
   option              String
   dateOfBirth         DateTime
   roomId              Int?
-  servantId           Int?
+  caregiverId         Int?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   childInfoFile       String?
@@ -46,13 +47,13 @@ model Child {
   organization        Organization         @relation(fields: [organizationId], references: [id])
   parent              User?                @relation("ParentChildren", fields: [parentId], references: [id])
   room                Room?                @relation(fields: [roomId], references: [id])
-  servant             Servant?             @relation(fields: [servantId], references: [id])
+  caregiver           Caregiver?           @relation(fields: [caregiverId], references: [id])
   site                Site?                @relation("SiteChildren", fields: [siteId], references: [id])
   eventParticipations EventParticipation[]
   reports             Report[]
 }
 
-model Servant {
+model Caregiver {
   id               Int              @id @default(autoincrement())
   fullName         String
   email            String?
@@ -66,7 +67,10 @@ model Servant {
   siteId           Int?
   children         Child[]
   assignedRoom     Room?            @relation(fields: [assignedRoomId], references: [id])
-  site             Site?            @relation("SiteServants", fields: [siteId], references: [id])
+  site             Site?            @relation("SiteCaregivers", fields: [siteId], references: [id])
+  organization     Organization?    @relation(fields: [organizationId], references: [id])
+  organizationId   Int?
+  announcements    Announcement[]
 }
 
 model Site {
@@ -81,8 +85,8 @@ model Site {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  children    Child[]   @relation("SiteChildren")
-  servants    Servant[] @relation("SiteServants")
+  children    Child[]     @relation("SiteChildren")
+  caregivers  Caregiver[] @relation("SiteCaregivers")
 }
 
 model Organization {
@@ -95,7 +99,8 @@ model Organization {
   phone     String?
   website   String?
   children  Child[]
-  rooms     Room[]
+  rooms       Room[]
+  caregivers  Caregiver[]
 }
 
 model Room {
@@ -105,7 +110,8 @@ model Room {
   organizationId Int?
   children       Child[]
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  servants       Servant[]
+  caregivers     Caregiver[]
+  announcements  Announcement[]
 }
 
 model Attendance {
@@ -153,6 +159,8 @@ model Announcement {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   visibilityDays Int?
+  caregivers     Caregiver[]
+  rooms          Room[]
   views          AnnouncementView[]
 }
 
@@ -218,6 +226,8 @@ model Activity {
   updatedAt   DateTime  @updatedAt
   senderType  String    @default("admin") // "admin" or "parent"
   parentEmail String?   // only for parent messages
+  parentId    String?   // reference to the parent user
+  parent      User?     @relation("ParentActivities", fields: [parentId], references: [id])
   notifications Notification[]
 }
 enum UserRole {

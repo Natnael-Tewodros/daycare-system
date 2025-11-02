@@ -8,11 +8,6 @@ const nextConfig: NextConfig = {
     "http://172.20.75.122:3000",
     "http://localhost:3000",
   ],
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // Warning: This allows production builds to successfully complete even if
     // your project has type errors.
@@ -20,7 +15,7 @@ const nextConfig: NextConfig = {
   },
   // Turbopack configuration to resolve lockfile warning
   turbopack: {
-    root: "./",
+    root: process.cwd(),
   },
   // Image configuration
   images: {

@@ -66,14 +66,21 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
   }, [router]);
 
   const fetchNotificationCount = async (email: string) => {
+    if (!email) return;
     try {
-      const response = await fetch(`/api/notifications?parentEmail=${encodeURIComponent(email)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching notification count:', error);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(
+        `/api/notifications?parentEmail=${encodeURIComponent(email)}`,
+        { signal: controller.signal }
+      ).catch(() => null);
+      clearTimeout(timeout);
+      if (!response || !response.ok) return;
+      const data = await response.json().catch(() => ({ unreadCount: 0 }));
+      setUnreadCount(data.unreadCount || 0);
+    } catch {
+      // Swallow intermittent network errors from background polling
+      return;
     }
   };
 
@@ -178,7 +185,7 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
       current: pathname === '/parent-dashboard/children'
     },
     {
-      name: 'Messages',
+      name: 'Notifications',
       href: '/parent-dashboard/messages',
       icon: Bell,
       current: pathname === '/parent-dashboard/messages',
@@ -358,7 +365,7 @@ function getPageTitle(pathname: string): string {
   const navigation = [
     { name: "Dashboard", href: "/parent-dashboard" },
     { name: "My Children", href: "/parent-dashboard/children" },
-    { name: "Messages", href: "/parent-dashboard/messages" },
+    { name: "Notifications", href: "/parent-dashboard/messages" },
     { name: "My Reports", href: "/parent-dashboard/reports" },
     { name: "Application Status", href: "/parent-dashboard/application-status" },
     { name: "New Request", href: "/parent-dashboard/request" }

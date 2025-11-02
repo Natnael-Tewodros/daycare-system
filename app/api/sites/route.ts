@@ -33,7 +33,7 @@ export async function GET() {
         children: {
           select: { id: true }
         },
-        servants: {
+        caregivers: {
           select: { id: true }
         }
       },
@@ -61,7 +61,8 @@ export async function GET() {
       email: site.email || '',
       website: site.website || '',
       totalChildren: site.children.length,
-      totalServants: site.servants.length,
+      totalServants: site.caregivers.length, // Keep for backward compatibility
+      totalCaregivers: site.caregivers.length,
       totalOrganizations: organizations.length, // All organizations are available to all sites
       totalRooms: rooms.length, // All rooms are available to all sites
       createdAt: site.createdAt.toISOString(),

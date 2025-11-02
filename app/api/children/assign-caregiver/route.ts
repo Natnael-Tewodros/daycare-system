@@ -12,13 +12,13 @@ export async function POST(request: NextRequest) {
     }
 
     const childIds = JSON.parse(childIdsStr as string);
-    const servantId = parseInt(assignedServantId as string);
+    const caregiverId = parseInt(assignedServantId as string);
 
     // Update all selected children to assign them to the caregiver
     const updatePromises = childIds.map((childId: number) =>
       prisma.child.update({
         where: { id: childId },
-        data: { servantId: servantId }
+        data: { caregiverId: caregiverId }
       })
     );
 

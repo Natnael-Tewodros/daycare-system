@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       include: {
         organization: true,
-        servant: true,
+        caregiver: true,
         room: true,
       },
     });
@@ -141,7 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       data: updateData,
       include: {
         organization: true,
-        servant: true,
+        caregiver: true,
         room: true,
         site: true,
       },

@@ -7,15 +7,15 @@ export async function PUT(
 ) {
   try {
     const contentType = request.headers.get('content-type') || '';
-    const servantId = parseInt(params.id);
+    const caregiverId = parseInt(params.id);
 
     // Handle JSON request (simple room assignment update from table)
     if (contentType.includes('application/json')) {
       const body = await request.json();
       
       if (body.assignedRoomId !== undefined) {
-        const updatedServant = await prisma.servant.update({
-          where: { id: servantId },
+        const updatedCaregiver = await prisma.caregiver.update({
+          where: { id: caregiverId },
           data: { 
             assignedRoomId: body.assignedRoomId === null || body.assignedRoomId === 'none' 
               ? null 
@@ -27,7 +27,7 @@ export async function PUT(
             }
           }
         });
-        return NextResponse.json(updatedServant);
+        return NextResponse.json(updatedCaregiver);
       }
     }
 
@@ -37,8 +37,8 @@ export async function PUT(
     // Check if this is a room assignment update (from the table via form data)
     const assignedRoomId = formData.get('assignedRoomId');
     if (assignedRoomId !== null) {
-      const updatedServant = await prisma.servant.update({
-        where: { id: servantId },
+      const updatedCaregiver = await prisma.caregiver.update({
+        where: { id: caregiverId },
         data: { assignedRoomId: assignedRoomId === 'none' ? null : parseInt(assignedRoomId as string) },
         include: {
           assignedRoom: {
@@ -46,7 +46,7 @@ export async function PUT(
           }
         }
       });
-      return NextResponse.json(updatedServant);
+      return NextResponse.json(updatedCaregiver);
     }
 
     // Full update with form data
@@ -58,30 +58,38 @@ export async function PUT(
     const canTransferRooms = formData.get('canTransferRooms') === 'true';
     const medicalReportFile = formData.get('medicalReport') as File | null;
 
-    if (!fullName || !email || !phone || !site || !organizationType) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    // Only email is required
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    // Check if email already exists (excluding current servant)
-    const existingServant = await prisma.servant.findFirst({
+    // Check if email already exists (excluding current caregiver)
+    const existingCaregiver = await prisma.caregiver.findFirst({
       where: {
         email,
-        id: { not: servantId }
+        id: { not: caregiverId }
       }
     });
 
-    if (existingServant) {
+    if (existingCaregiver) {
       return NextResponse.json({ error: 'A caregiver with this email already exists' }, { status: 409 });
     }
 
     const updateData: any = {
-      fullName,
+      fullName: fullName || null,
       email,
-      phone,
+      phone: phone || null,
       siteId: null, // TODO: Update to use actual site ID from database
-      organizationType: organizationType as "INSA" | "AI" | "MINISTRY_OF_PEACE" | "FINANCE_SECURITY",
+      organizationType: organizationType ? (organizationType as "INSA" | "AI" | "MINISTRY_OF_PEACE" | "FINANCE_SECURITY") : undefined,
       canTransferRooms
     };
+    
+    // Remove undefined fields
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
 
     // Handle medical report file upload
     if (medicalReportFile && medicalReportFile.size > 0) {
@@ -92,7 +100,7 @@ export async function PUT(
 
       const bytes = await medicalReportFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
-      const filename = `medical-report-${servantId}-${Date.now()}.pdf`;
+      const filename = `medical-report-${caregiverId}-${Date.now()}.pdf`;
       const path = `public/uploads/${filename}`;
       
       // Save file (in a real app, you'd use a proper file storage service)
@@ -108,8 +116,8 @@ export async function PUT(
       updateData.medicalReport = filename;
     }
 
-    const updatedServant = await prisma.servant.update({
-      where: { id: servantId },
+    const updatedCaregiver = await prisma.caregiver.update({
+      where: { id: caregiverId },
       data: updateData,
       include: {
         assignedRoom: {
@@ -118,11 +126,11 @@ export async function PUT(
       }
     });
 
-    return NextResponse.json(updatedServant);
+    return NextResponse.json(updatedCaregiver);
   } catch (error) {
-    console.error('Error updating servant:', error);
+    console.error('Error updating caregiver:', error);
     return NextResponse.json({ 
-      error: 'Failed to update servant' 
+      error: 'Failed to update caregiver' 
     }, { status: 500 });
   }
 }
@@ -132,25 +140,25 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const servantId = parseInt(params.id);
+    const caregiverId = parseInt(params.id);
 
-    // Check if servant exists
-    const servant = await prisma.servant.findUnique({
-      where: { id: servantId }
+    // Check if caregiver exists
+    const caregiver = await prisma.caregiver.findUnique({
+      where: { id: caregiverId }
     });
 
-    if (!servant) {
+    if (!caregiver) {
       return NextResponse.json({ error: 'Caregiver not found' }, { status: 404 });
     }
 
-    // Delete the servant
-    await prisma.servant.delete({
-      where: { id: servantId }
+    // Delete the caregiver
+    await prisma.caregiver.delete({
+      where: { id: caregiverId }
     });
 
     return NextResponse.json({ message: 'Caregiver deleted successfully' });
   } catch (error) {
-    console.error('Error deleting servant:', error);
+    console.error('Error deleting caregiver:', error);
     return NextResponse.json({ 
       error: 'Failed to delete caregiver' 
     }, { status: 500 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,8 @@ export default function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [message, setMessage] = useState<string>("");
+  const [uploading, setUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchProfile = async () => {
     setMessage("");
@@ -63,14 +66,90 @@ export default function ProfilePage() {
     }
   };
 
+  const onUploadImage = async (file: File) => {
+    setUploading(true);
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append('profileImage', file);
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+      const res = await fetch('/api/users/me/avatar', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include' as RequestCredentials,
+        headers: {
+          ...(userId ? { 'x-user-id': userId } : {}),
+        },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUser((prev: any) => prev ? { ...prev, profileImage: data.profileImage } : prev);
+        setMessage('Profile image updated');
+      } else {
+        setMessage(data?.error || 'Failed to upload image');
+      }
+    } catch (_) {
+      setMessage('Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const profileImageUrl = user?.profileImage ? `/uploads/${user.profileImage}` : "/placeholder-avatar.svg";
+
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {message && <div className="text-sm text-muted-foreground">{message}</div>}
+
       <Card>
         <CardHeader>
-          <CardTitle>Account Settings</CardTitle>
+          <CardTitle>Profile</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-32 h-32 relative rounded-full overflow-hidden border">
+              <Image src={profileImageUrl} alt="Avatar" fill sizes="128px" className="object-cover" />
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUploadImage(f);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              disabled={uploading}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? 'Uploading…' : 'Upload Photo'}
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={user?.name || ''} readOnly placeholder="Name" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input value={user?.email || ''} readOnly placeholder="Email" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Username field removed per requirement: only password changes allowed */}
           <div>
             <Label>Current Password</Label>
             <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" />
@@ -81,7 +160,6 @@ export default function ProfilePage() {
           </div>
           <div className="sm:col-span-2">
             <Button onClick={saveProfile}>Save Changes</Button>
-            {message && <span className="ml-3 text-sm text-muted-foreground">{message}</span>}
           </div>
         </CardContent>
       </Card>

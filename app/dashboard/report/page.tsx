@@ -63,13 +63,6 @@ interface ChildrenByOrganization {
   percentage: number;
 }
 
-interface ChildrenByEvent {
-  event: string;
-  registered: number;
-  attended: number;
-  absent: number;
-  total: number;
-}
 
 export default function ReportPage() {
   const [loading, setLoading] = useState(true);
@@ -79,7 +72,7 @@ export default function ReportPage() {
   const [attendanceData, setAttendanceData] = useState<AttendanceReport[]>([]);
   const [childrenByGender, setChildrenByGender] = useState<ChildrenByGender[]>([]);
   const [childrenByOrganization, setChildrenByOrganization] = useState<ChildrenByOrganization[]>([]);
-  const [childrenByEvent, setChildrenByEvent] = useState<ChildrenByEvent[]>([]);
+  const [eventData, setEventData] = useState<any[]>([]);
   
   // Filters
   const [attendancePeriod, setAttendancePeriod] = useState('daily');
@@ -97,37 +90,72 @@ export default function ReportPage() {
       setError(null);
 
       // Fetch all reports in parallel
-      const [
-        attendanceRes,
-        genderRes,
-        organizationRes,
-        eventRes
-      ] = await Promise.all([
+      const [eventRes, attendanceRes, genderRes, orgRes] = await Promise.all([
+        fetch('/api/reports/events'),
         fetch(`/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}`),
         fetch('/api/reports/children-by-gender'),
         fetch('/api/reports/children-by-organization'),
-        fetch('/api/reports/children-by-event')
       ]);
 
-      if (attendanceRes.ok) {
-        const data = await attendanceRes.json();
-        setAttendanceData(data);
+      // Process the responses
+      const attendanceReport = await attendanceRes.json();
+      const genderData = await genderRes.json();
+      const orgData = await orgRes.json();
+      
+      // Handle event response with better error handling
+      let events = [];
+      if (!eventRes.ok) {
+        console.error('Event API error:', eventRes.status, eventRes.statusText);
+      } else {
+        try {
+          const eventResponse = await eventRes.json();
+          events = Array.isArray(eventResponse) ? eventResponse : [];
+          if (!Array.isArray(eventResponse)) {
+            console.warn('Event response is not an array:', eventResponse);
+          }
+        } catch (e) {
+          console.error('Error parsing event data:', e);
+          events = [];
+        }
       }
 
-      if (genderRes.ok) {
-        const data = await genderRes.json();
-        setChildrenByGender(data);
+      // Transform event data for the report
+      let processedEvents = [];
+      if (Array.isArray(events)) {
+        if (events.length > 0) {
+          processedEvents = events.map((event) => {
+            const participations = event.participations || [];
+            const totalRegistered = event.totalRegistered !== undefined 
+              ? event.totalRegistered 
+              : participations.length;
+            const totalAttended = event.totalAttended !== undefined 
+              ? event.totalAttended 
+              : participations.filter((p: any) => p.status === 'ATTENDED').length;
+            const attendanceRate = event.attendanceRate !== undefined 
+              ? event.attendanceRate 
+              : (totalRegistered > 0 ? Math.round((totalAttended / totalRegistered) * 100) : 0);
+            
+            return {
+              eventId: event.eventId || event.id,
+              eventTitle: event.eventTitle || event.title || 'Unknown Event',
+              eventDate: event.eventDate || event.date,
+              totalRegistered: totalRegistered,
+              totalAttended: totalAttended,
+              attendanceRate: attendanceRate,
+              participations: participations
+            };
+          });
+        } else {
+          console.log('No events found in response');
+        }
+      } else {
+        console.warn('Unexpected event data format:', events);
       }
 
-      if (organizationRes.ok) {
-        const data = await organizationRes.json();
-        setChildrenByOrganization(data);
-      }
-
-      if (eventRes.ok) {
-        const data = await eventRes.json();
-        setChildrenByEvent(data);
-      }
+      setAttendanceData(Array.isArray(attendanceReport) ? attendanceReport : []);
+      setChildrenByGender(Array.isArray(genderData) ? genderData : []);
+      setChildrenByOrganization(Array.isArray(orgData) ? orgData : []);
+      setEventData(processedEvents);
 
     } catch (err) {
       console.error('Error fetching reports:', err);
@@ -215,34 +243,6 @@ export default function ReportPage() {
     };
   };
 
-  const getEventChartData = () => {
-    return {
-      labels: childrenByEvent.map(item => item.event),
-      datasets: [
-        {
-          label: 'Registered',
-          data: childrenByEvent.map(item => item.registered),
-          backgroundColor: '#3B82F6',
-          borderColor: '#2563EB',
-          borderWidth: 1,
-        },
-        {
-          label: 'Attended',
-          data: childrenByEvent.map(item => item.attended),
-          backgroundColor: '#10B981',
-          borderColor: '#059669',
-          borderWidth: 1,
-        },
-        {
-          label: 'Absent',
-          data: childrenByEvent.map(item => item.absent),
-          backgroundColor: '#EF4444',
-          borderColor: '#DC2626',
-          borderWidth: 1,
-        },
-      ],
-    };
-  };
 
   const chartOptions = {
     responsive: true,
@@ -389,9 +389,11 @@ export default function ReportPage() {
                 </Select>
               </div>
               
-              {attendancePeriod === 'daily' && (
+              {(attendancePeriod === 'daily' || attendancePeriod === 'weekly') && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Date</label>
+                  <label className="text-sm font-medium mb-2 block">
+                    {attendancePeriod === 'daily' ? 'Date' : 'Start Date (Week)'}
+                  </label>
                   <input
                     type="date"
                     value={selectedDate}
@@ -465,6 +467,92 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
+        {/* Events Report */}
+        <Card className="col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              Event Participation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventData.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                <p>No event participation data available</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attended</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {eventData.map((event, index) => {
+                      const attendanceRate = event.attendanceRate !== undefined ? event.attendanceRate : 0;
+                      let eventDate = 'N/A';
+                      try {
+                        if (event.eventDate) {
+                          const dateObj = new Date(event.eventDate);
+                          if (!isNaN(dateObj.getTime())) {
+                            eventDate = dateObj.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            });
+                          }
+                        }
+                      } catch (e) {
+                        console.error('Error parsing event date:', e);
+                      }
+                        
+                      return (
+                        <tr key={event.eventId || `event-${index}`} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {event.eventTitle || 'Untitled Event'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {eventDate}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {event.totalRegistered || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              attendanceRate > 70 ? 'bg-green-100 text-green-800' : 
+                              attendanceRate > 40 ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {event.totalAttended || 0} ({attendanceRate}%)
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                              <div 
+                                className={`h-2.5 rounded-full ${
+                                  attendanceRate > 70 ? 'bg-green-500' : 
+                                  attendanceRate > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(0, attendanceRate))}%` }}
+                              ></div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Children Reports Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Children by Gender */}
@@ -515,30 +603,6 @@ export default function ReportPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Children by Event */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-green-600" />
-              Children by Event
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-96">
-              {childrenByEvent.length > 0 ? (
-                <Bar data={getEventChartData()} options={chartOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <Activity className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <p className="text-muted-foreground">No event data available</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Summary Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -598,7 +662,7 @@ export default function ReportPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Active Events</p>
-                  <p className="text-2xl font-bold">{childrenByEvent.length}</p>
+                  <p className="text-2xl font-bold">{eventData.length}</p>
                 </div>
               </div>
             </CardContent>

@@ -6,21 +6,35 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const parentEmail = searchParams.get("parentEmail");
+    const idParam = searchParams.get("id");
+    const isReadParam = searchParams.get("isRead");
 
-    if (!parentEmail) {
-      return NextResponse.json({ error: "Parent email is required" }, { status: 400 });
-    }
+    const id = idParam ? parseInt(idParam, 10) : undefined;
+    const isRead =
+      isReadParam === null
+        ? undefined
+        : isReadParam.toLowerCase() === "true"
+        ? true
+        : isReadParam.toLowerCase() === "false"
+        ? false
+        : undefined;
+
+    // Build flexible filter
+    const where: any = {};
+    if (typeof id === "number" && !Number.isNaN(id)) where.id = id;
+    if (parentEmail) where.parentEmail = parentEmail;
+    if (typeof isRead === "boolean") where.isRead = isRead;
 
     // Fetch notifications, including related activity (if any)
     const notifications = await prisma.notification.findMany({
-      where: { parentEmail },
+      where,
       include: { activity: true },
       orderBy: { createdAt: "desc" },
     });
 
-    // Unread count
+    // Unread count for the same scope
     const unreadCount = await prisma.notification.count({
-      where: { parentEmail, isRead: false },
+      where: { ...where, isRead: false },
     });
 
     // Map for compatibility with frontend

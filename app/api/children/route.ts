@@ -144,7 +144,7 @@ export async function GET(request: Request) {
       where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
       include: { 
         organization: true,
-        servant: true,
+        caregiver: true,
         room: true,
         site: true,
         parent: true, // Include parent user info
@@ -172,9 +172,9 @@ export async function GET(request: Request) {
         name: c.organization?.name ?? '',
         id: c.organization?.id ?? 0
       },
-      servant: c.servant ? {
-        id: c.servant.id,
-        fullName: c.servant.fullName
+      servant: c.caregiver ? {
+        id: c.caregiver.id,
+        fullName: c.caregiver.fullName
       } : null,
       room: c.room ? {
         id: c.room.id,
@@ -358,17 +358,17 @@ export async function POST(req: Request) {
     }
 
     // Optional fields with validation
-    const servantId = formData.has("servantId") 
-      ? Number(formData.get("servantId")) 
+    const caregiverId = formData.has("servantId") || formData.has("caregiverId")
+      ? Number(formData.get("servantId") || formData.get("caregiverId")) 
       : null;
     
     const roomId = formData.has("roomId")
       ? Number(formData.get("roomId"))
       : null;
 
-    if ((servantId !== null && isNaN(servantId)) || 
+    if ((caregiverId !== null && isNaN(caregiverId)) || 
         (roomId !== null && isNaN(roomId))) {
-      throw new Error("Invalid ID format for servant or room");
+      throw new Error("Invalid ID format for caregiver or room");
     }
 
     const option = (formData.get("option") as string)?.trim() || "DEFAULT_OPTION";
@@ -485,7 +485,7 @@ export async function POST(req: Request) {
         dateOfBirth,
         siteId: resolvedSiteId,
         organizationId: organization.id,
-        servantId,
+        caregiverId,
         roomId: finalRoomId,
         option,
         profilePic: profilePic as string | null,
@@ -497,7 +497,7 @@ export async function POST(req: Request) {
         data: childData,
         include: {
           organization: true,
-          servant: true,
+          caregiver: true,
           room: true,
           parent: true,
         },

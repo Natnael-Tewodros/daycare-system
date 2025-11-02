@@ -18,7 +18,7 @@ export async function PUT(
     // Verify room exists
     const room = await prisma.room.findUnique({
       where: { id: roomId },
-      include: { servants: true }
+      include: { caregivers: true }
     });
 
     if (!room) {
@@ -28,7 +28,7 @@ export async function PUT(
     }
 
     // Verify caregiver exists
-    const caregiver = await prisma.servant.findUnique({
+    const caregiver = await prisma.caregiver.findUnique({
       where: { id: caregiverId }
     });
 
@@ -39,7 +39,7 @@ export async function PUT(
     }
 
     // Check if caregiver is already assigned to this room
-    const isAlreadyAssigned = room.servants.some(servant => servant.id === caregiverId);
+    const isAlreadyAssigned = room.caregivers.some(caregiver => caregiver.id === caregiverId);
     
     if (isAlreadyAssigned) {
       return NextResponse.json({ 
@@ -48,7 +48,7 @@ export async function PUT(
     }
 
     // Update caregiver's assigned room
-    const updatedCaregiver = await prisma.servant.update({
+    const updatedCaregiver = await prisma.caregiver.update({
       where: { id: caregiverId },
       data: { assignedRoomId: roomId },
       include: {
@@ -86,7 +86,7 @@ export async function DELETE(
     }
 
     // Verify caregiver is assigned to this room
-    const caregiver = await prisma.servant.findFirst({
+    const caregiver = await prisma.caregiver.findFirst({
       where: { 
         id: caregiverId,
         assignedRoomId: roomId
@@ -100,7 +100,7 @@ export async function DELETE(
     }
 
     // Remove caregiver from room
-    const updatedCaregiver = await prisma.servant.update({
+    const updatedCaregiver = await prisma.caregiver.update({
       where: { id: caregiverId },
       data: { assignedRoomId: null }
     });

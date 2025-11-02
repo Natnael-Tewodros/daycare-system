@@ -84,36 +84,87 @@ export default function ReportsPage() {
 
   const fetchSubmittedReports = async () => {
     try {
-      // Get all activities directly without relying on parent email
-      const response = await fetch('/api/activities');
-      if (!response.ok) throw new Error('Failed to fetch activities');
+      // Get current parent info
+      const parentInfo = JSON.parse(localStorage.getItem('parentInfo') || '{}');
+      const parentEmail = (parentInfo.email || parentInfo.parentEmail)?.toLowerCase();
+      const userId = localStorage.getItem('userId');
+      
+      if (!parentEmail && !userId) {
+        console.error('No parent email or user ID found');
+        return;
+      }
+
+      // Build the query string with parentId or parentEmail
+      const params = new URLSearchParams();
+      if (userId) params.append('parentId', userId);
+      if (parentEmail) params.append('parentEmail', parentEmail);
+      // Only parent-sent and sent to admin inbox
+      params.append('senderType', 'parent');
+      params.append('recipientEmail', 'admin@daycare.com');
+      
+      console.log('Fetching activities with params:', params.toString());
+      
+      // Get all activities for this parent that were sent to admin
+      const response = await fetch(`/api/activities?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to fetch activities:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error('Failed to fetch activities');
+      }
       
       const activities = await response.json();
+      console.log('Raw activities from API:', activities);
       
-      // Filter for parent submissions based on content and recipient
+      // Filter for parent submissions
       const submitted = activities.filter((activity: any) => {
-        // Check if it's a parent submission by content
-        const subject = activity.subject?.toLowerCase() || '';
-        const description = activity.description?.toLowerCase() || '';
+        if (!activity) return false;
         
-        const isParentSubmission = 
-          // Check for parent submission indicators in content
+        const subject = String(activity.subject || '').toLowerCase();
+        const description = String(activity.description || '').toLowerCase();
+        
+        // Check if it's a report type or has report content
+        const isReportType = 
+          activity.isReport ||
           subject.includes('absence') ||
           subject.includes('sick') ||
+          subject.includes('⛔') ||
           description.includes('child:') ||
           description.includes('reason:') ||
-          // Or check if it's marked as from parent and to admin
-          (activity.senderType === 'parent' && 
-           activity.recipients?.includes('admin@daycare.com'));
+          description.includes('⛔ absent') ||
+          description.includes('absent notification') ||
+          description.includes('report');
+
+        // Also treat any parent-sent message to admin as a report-like entry
+        const isParentToAdmin = activity.senderType === 'parent' && Array.isArray(activity.recipients)
+          ? activity.recipients.some((r: string) => String(r).toLowerCase().includes('admin'))
+          : false;
+        
+        // Check if it belongs to the current parent
+        const isCurrentParent = 
+          (userId && activity.parentId?.toString() === userId) || 
+          (parentEmail && activity.parentEmail?.toLowerCase() === parentEmail);
+        
+        // Check if it's a parent submission (or doesn't have senderType set)
+        const isParentSubmission = !activity.senderType || activity.senderType === 'parent';
         
         // Make sure it's not a system-generated message
         const isNotSystemMessage = !subject.startsWith('system:') && 
                                  !description.includes('system-generated');
         
-        return isParentSubmission && isNotSystemMessage;
+        return isParentSubmission && (isReportType || isParentToAdmin) && isCurrentParent && isNotSystemMessage;
       });
       
-      setSubmittedReports(submitted);
+      // Sort by creation date, newest first
+      const sortedReports = [...submitted].sort((a: any, b: any) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      setSubmittedReports(sortedReports);
     } catch (error) {
       console.error('Error fetching submitted reports:', error);
       setError('Failed to load your submitted reports. Please try again later.');

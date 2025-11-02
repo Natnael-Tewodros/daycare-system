@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Building2, CheckCircle, Clock, Sparkles, Users, Baby, AlertCircle, Home } from "lucide-react";
+import { Building2, CheckCircle, Clock, Sparkles, Users, Baby, AlertCircle, Home, BabyIcon, Sprout } from "lucide-react";
 import RoomCard from "@/components/rooms/RoomCard";
 import RoomDetailModal from "@/components/rooms/RoomDetailModal";
 
@@ -21,10 +21,24 @@ export default function RoomPage() {
     try {
       setLoading(true);
       const res = await axios.get("/api/rooms");
-      // Deduplicate by name then sort
-      const uniqueByName = Array.from(new Map(res.data.map((r: any) => [r.name, r])).values());
-      const sortedRooms = uniqueByName.sort((a: any, b: any) => a.name.localeCompare(b.name));
-      setRooms(sortedRooms);
+      
+      // Ensure rooms are in the correct order: Infant -> Toddler -> Growing Star
+      const orderedRooms = res.data.sort((a: any, b: any) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        
+        // Define order: Infant (1), Toddler (2), Growing Star (3)
+        const getOrder = (name: string): number => {
+          if (name.includes('infant')) return 1;
+          if (name.includes('toddler')) return 2;
+          if (name.includes('growing star') || name.includes('growing start')) return 3;
+          return 99; // Other rooms go last
+        };
+        
+        return getOrder(aName) - getOrder(bName);
+      });
+      
+      setRooms(orderedRooms);
       setError(null);
     } catch (e: any) {
       console.error('Fetch rooms error:', e);
@@ -52,12 +66,39 @@ export default function RoomPage() {
         }
       });
       setCaregiverChildren(childrenByCaregiver);
+      return unique;
     } catch (e: any) {
       console.error('Fetch children error:', e);
+      return [];
     }
   };
 
-  const refreshData = async () => { await fetchRooms(); await fetchAllChildren(); };
+  const refreshData = async () => { 
+    await fetchRooms(); 
+    await fetchAllChildren();
+    // Refresh selected room if one is open
+    if (selectedRoom) {
+      const roomsRes = await axios.get("/api/rooms");
+      const orderedRooms = roomsRes.data.sort((a: any, b: any) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        
+        // Define order: Infant (1), Toddler (2), Growing Star (3)
+        const getOrder = (name: string): number => {
+          if (name.includes('infant')) return 1;
+          if (name.includes('toddler')) return 2;
+          if (name.includes('growing star') || name.includes('growing star')) return 3;
+          return 99; // Other rooms go last
+        };
+        
+        return getOrder(aName) - getOrder(bName);
+      });
+      const updatedRoom = orderedRooms.find((r: any) => r.id === selectedRoom.id);
+      if (updatedRoom) {
+        setSelectedRoom(updatedRoom);
+      }
+    }
+  };
 
   const handleRoomClick = (room: any) => {
     setSelectedRoom(room);

@@ -42,100 +42,68 @@ const childFitsInAgeRange = (childAgeInMonths: number, ageRange: string): boolea
 
 export async function GET() {
   try {
-    // Get all rooms
+    // Get all rooms with their organization, children, and caregivers
     const rooms = await prisma.room.findMany({
-      include: { 
-        organization: true, 
-        servants: {
+      include: {
+        organization: true,
+        children: true,
+        caregivers: {
           select: {
             id: true,
             fullName: true,
             email: true,
             phone: true,
-            canTransferRooms: true
+            assignedRoomId: true
           }
         }
       },
-      orderBy: { name: 'asc' }
-    });
-
-    // Get all children
-    const allChildren = await prisma.child.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        dateOfBirth: true,
-        gender: true,
-        parentName: true,
-        parentEmail: true,
-        profilePic: true,
-        createdAt: true,
-        updatedAt: true,
-        roomId: true,
-        organization: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
+      orderBy: {
+        name: "asc"
       }
     });
 
-    // Organize children by room assignment and age ranges
-    const roomsWithChildren = rooms.map(room => {
-      // First, get children actually assigned to this room
-      const assignedChildren = allChildren.filter(child => child.roomId === room.id);
-      
-      // Then, get children that fit the age range but aren't assigned to any room
-      const unassignedChildrenInAgeRange = allChildren.filter(child => {
-        if (child.roomId) return false; // Skip already assigned children
-        if (!room.ageRange) return false; // Skip if room has no age range defined
-        
-        try {
-          const ageInMonths = calculateAgeInMonths(child.dateOfBirth);
-          return childFitsInAgeRange(ageInMonths, room.ageRange);
-        } catch (error) {
-          console.error(`Error calculating age for child ${child.id}:`, error);
-          return false;
-        }
-      });
-
-      // Combine assigned children and unassigned children in age range
-      const childrenInThisRoom = [...assignedChildren, ...unassignedChildrenInAgeRange];
-
-      // Map room names to class names
-      const getClassName = (roomName: string): string => {
-        if (!roomName) return 'Unnamed Room';
-        const name = roomName.toLowerCase();
-        if (name.includes('room 1')) return 'Infants';
-        if (name.includes('room 2')) return 'Toddlers';
-        if (name.includes('room 3')) return 'Growing Stars';
-        if (name.includes('default') || name.includes('infant')) return 'Infants';
-        if (name.includes('toddler')) return 'Toddlers';
-        if (name.includes('preschool')) return 'Growing Stars';
-        return roomName.replace(/\s*-\s*[A-Z_]+$/, ''); // Clean up organization suffix
-      };
-
-      return {
-        ...room,
-        name: getClassName(room.name),
-        ageRange: room.ageRange || 'No age range specified',
-        children: childrenInThisRoom,
-        assignedChildren: assignedChildren,
-        unassignedChildren: unassignedChildrenInAgeRange
-      };
+    // Get all children to process room assignments
+    const allChildren = await prisma.child.findMany({
+      include: {
+        room: true
+      }
     });
 
-    return NextResponse.json(roomsWithChildren);
+    // Process rooms: add children, sort, and transform
+    const processedRooms = rooms
+      // Add children data to each room
+      .map((room) => {
+        const roomChildren = allChildren.filter(child => child.roomId === room.id);
+        return {
+          ...room,
+          childrenCount: roomChildren.length,
+          children: roomChildren,
+          servants: room.caregivers // Add alias for backward compatibility
+        };
+      })
+      // Sort rooms: Infant -> Toddler -> Growing Star -> Others
+      .sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        
+        // Define order: Infant (1), Toddler (2), Growing Star (3)
+        const getOrder = (name: string): number => {
+          if (name.includes('infant')) return 1;
+          if (name.includes('toddler')) return 2;
+          if (name.includes('growing star') || name.includes('growing start')) return 3;
+          return 99; // Other rooms go last
+        };
+        
+        return getOrder(aName) - getOrder(bName);
+      });
+
+    return NextResponse.json(processedRooms);
   } catch (error) {
     console.error('Error fetching rooms:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorDetails = error instanceof Error ? error.stack : String(error);
-    console.error('Error details:', errorDetails);
     return NextResponse.json({ 
       error: 'Failed to fetch rooms',
       message: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
     }, { status: 500 });
   }
 }
@@ -144,11 +112,18 @@ export async function POST(req: Request) {
   try {
     const { name, ageRange, organizationId } = await req.json();
     const room = await prisma.room.create({
-      data: { name, ageRange, organizationId: organizationId || undefined },
+      data: { 
+        name, 
+        ageRange, 
+        organizationId: organizationId || undefined 
+      },
     });
     return NextResponse.json(room, { status: 201 });
   } catch (error) {
     console.error('Error creating room:', error);
-    return NextResponse.json({ error: 'Failed to create room' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to create room',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

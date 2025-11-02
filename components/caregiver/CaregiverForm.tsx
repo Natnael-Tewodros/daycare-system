@@ -16,8 +16,8 @@ type CaregiverFormProps = {
     phone: string;
     assignedRoomId: string;
     medicalReportFile: File | null;
-    site: '' | 'HEADOFFICE' | 'OPERATION';
-    organizationType: '' | 'INSA' | 'AI' | 'MINISTRY_OF_PEACE' | 'FINANCE_SECURITY';
+    site: '' | 'HEADOFFICE' | 'OPERATION' | undefined;
+    organizationType: '' | 'INSA' | 'AI' | 'MINISTRY_OF_PEACE' | 'FINANCE_SECURITY' | undefined;
   };
   errors: Record<string, string>;
   isSubmitting: boolean;
@@ -31,27 +31,25 @@ export default function CaregiverForm({ rooms, form, errors, isSubmitting, curre
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label className="flex items-center gap-1">Full Name <span className="text-red-500">*</span></Label>
-          <Input value={form.fullName} onChange={(e) => onChange({ fullName: e.target.value })} placeholder="John Doe" />
-          {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
+          <Label>Full Name</Label>
+          <Input value={form.fullName ?? ''} onChange={(e) => onChange({ fullName: e.target.value })} placeholder="John Doe" />
         </div>
         <div className="space-y-1">
-          <Label className="flex items-center gap-1">Phone <span className="text-red-500">*</span></Label>
-          <Input value={form.phone} onChange={(e) => onChange({ phone: e.target.value })} placeholder="+251 911 123456" />
-          {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+          <Label>Phone</Label>
+          <Input value={form.phone ?? ''} onChange={(e) => onChange({ phone: e.target.value })} placeholder="+251 911 123456" />
         </div>
       </div>
 
       <div className="space-y-1">
         <Label className="flex items-center gap-1">Email <span className="text-red-500">*</span></Label>
-        <Input type="email" value={form.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="john@example.com" />
+        <Input type="email" value={form.email ?? ''} onChange={(e) => onChange({ email: e.target.value })} placeholder="john@example.com" />
         {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label className="flex items-center gap-1">Site <span className="text-red-500">*</span></Label>
-          <Select value={form.site} onValueChange={(v) => onChange({ site: v as any })}>
+          <Label>Site</Label>
+          <Select value={form.site || ''} onValueChange={(v) => onChange({ site: v as any || undefined })}>
             <SelectTrigger>
               <SelectValue placeholder="Select site" />
             </SelectTrigger>
@@ -63,8 +61,8 @@ export default function CaregiverForm({ rooms, form, errors, isSubmitting, curre
           {errors.site && <p className="text-xs text-destructive">{errors.site}</p>}
         </div>
         <div className="space-y-1">
-          <Label className="flex items-center gap-1">Organization <span className="text-red-500">*</span></Label>
-          <Select value={form.organizationType} onValueChange={(v) => onChange({ organizationType: v as any })}>
+          <Label>Organization</Label>
+          <Select value={form.organizationType || ''} onValueChange={(v) => onChange({ organizationType: v as any || undefined })}>
             <SelectTrigger>
               <SelectValue placeholder="Select org" />
             </SelectTrigger>
@@ -86,7 +84,7 @@ export default function CaregiverForm({ rooms, form, errors, isSubmitting, curre
 
       <div className="space-y-1">
         <Label>Assigned Room</Label>
-        <Select value={form.assignedRoomId} onValueChange={(v) => onChange({ assignedRoomId: v })}>
+        <Select value={form.assignedRoomId ?? 'none'} onValueChange={(v) => onChange({ assignedRoomId: v })}>
           <SelectTrigger>
             <SelectValue placeholder="Select room" />
           </SelectTrigger>

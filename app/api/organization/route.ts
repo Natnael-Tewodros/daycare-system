@@ -30,7 +30,7 @@ export async function GET() {
       include: {
         children: {
           include: {
-            servant: {
+            caregiver: {
               select: {
                 id: true,
                 fullName: true,
@@ -42,7 +42,7 @@ export async function GET() {
         },
         rooms: {
           include: {
-            servants: {
+            caregivers: {
               select: {
                 id: true,
                 fullName: true,
@@ -58,17 +58,17 @@ export async function GET() {
 
     // Transform the data to include counts
     const organizationsWithCounts = organizations.map(org => {
-      // Get all unique servants from children and rooms
-      const servantsFromChildren = org.children
-        .filter(child => child.servant)
-        .map(child => child.servant!);
+      // Get all unique caregivers from children and rooms
+      const caregiversFromChildren = org.children
+        .filter(child => child.caregiver)
+        .map(child => child.caregiver!);
       
-      const servantsFromRooms = org.rooms
-        .flatMap(room => room.servants);
+      const caregiversFromRooms = org.rooms
+        .flatMap(room => room.caregivers);
       
-      const allServants = [...servantsFromChildren, ...servantsFromRooms];
-      const uniqueServants = Array.from(
-        new Map(allServants.map(s => [s.id, s])).values()
+      const allCaregivers = [...caregiversFromChildren, ...caregiversFromRooms];
+      const uniqueCaregivers = Array.from(
+        new Map(allCaregivers.map(c => [c.id, c])).values()
       );
 
       return {
@@ -80,18 +80,22 @@ export async function GET() {
         phone: org.phone,
         email: org.email,
         childrenCount: org.children.length,
-        servantsCount: uniqueServants.length,
+        servantsCount: uniqueCaregivers.length, // Keep for backward compatibility
+        caregiversCount: uniqueCaregivers.length,
         children: org.children.map(child => ({
           id: child.id,
           fullName: child.fullName,
-          servant: child.servant
+          servant: child.caregiver, // Map caregiver to servant for backward compatibility
+          caregiver: child.caregiver
         })),
-        servants: uniqueServants,
+        servants: uniqueCaregivers, // Keep for backward compatibility
+        caregivers: uniqueCaregivers,
         rooms: org.rooms.map(room => ({
           id: room.id,
           name: room.name,
           ageRange: room.ageRange,
-          servantsCount: room.servants.length
+          servantsCount: room.caregivers.length, // Keep for backward compatibility
+          caregiversCount: room.caregivers.length
         })),
         createdAt: org.createdAt.toISOString()
       };
@@ -147,7 +151,7 @@ export async function POST(req: Request) {
       include: {
         children: {
           include: {
-            servant: {
+            caregiver: {
               select: {
                 id: true,
                 fullName: true,
@@ -159,7 +163,7 @@ export async function POST(req: Request) {
         },
         rooms: {
           include: {
-            servants: {
+            caregivers: {
               select: {
                 id: true,
                 fullName: true,
@@ -172,17 +176,17 @@ export async function POST(req: Request) {
       }
     });
 
-    // Get all unique servants from children and rooms
-    const servantsFromChildren = organization.children
-      .filter(child => child.servant)
-      .map(child => child.servant!);
+    // Get all unique caregivers from children and rooms
+    const caregiversFromChildren = organization.children
+      .filter(child => child.caregiver)
+      .map(child => child.caregiver!);
     
-    const servantsFromRooms = organization.rooms
-      .flatMap(room => room.servants);
+    const caregiversFromRooms = organization.rooms
+      .flatMap(room => room.caregivers);
     
-    const allServants = [...servantsFromChildren, ...servantsFromRooms];
-    const uniqueServants = Array.from(
-      new Map(allServants.map(s => [s.id, s])).values()
+    const allCaregivers = [...caregiversFromChildren, ...caregiversFromRooms];
+    const uniqueCaregivers = Array.from(
+      new Map(allCaregivers.map(c => [c.id, c])).values()
     );
 
     return NextResponse.json({
@@ -194,18 +198,22 @@ export async function POST(req: Request) {
       phone: organization.phone,
       email: organization.email,
       childrenCount: organization.children.length,
-      servantsCount: uniqueServants.length,
+      servantsCount: uniqueCaregivers.length, // Keep for backward compatibility
+      caregiversCount: uniqueCaregivers.length,
       children: organization.children.map(child => ({
         id: child.id,
         fullName: child.fullName,
-        servant: child.servant
+        servant: child.caregiver, // Map caregiver to servant for backward compatibility
+        caregiver: child.caregiver
       })),
-      servants: uniqueServants,
+      servants: uniqueCaregivers, // Keep for backward compatibility
+      caregivers: uniqueCaregivers,
       rooms: organization.rooms.map(room => ({
         id: room.id,
         name: room.name,
         ageRange: room.ageRange,
-        servantsCount: room.servants.length
+        servantsCount: room.caregivers.length, // Keep for backward compatibility
+        caregiversCount: room.caregivers.length
       })),
       createdAt: organization.createdAt.toISOString()
     }, { status: 201 });

@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const roomId = searchParams.get('roomId');
 
     // Get all caregivers, optionally excluding those already assigned to a specific room
-    const caregivers = await prisma.servant.findMany({
+    const caregivers = await prisma.caregiver.findMany({
       where: roomId ? {
         OR: [
           { assignedRoomId: null },
