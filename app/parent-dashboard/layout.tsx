@@ -186,9 +186,9 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
     },
     {
       name: 'Notifications',
-      href: '/parent-dashboard/messages',
+      href: '/parent-dashboard/notifications',
       icon: Bell,
-      current: pathname === '/parent-dashboard/messages',
+      current: pathname === '/parent-dashboard/notifications',
       badge: unreadCount
     },
     {
@@ -365,7 +365,7 @@ function getPageTitle(pathname: string): string {
   const navigation = [
     { name: "Dashboard", href: "/parent-dashboard" },
     { name: "My Children", href: "/parent-dashboard/children" },
-    { name: "Notifications", href: "/parent-dashboard/messages" },
+    { name: "Notifications", href: "/parent-dashboard/notifications" },
     { name: "My Reports", href: "/parent-dashboard/reports" },
     { name: "Application Status", href: "/parent-dashboard/application-status" },
     { name: "New Request", href: "/parent-dashboard/request" }

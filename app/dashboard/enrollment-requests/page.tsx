@@ -36,6 +36,9 @@ export default function AdminEnrollmentRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [filter, setFilter] = useState<'pending' | 'all'>(
+    'pending'
+  );
 
   useEffect(() => {
     fetchRequests();
@@ -70,16 +73,43 @@ export default function AdminEnrollmentRequestsPage() {
     }
   };
 
+  const deleteRequest = async (requestId: number) => {
+    if (!confirm('Delete this pending enrollment request?')) return;
+    try {
+      setActionLoading(requestId);
+      const res = await fetch(`/api/enrollment-requests/${requestId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        try {
+          const j = JSON.parse(text);
+          throw new Error(j.error || j.message || 'Failed to delete request');
+        } catch {
+          throw new Error(text || 'Failed to delete request');
+        }
+      }
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notifications:updated'));
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Failed to delete request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const updateRequestStatus = async (requestId: number, status: 'approved' | 'rejected') => {
     setActionLoading(requestId);
     
     try {
-      const response = await fetch(`/api/enrollment-requests/${requestId}`, {
+      const response = await fetch(`/api/enrollment-requests`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ id: requestId, status }),
       });
 
       if (response.ok) {
@@ -91,6 +121,9 @@ export default function AdminEnrollmentRequestsPage() {
               : req
           )
         );
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications:updated'));
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to update request status");
@@ -230,8 +263,22 @@ export default function AdminEnrollmentRequestsPage() {
           </Card>
         </div>
 
-        {/* Refresh Button */}
-        <div className="mb-6">
+        {/* Controls */}
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex rounded-md border border-blue-200 overflow-hidden">
+            <button
+              className={`px-3 py-1 text-sm ${filter === 'pending' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'}`}
+              onClick={() => setFilter('pending')}
+            >
+              Pending
+            </button>
+            <button
+              className={`px-3 py-1 text-sm ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'}`}
+              onClick={() => setFilter('all')}
+            >
+              All
+            </button>
+          </div>
           <Button 
             onClick={fetchRequests}
             variant="outline"
@@ -243,19 +290,19 @@ export default function AdminEnrollmentRequestsPage() {
         </div>
 
         {/* Requests List */}
-        {requests.length === 0 ? (
+        {(() => {
+          const visible = filter === 'pending' ? requests.filter(r => r.status === 'pending') : requests;
+          return visible.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollment Requests</h3>
-              <p className="text-gray-600">
-                There are no enrollment requests to review at this time.
-              </p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{filter === 'pending' ? 'No Pending Requests' : 'No Enrollment Requests'}</h3>
+              <p className="text-gray-600">{filter === 'pending' ? 'All caught up for now.' : 'There are no enrollment requests to review at this time.'}</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-6">
-            {requests.map((request) => (
+            {visible.map((request) => (
               <Card key={request.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -369,6 +416,14 @@ export default function AdminEnrollmentRequestsPage() {
                           )}
                           Reject
                         </Button>
+                        <Button
+                          onClick={() => deleteRequest(request.id)}
+                          disabled={actionLoading === request.id}
+                          variant="outline"
+                          className="text-red-700 border-red-200 hover:bg-red-50"
+                        >
+                          Delete
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -376,7 +431,7 @@ export default function AdminEnrollmentRequestsPage() {
               </Card>
             ))}
           </div>
-        )}
+        );})()}
       </div>
     </div>
   );

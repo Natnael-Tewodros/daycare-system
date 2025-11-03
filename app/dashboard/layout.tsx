@@ -36,7 +36,7 @@ const MENU_ITEMS: MenuItem[] = [
   { name: "Organization", href: "/dashboard/organization", icon: Briefcase },
   { name: "Sites", href: "/dashboard/sites", icon: MapPin },
   { 
-    name: "Enrollment", 
+    name: "New Enrollment Requests", 
     href: "/dashboard/enrollment-requests", 
     icon: FileText,
     showBadge: true,
@@ -76,20 +76,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const data = await notifRes.json();
           const count = data.length;
           setBadge(count);
-          const notificationsItem = MENU_ITEMS.find(item => item.name === "Notifications");
-          if (notificationsItem) {
-            notificationsItem.badgeCount = count;
-          }
         }
 
         if (enrollmentRes.ok) {
           const data = await enrollmentRes.json();
-          const count = data.length || 0;
+          const list = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+          const count = list.length || 0;
           setPendingEnrollments(count);
-          const enrollmentItem = MENU_ITEMS.find(item => item.name === "Enrollment");
-          if (enrollmentItem) {
-            enrollmentItem.badgeCount = count;
-          }
         }
       } catch (e) { 
         console.error("Error in dashboard init:", e); 
@@ -147,9 +140,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {MENU_ITEMS.map(item => {
+            const effectiveName = item.name === "Notifications" ? item.name : item.name;
+            const effectiveBadge = item.name === "Notifications" ? badge : (item.name === "New Enrollment Requests" ? pendingEnrollments : item.badgeCount);
             const Icon = item.icon;
             const active = isActive(item.href);
-            const hasBadge = item.showBadge && (item.badgeCount ?? 0) > 0;
+            const hasBadge = item.showBadge && (effectiveBadge ?? 0) > 0;
 
             return (
               <div key={item.href} className="relative group">
@@ -165,12 +160,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <Icon className="h-5 w-5 flex-shrink-0" />
                       {hasBadge && (
                         <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                          {item.badgeCount}
+                          {effectiveBadge}
                         </span>
                       )}
                     </div>
                     <span className={cn("ml-3", collapsed && "hidden")}>
-                      {item.name}
+                      {effectiveName}
                     </span>
                   </div>
                 </Link>
@@ -183,10 +178,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     "shadow-xl border border-slate-700 flex items-center gap-2"
                   )}
                 >
-                  <span>{item.name}</span>
+                  <span>{effectiveName}</span>
                   {hasBadge && (
                     <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {badge > 99 ? "99+" : badge}
+                      {effectiveBadge > 99 ? "99+" : effectiveBadge}
                     </span>
                   )}
                 </div>

@@ -79,12 +79,17 @@ export async function PATCH(request: NextRequest) {
   try {
     const { id } = await request.json();
 
-    if (!id) {
+    if (id === undefined || id === null) {
       return NextResponse.json({ error: "Notification ID is required" }, { status: 400 });
     }
 
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    if (Number.isNaN(numericId)) {
+      return NextResponse.json({ error: "Notification ID must be a number" }, { status: 400 });
+    }
+
     const updated = await prisma.notification.update({
-      where: { id },
+      where: { id: numericId },
       data: { isRead: true },
     });
 

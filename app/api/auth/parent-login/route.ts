@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       include: {
         organization: true,
         room: true,
-        servant: true,
+        caregiver: true,
         attendances: {
           orderBy: { createdAt: 'desc' },
           take: 10

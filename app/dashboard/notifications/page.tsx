@@ -162,18 +162,18 @@ export default function NotificationsPage() {
                         {new Date(m.createdAt).toLocaleString()}
                       </div>
                     </div>
-                    {filter === "unread" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => markAsRead(m.id)}
-                        title="Mark as read"
-                        className="text-green-700 border-green-200 hover:bg-green-50"
-                      >
-                        Mark as read
-                      </Button>
-                    )}
-                    {filter === "all" && (
+                    <div className="flex items-center gap-2">
+                      {filter === "unread" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => markAsRead(m.id)}
+                          title="Mark as read"
+                          className="text-green-700 border-green-200 hover:bg-green-50"
+                        >
+                          Mark as read
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -183,7 +183,7 @@ export default function NotificationsPage() {
                       >
                         Delete
                       </Button>
-                    )}
+                    </div>
                   </div>
                 </CardHeader>
                 {m.description && (

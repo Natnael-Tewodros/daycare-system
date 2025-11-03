@@ -26,6 +26,7 @@ interface Notification {
 export default function MessagesPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [filter, setFilter] = useState<'all' | 'unread'>('unread');
   const [submittedReports, setSubmittedReports] = useState<any[]>([]);
   const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
   const [absenceData, setAbsenceData] = useState({ childId: '', subject: '', description: '', reason: 'sick', expectedReturn: '', notes: '' });
@@ -191,31 +192,12 @@ export default function MessagesPage() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
-      // Get unread message IDs to mark as read (both notifications and activities)
+      // Compute unread before mutating state so Unread tab is meaningful
       const unreadMessages = sortedMessages.filter((m: any) => !m.isRead);
-      
-      // Mark messages as read in the UI immediately
-      const updatedMessages = sortedMessages.map((m: any) => 
-        unreadMessages.some(n => n.id === m.id) ? { ...m, isRead: true } : m
-      );
-      
-      // Update state
-      setNotifications(updatedMessages);
-      
-      // Mark messages as read on the server and update unread count
-      if (unreadMessages.length > 0) {
-        const unreadCount = updatedMessages.filter((m: any) => !m.isRead).length;
-        setUnreadCount(unreadCount);
-        
-        // Only mark notifications as read, not activities (they're already marked as read when fetched)
-        const notificationIds = unreadMessages
-          .filter((m: any) => m.isNotification)
-          .map((m: any) => m.id);
-          
-        if (notificationIds.length > 0) {
-          await markNotificationsAsRead(notificationIds);
-        }
-      }
+
+      // Update state without auto-marking as read; allow explicit actions to mark
+      setNotifications(sortedMessages);
+      setUnreadCount(unreadMessages.length);
     } catch (error) {
       console.error('Error fetching messages:', error);
       setError('Failed to load messages. Please try again.');
@@ -628,27 +610,45 @@ Submitted at: ${new Date().toLocaleString()}`;
                 </span>
               )}
             </CardTitle>
-            {unreadCount > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={markAllAsRead}
-                className="text-blue-600 hover:bg-blue-50"
-              >
-                Mark all as read
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-md border border-blue-200 overflow-hidden">
+                <button
+                  className={`px-3 py-1 text-sm ${filter === 'unread' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'}`}
+                  onClick={() => setFilter('unread')}
+                >
+                  Unread
+                </button>
+                <button
+                  className={`px-3 py-1 text-sm ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'}`}
+                  onClick={() => setFilter('all')}
+                >
+                  All
+                </button>
+              </div>
+              {unreadCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={markAllAsRead}
+                  className="text-blue-600 hover:bg-blue-50"
+                >
+                  Mark all as read
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-              {notifications.length === 0 ? (
+              {(() => {
+                const visible = filter === 'unread' ? notifications.filter(n => !n.isRead) : notifications;
+                return visible.length === 0 ? (
             <div className="text-center py-12">
               <MessageSquare className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No notifications from daycare yet</p>
+                  <p className="text-gray-600">{filter === 'unread' ? 'No unread notifications' : 'No notifications from daycare yet'}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {notifications.map((notification) => (
+              {visible.map((notification) => (
                 <Card key={notification.id} className={`hover:shadow-md transition-shadow ${
                   !notification.isRead ? 'border-blue-300 bg-blue-50' : ''
                 }`}>
@@ -662,17 +662,6 @@ Submitted at: ${new Date().toLocaleString()}`;
                           {!notification.isRead && (
                             <div className="flex items-center gap-2">
                               <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  markAsRead(notification.id);
-                                }}
-                                className="text-xs text-blue-600 hover:bg-blue-50 border-blue-200 hover:border-blue-300"
-                              >
-                                Mark as read
-                              </Button>
                             </div>
                           )}
                         </div>
@@ -727,7 +716,8 @@ Submitted at: ${new Date().toLocaleString()}`;
                 </Card>
               ))}
             </div>
-          )}
+          );
+              })()}
         </CardContent>
       </Card>
     </div>

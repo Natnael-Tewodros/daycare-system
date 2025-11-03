@@ -46,9 +46,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+
+    const where: any = {};
+    if (status && ['pending', 'approved', 'rejected'].includes(status)) {
+      where.status = status;
+    }
+
     const enrollmentRequests = await prisma.enrollmentRequest.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
     });
 

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         },
         include: {
           organization: true,
-          servant: true,
+          caregiver: true,
           room: true
         }
       });
