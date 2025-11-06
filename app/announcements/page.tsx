@@ -20,6 +20,7 @@ interface Announcement {
   type: string;
   createdAt: string;
   isActive: boolean;
+  attachments?: string[];
 }
 
 export default function AnnouncementsPage() {
@@ -221,6 +222,30 @@ export default function AnnouncementsPage() {
                     <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                       {announcement.content}
                     </p>
+                    {Array.isArray(announcement.attachments) && announcement.attachments.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {announcement.attachments.map((url, idx) => {
+                          const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url);
+                          return (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded border bg-white hover:bg-gray-50 text-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {isImage ? (
+                                <img src={url} alt="attachment" className="h-16 w-16 object-cover rounded" />
+                              ) : (
+                                <FileText className="h-4 w-4 text-gray-600" />
+                              )}
+                              <span className="max-w-[220px] truncate">{url.split('/').pop()}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

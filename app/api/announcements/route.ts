@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { join } from 'path';
+import { mkdir, writeFile } from 'fs/promises';
+
+async function deleteExpiredAnnouncements(): Promise<number> {
+  const allWithExpiry = await prisma.announcement.findMany({
+    where: { visibilityDays: { not: null } },
+    select: { id: true, createdAt: true, visibilityDays: true }
+  });
+  const now = Date.now();
+  const expiredIds = allWithExpiry
+    .filter(a => {
+      const days = a.visibilityDays as number;
+      const ageDays = Math.floor((now - new Date(a.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      return ageDays > days;
+    })
+    .map(a => a.id);
+  if (expiredIds.length === 0) return 0;
+  const result = await prisma.announcement.deleteMany({ where: { id: { in: expiredIds } } });
+  return result.count;
+}
 
 // Get all active announcements (public)
 export async function GET() {
   try {
+    // Cleanup expired announcements opportunistically
+    deleteExpiredAnnouncements().catch(() => {});
     const announcements = await prisma.announcement.findMany({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' }
@@ -31,7 +53,43 @@ export async function GET() {
 // Create new announcement (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const { title, content, type, visibilityDays } = await request.json();
+    const contentType = request.headers.get('content-type') || '';
+    let title: string;
+    let content: string;
+    let type: string | undefined;
+    let visibilityDays: number | null | undefined;
+    let attachmentPaths: string[] = [];
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      title = (formData.get('title') as string) || '';
+      content = (formData.get('content') as string) || '';
+      type = (formData.get('type') as string) || 'GENERAL';
+      const vis = formData.get('visibilityDays') as string | null;
+      visibilityDays = vis ? Number.parseInt(vis, 10) : null;
+
+      const files = formData.getAll('attachments') as File[];
+      if (files && files.length > 0) {
+        const uploadDir = join(process.cwd(), 'public', 'uploads');
+        await mkdir(uploadDir, { recursive: true });
+        for (const file of files) {
+          if (!file || file.size === 0) continue;
+          const bytes = await file.arrayBuffer();
+          const buffer = Buffer.from(bytes);
+          const filename = `${Date.now()}-${file.name}`;
+          const filepath = join(uploadDir, filename);
+          await writeFile(filepath, buffer);
+          attachmentPaths.push(`/uploads/${filename}`);
+        }
+      }
+    } else {
+      const body = await request.json();
+      title = body.title;
+      content = body.content;
+      type = body.type || 'GENERAL';
+      visibilityDays = body.visibilityDays ?? null;
+      attachmentPaths = Array.isArray(body.attachments) ? body.attachments : [];
+    }
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
@@ -41,8 +99,9 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         content,
-        type: type || 'GENERAL',
-        visibilityDays: visibilityDays || null
+        type: (type as any) || 'GENERAL',
+        visibilityDays: visibilityDays || null,
+        attachments: attachmentPaths
       }
     });
 
