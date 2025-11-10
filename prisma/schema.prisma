@@ -51,6 +51,7 @@ model Child {
   site                Site?                @relation("SiteChildren", fields: [siteId], references: [id])
   eventParticipations EventParticipation[]
   reports             Report[]
+  dailyObservations   DailyObservation[]
 }
 
 model Caregiver {
@@ -127,12 +128,56 @@ model Attendance {
 }
 
 model Report {
-  id        Int      @id @default(autoincrement())
-  childId   Int
-  title     String
-  content   String
-  createdAt DateTime @default(now())
-  child     Child    @relation(fields: [childId], references: [id])
+  id           Int       @id @default(autoincrement())
+  childId      Int
+  title        String
+  content      String
+  reportType   String    @default("weekly") // "weekly", "monthly", "custom"
+  weekStart    DateTime? // Start of the reporting period
+  weekEnd      DateTime? // End of the reporting period
+  createdAt    DateTime  @default(now())
+  child        Child     @relation(fields: [childId], references: [id])
+}
+
+model DailyObservation {
+  id              Int       @id @default(autoincrement())
+  childId         Int
+  observationDate DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Activities & Learning
+  activities      String[]  // List of activities participated in
+  engagementLevel String?   // "low", "medium", "high"
+  skillNotes      String?   // Notes about skill development
+  
+  // Behavior & Emotional
+  mood            String?   // "happy", "calm", "energetic", "tired", etc.
+  cooperation     String?   // "excellent", "good", "needs_reminders"
+  socialNotes     String?   // Notes about social interactions
+  
+  // Health & Hygiene
+  healthStatus    String?   // "healthy", "mild_symptoms", etc.
+  hygieneNotes    String?   // Notes about hygiene
+  energyLevel     String?   // "high", "normal", "low"
+  eatingHabits    String?   // "good", "fair", "poor"
+  
+  // Meals
+  breakfastStatus String?   // "eaten", "partial", "skipped"
+  lunchStatus     String?   // "eaten", "partial", "skipped"
+  snackStatus     String?   // "eaten", "partial", "skipped"
+  
+  // Sleep
+  napStartTime    DateTime?
+  napDuration     Int?      // Duration in minutes
+  sleepQuality    String?   // "restful", "light", "troubled"
+  
+  // Teacher Notes
+  teacherNotes    String?
+  
+  child           Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  
+  @@index([childId, observationDate])
 }
 
 model EnrollmentRequest {

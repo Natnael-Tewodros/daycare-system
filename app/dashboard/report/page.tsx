@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +16,9 @@ import {
   Filter,
   RefreshCw,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  UserCheck,
+  ClipboardList
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -63,8 +66,17 @@ interface ChildrenByOrganization {
   percentage: number;
 }
 
+interface OverviewStats {
+  totalChildren: number;
+  totalCaregivers: number;
+  totalOrganizations: number;
+  todaysAttendance: number;
+  pendingEnrollmentRequests: number;
+}
+
 
 export default function ReportPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -73,6 +85,10 @@ export default function ReportPage() {
   const [childrenByGender, setChildrenByGender] = useState<ChildrenByGender[]>([]);
   const [childrenByOrganization, setChildrenByOrganization] = useState<ChildrenByOrganization[]>([]);
   const [eventData, setEventData] = useState<any[]>([]);
+  const [childrenList, setChildrenList] = useState<{ id: number; fullName: string }[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [childrenLoading, setChildrenLoading] = useState(true);
+  const [overview, setOverview] = useState<OverviewStats | null>(null);
   
   // Filters
   const [attendancePeriod, setAttendancePeriod] = useState('daily');
@@ -84,23 +100,46 @@ export default function ReportPage() {
     fetchAllReports();
   }, [attendancePeriod, selectedDate, selectedYear, selectedMonth]);
 
+  useEffect(() => {
+    // Load children for AI report launcher
+    const loadChildren = async () => {
+      try {
+        setChildrenLoading(true);
+        const res = await fetch('/api/children');
+        if (!res.ok) return;
+        const data = await res.json();
+        const mapped = Array.isArray(data)
+          ? data.map((c: any) => ({ id: c.id, fullName: c.fullName }))
+          : [];
+        setChildrenList(mapped);
+      } catch {
+        // non-blocking
+      } finally {
+        setChildrenLoading(false);
+      }
+    };
+    loadChildren();
+  }, []);
+
   const fetchAllReports = async () => {
     try {
       setLoading(true);
       setError(null);
 
       // Fetch all reports in parallel
-      const [eventRes, attendanceRes, genderRes, orgRes] = await Promise.all([
+      const [eventRes, attendanceRes, genderRes, orgRes, overviewRes] = await Promise.all([
         fetch('/api/reports/events'),
         fetch(`/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}`),
         fetch('/api/reports/children-by-gender'),
         fetch('/api/reports/children-by-organization'),
+        fetch('/api/dashboard/overview'),
       ]);
 
       // Process the responses
       const attendanceReport = await attendanceRes.json();
       const genderData = await genderRes.json();
       const orgData = await orgRes.json();
+      const overviewData = overviewRes.ok ? await overviewRes.json() : null;
       
       // Handle event response with better error handling
       let events = [];
@@ -156,6 +195,15 @@ export default function ReportPage() {
       setChildrenByGender(Array.isArray(genderData) ? genderData : []);
       setChildrenByOrganization(Array.isArray(orgData) ? orgData : []);
       setEventData(processedEvents);
+      if (overviewData && !overviewData.error) {
+        setOverview({
+          totalChildren: overviewData.totalChildren ?? 0,
+          totalCaregivers: overviewData.totalCaregivers ?? overviewData.totalServants ?? 0,
+          totalOrganizations: overviewData.totalOrganizations ?? 0,
+          todaysAttendance: overviewData.todaysAttendance ?? 0,
+          pendingEnrollmentRequests: overviewData.pendingEnrollmentRequests ?? 0,
+        });
+      }
 
     } catch (err) {
       console.error('Error fetching reports:', err);
@@ -363,6 +411,67 @@ export default function ReportPage() {
             </div>
           </div>
         </div>
+
+        {/* Child AI Reports Launcher */}
+        <Card className="mb-8 border-blue-100 bg-white shadow-sm">
+          <CardHeader>
+            <div className="flex flex-col gap-2">
+              <CardTitle className="flex items-center gap-2 text-blue-700">
+                <Filter className="h-5 w-5" />
+                Child AI Reports
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Select a child to record daily observations or view the generated weekly AI summary. Observations feed directly into the weekly parent-ready report.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col lg:flex-row lg:items-end gap-6">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-2 block">Select Child</label>
+                <Select
+                  value={selectedChildId}
+                  onValueChange={setSelectedChildId}
+                  disabled={!childrenList.length || childrenLoading}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue
+                      placeholder={childrenLoading ? "Loading children..." : childrenList.length ? "Choose a child" : "No children available"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {childrenList.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <Button
+                  className="sm:flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={!selectedChildId}
+                  onClick={() => selectedChildId && router.push(`/dashboard/children/${selectedChildId}/observations`)}
+                >
+                  Record Daily Observation
+                </Button>
+                <Button
+                  variant="outline"
+                  className="sm:flex-1"
+                  disabled={!selectedChildId}
+                  onClick={() => selectedChildId && router.push(`/dashboard/children/${selectedChildId}/reports`)}
+                >
+                  View Weekly AI Report
+                </Button>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Tip: Log observations each day first, then open the weekly AI report to generate the family-friendly summary.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Filters */}
         <Card className="mb-8">
@@ -605,7 +714,7 @@ export default function ReportPage() {
         </div>
 
         {/* Summary Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
@@ -615,8 +724,38 @@ export default function ReportPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Total Children</p>
                   <p className="text-2xl font-bold">
-                    {childrenByGender.reduce((sum, item) => sum + item.count, 0)}
+                    {overview?.totalChildren ?? childrenByGender.reduce((sum, item) => sum + item.count, 0)}
                   </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-teal-100 rounded-lg">
+                  <UserCheck className="h-6 w-6 text-teal-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Total Caregivers</p>
+                  <p className="text-2xl font-bold">
+                    {overview?.totalCaregivers ?? 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Building2 className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-muted-foreground">Organizations</p>
+                  <p className="text-2xl font-bold">{overview?.totalOrganizations ?? childrenByOrganization.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -643,12 +782,12 @@ export default function ReportPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Building2 className="h-6 w-6 text-purple-600" />
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Activity className="h-6 w-6 text-orange-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Organizations</p>
-                  <p className="text-2xl font-bold">{childrenByOrganization.length}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Active Events</p>
+                  <p className="text-2xl font-bold">{eventData.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -657,12 +796,13 @@ export default function ReportPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Activity className="h-6 w-6 text-orange-600" />
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <ClipboardList className="h-6 w-6 text-amber-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Active Events</p>
-                  <p className="text-2xl font-bold">{eventData.length}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Pending Enrollments</p>
+                  <p className="text-2xl font-bold">{overview?.pendingEnrollmentRequests ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Today's attendance: {overview?.todaysAttendance ?? 0}</p>
                 </div>
               </div>
             </CardContent>

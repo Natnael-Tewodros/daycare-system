@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Save, RefreshCw, Loader2, UserPlus, Edit3, Calendar, MapPin, Building, UserCheck, Users, ChevronUp, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ const EMPTY_FORM: ChildForm = {
 };
 
 export default function AdminPage() {
+  const router = useRouter();
   const [parent, setParent] = useState<ParentInfo>({ username: "" });
   const [forms, setForms] = useState<ChildForm[]>([]);
   const [children, setChildren] = useState<ChildRow[]>([]);
@@ -378,6 +380,7 @@ export default function AdminPage() {
                             openEdit(child);
                           }}
                           className="text-blue-600 hover:bg-blue-50"
+                          title="Edit Child"
                         >
                           <Edit3 className="w-4 h-4" />
                         </Button>
