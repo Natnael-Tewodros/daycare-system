@@ -21,6 +21,7 @@ interface Announcement {
   type: string;
   createdAt: string;
   isRead: boolean;
+  attachments?: string[];
 }
 
 export default function HomePage() {
@@ -159,6 +160,30 @@ export default function HomePage() {
                           {a.title}
                         </h3>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{a.content}</p>
+                        {Array.isArray(a.attachments) && a.attachments.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {a.attachments.map((url, idx) => {
+                              const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url);
+                              return (
+                                <a
+                                  key={idx}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 px-2 py-1 rounded border bg-white/80 hover:bg-white text-xs"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {isImage ? (
+                                    <img src={url} alt="attachment" className="h-10 w-10 object-cover rounded" />
+                                  ) : (
+                                    <FileText className="h-4 w-4 text-gray-600" />
+                                  )}
+                                  <span className="max-w-[140px] truncate">{url.split('/').pop()}</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Card>

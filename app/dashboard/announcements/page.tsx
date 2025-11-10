@@ -38,6 +38,7 @@ export default function AnnouncementsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [attachmentFiles, setAttachmentFiles] = useState<FileList | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -75,11 +76,29 @@ export default function AnnouncementsPage() {
       const url = editingId ? `/api/announcements/${editingId}` : '/api/announcements';
       const method = editingId ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      let response: Response;
+      if (attachmentFiles && attachmentFiles.length > 0) {
+        const fd = new FormData();
+        fd.set('title', formData.title);
+        fd.set('content', formData.content);
+        fd.set('type', formData.type);
+        if (formData.visibilityDays !== null && formData.visibilityDays !== undefined) {
+          fd.set('visibilityDays', String(formData.visibilityDays));
+        }
+        fd.set('isActive', String(formData.isActive));
+        Array.from(attachmentFiles).forEach((file) => fd.append('attachments', file));
+
+        response = await fetch(url, {
+          method,
+          body: fd
+        });
+      } else {
+        response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+      }
 
       if (response.ok) {
         setMessage(editingId ? "Announcement updated successfully!" : "Announcement created successfully!");
@@ -137,6 +156,7 @@ export default function AnnouncementsPage() {
       isActive: true,
       visibilityDays: null
     });
+    setAttachmentFiles(null);
     setEditingId(null);
     setIsCreating(false);
   };
@@ -282,6 +302,17 @@ export default function AnnouncementsPage() {
                   rows={6}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="attachments">Attachments</Label>
+                <Input
+                  id="attachments"
+                  type="file"
+                  multiple
+                  onChange={(e) => setAttachmentFiles(e.currentTarget.files)}
+                />
+                <p className="text-xs text-gray-500">Optional. You can attach images or documents.</p>
               </div>
 
               <div className="flex items-center gap-2">
