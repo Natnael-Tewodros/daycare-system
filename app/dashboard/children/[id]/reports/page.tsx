@@ -268,6 +268,7 @@ export default function ChildReportsPage() {
           childId: Number(childId),
           weekStart: startISO,
           weekEnd: endISO,
+          period,
         }),
       });
 
@@ -329,7 +330,8 @@ export default function ChildReportsPage() {
         cursorY += 18;
       });
 
-      doc.save(`${report.title.replace(/\s+/g, "_")}.pdf`);
+      const safeName = report.title.replace(/[^a-z0-9-_]+/gi, "_");
+      doc.save(`${safeName}.pdf`);
     } catch (err) {
       console.error("Failed to download PDF", err);
       alert("Failed to generate PDF. Please try again.");

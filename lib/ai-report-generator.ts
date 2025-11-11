@@ -44,10 +44,12 @@ interface ReportData {
   observations: DailyObservation[];
   weekStart: Date;
   weekEnd: Date;
+  periodLabel?: 'Daily' | 'Weekly' | 'Monthly';
 }
 
 export function generateWeeklyReport(data: ReportData): string {
-  const { child, attendances, observations, weekStart, weekEnd } = data;
+  const { child, attendances, observations, weekStart, weekEnd, periodLabel } = data;
+  const label = periodLabel || 'Weekly';
   
   // Analyze activities
   const allActivities = observations.flatMap(o => o.activities || []);
@@ -91,8 +93,8 @@ export function generateWeeklyReport(data: ReportData): string {
 
   // Generate report sections
   const report = `
-# Weekly Report for ${child.fullName}
-**Week of:** ${weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+# ${label} Report for ${child.fullName}
+**${label === 'Daily' ? 'Date' : label === 'Monthly' ? 'Month of' : 'Week of'}:** ${weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${label === 'Daily' ? '' : ` - ${weekEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
 
 ---
 
@@ -193,7 +195,7 @@ ${generateAISummary(child, {
 ---
 
 *Report generated on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}*
-*This report is based on recorded observations for the specified week.*
+*This report is based on recorded observations for the specified period.*
   `.trim();
 
   return report;

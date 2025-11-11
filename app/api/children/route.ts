@@ -167,7 +167,7 @@ export async function GET(request: Request) {
       parentEmail: c.parentEmail, // Add parentEmail field
       gender: c.gender,
       relationship: c.relationship,
-      site: c.site?.name || 'Head Office',
+      site: c.site?.name || 'Unassigned',
       organization: {
         name: c.organization?.name ?? '',
         id: c.organization?.id ?? 0
@@ -193,7 +193,7 @@ export async function GET(request: Request) {
             ? c.childInfoFile
             : `/uploads/${c.childInfoFile}`)
         : null,
-      // TODO: Add approvalStatus after migration: approvalStatus: c.approvalStatus || 'pending',
+      approvalStatus: (c as any).approvalStatus || 'active',
       activities: c.attendances.map(a => ({
         id: a.id,
         status: a.status,

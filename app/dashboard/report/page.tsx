@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,7 +17,8 @@ import {
   CheckCircle,
   AlertCircle,
   UserCheck,
-  ClipboardList
+  ClipboardList,
+  MapPin
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -76,20 +76,87 @@ interface OverviewStats {
 
 
 export default function ReportPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Report data
   const [attendanceData, setAttendanceData] = useState<AttendanceReport[]>([]);
   const [childrenByGender, setChildrenByGender] = useState<ChildrenByGender[]>([]);
-  const [childrenByOrganization, setChildrenByOrganization] = useState<ChildrenByOrganization[]>([]);
   const [eventData, setEventData] = useState<any[]>([]);
-  const [childrenList, setChildrenList] = useState<{ id: number; fullName: string }[]>([]);
-  const [childSearch, setChildSearch] = useState<string>("");
-  const [selectedChildId, setSelectedChildId] = useState<string>("");
-  const [childrenLoading, setChildrenLoading] = useState(true);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
+  // Stats
+  const [stats, setStats] = useState<any | null>(null);
+  const [statsYear, setStatsYear] = useState<string>(new Date().getFullYear().toString());
+  const [viewTermOpen, setViewTermOpen] = useState(false);
+  const [viewTerm, setViewTerm] = useState<{ reason: string; notes: string; fullName: string } | null>(null);
+
+  const orgChartData = stats ? {
+    labels: (stats.byOrganization || []).map((o: any) => o.organization),
+    datasets: [
+      {
+        label: 'Children',
+        data: (stats.byOrganization || []).map((o: any) => o.count),
+        backgroundColor: '#3B82F6',
+      }
+    ],
+  } : { labels: [], datasets: [] };
+
+  const siteChartData = stats ? {
+    labels: (stats.bySite || []).map((s: any) => s.site),
+    datasets: [
+      {
+        label: 'Children',
+        data: (stats.bySite || []).map((s: any) => s.count),
+        backgroundColor: '#10B981',
+      }
+    ],
+  } : { labels: [], datasets: [] };
+
+  const barOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' as const },
+    },
+    scales: {
+      x: { ticks: { color: '#374151' } },
+      y: { beginAtZero: true, ticks: { color: '#374151' } },
+    },
+  };
+
+  const exportStatsPdf = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      let y = margin;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(`Children Report - ${statsYear}`, margin, y); y += 20;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      if (stats) {
+        doc.text(`Current Children: ${stats.currentCount}`, margin, y); y += 16;
+        doc.text(`Left Last Year: ${stats.leftLastYear}`, margin, y); y += 16;
+        doc.text(`Joined This Year: ${stats.joinedThisYear}`, margin, y); y += 24;
+        doc.text('Children by Organization:', margin, y); y += 16;
+        (stats.byOrganization || []).forEach((o: any) => { doc.text(`- ${o.organization}: ${o.count}`, margin + 14, y); y += 14; });
+        y += 8;
+        doc.text('Children by Site:', margin, y); y += 16;
+        (stats.bySite || []).forEach((s: any) => { doc.text(`- ${s.site}: ${s.count}`, margin + 14, y); y += 14; });
+        y += 16;
+        doc.text('Terminated Children:', margin, y); y += 16;
+        (stats.terminatedInYear || []).forEach((c: any) => {
+          const row = `${new Date(c.updatedAt).toLocaleDateString()} - ${c.fullName} | Reason: ${c.reason}${c.notes ? ` | Notes: ${c.notes}` : ''}`;
+          const lines = doc.splitTextToSize(row, 515);
+          lines.forEach((line: string) => { if (y > doc.internal.pageSize.getHeight() - margin) { doc.addPage(); y = margin; } doc.text(line, margin + 14, y); y += 14; });
+        });
+      }
+      doc.save(`children_report_${statsYear}.pdf`);
+    } catch (e) {
+      alert('Failed to export PDF');
+    }
+  };
   
   // Filters
   const [attendancePeriod, setAttendancePeriod] = useState('daily');
@@ -102,25 +169,22 @@ export default function ReportPage() {
   }, [attendancePeriod, selectedDate, selectedYear, selectedMonth]);
 
   useEffect(() => {
-    // Load children for AI report launcher
-    const loadChildren = async () => {
+    const loadStats = async () => {
       try {
-        setChildrenLoading(true);
-        const res = await fetch('/api/children');
-        if (!res.ok) return;
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`/api/reports/children-stats?year=${encodeURIComponent(statsYear)}`);
+        if (!res.ok) throw new Error('Failed to load stats');
         const data = await res.json();
-        const mapped = Array.isArray(data)
-          ? data.map((c: any) => ({ id: c.id, fullName: c.fullName }))
-          : [];
-        setChildrenList(mapped);
-      } catch {
-        // non-blocking
+        setStats(data);
+      } catch (e: any) {
+        setError(e.message || 'Failed to load stats');
       } finally {
-        setChildrenLoading(false);
+        setLoading(false);
       }
     };
-    loadChildren();
-  }, []);
+    loadStats();
+  }, [statsYear]);
 
   const fetchAllReports = async () => {
     try {
@@ -128,18 +192,16 @@ export default function ReportPage() {
       setError(null);
 
       // Fetch all reports in parallel
-      const [eventRes, attendanceRes, genderRes, orgRes, overviewRes] = await Promise.all([
+      const [eventRes, attendanceRes, genderRes, overviewRes] = await Promise.all([
         fetch('/api/reports/events'),
         fetch(`/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}`),
         fetch('/api/reports/children-by-gender'),
-        fetch('/api/reports/children-by-organization'),
         fetch('/api/dashboard/overview'),
       ]);
 
       // Process the responses
       const attendanceReport = await attendanceRes.json();
       const genderData = await genderRes.json();
-      const orgData = await orgRes.json();
       const overviewData = overviewRes.ok ? await overviewRes.json() : null;
       
       // Handle event response with better error handling
@@ -160,7 +222,7 @@ export default function ReportPage() {
       }
 
       // Transform event data for the report
-      let processedEvents = [];
+      let processedEvents: any[] = [];
       if (Array.isArray(events)) {
         if (events.length > 0) {
           processedEvents = events.map((event) => {
@@ -194,7 +256,6 @@ export default function ReportPage() {
 
       setAttendanceData(Array.isArray(attendanceReport) ? attendanceReport : []);
       setChildrenByGender(Array.isArray(genderData) ? genderData : []);
-      setChildrenByOrganization(Array.isArray(orgData) ? orgData : []);
       setEventData(processedEvents);
       if (overviewData && !overviewData.error) {
         setOverview({
@@ -265,27 +326,6 @@ export default function ReportPage() {
           data: childrenByGender.map(item => item.count),
           backgroundColor: ['#3B82F6', '#EC4899', '#10B981'],
           borderColor: ['#2563EB', '#DB2777', '#059669'],
-          borderWidth: 1,
-        },
-      ],
-    };
-  };
-
-  const getOrganizationChartData = () => {
-    return {
-      labels: childrenByOrganization.map(item => item.organization),
-      datasets: [
-        {
-          label: 'Children by Organization',
-          data: childrenByOrganization.map(item => item.count),
-          backgroundColor: [
-            '#8B5CF6',
-            '#06B6D4',
-            '#F59E0B',
-            '#EF4444',
-            '#10B981',
-            '#F97316'
-          ],
           borderWidth: 1,
         },
       ],
@@ -427,99 +467,213 @@ export default function ReportPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-                Reports & Analytics
+                Reports
               </h1>
-              <p className="text-lg text-muted-foreground">Comprehensive insights into your daycare operations</p>
+              <p className="text-lg text-muted-foreground">Generate and manage reports</p>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={fetchAllReports}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+            <div>
+              <Button onClick={exportStatsPdf}>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Child AI Reports Launcher */}
-        <Card className="mb-8 border-blue-100 bg-white shadow-sm">
+        {/* Children Statistics */}
+        <Card className="mb-8">
           <CardHeader>
-            <div className="flex flex-col gap-2">
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Filter className="h-5 w-5" />
-                Child AI Reports
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Select a child to record daily observations or view the generated weekly AI summary. Observations feed directly into the weekly parent-ready report.
-              </p>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Children Statistics
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-              <div className="flex-1 max-w-sm">
-                <label className="text-xs font-medium mb-1.5 block text-gray-700">Search Child</label>
-                <div className="relative">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" />
-                  </svg>
-                  <input
-                    type="text"
-                    className="w-full h-9 pl-8 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
-                    placeholder={childrenLoading ? "Loading children..." : "Search by name"}
-                    value={childSearch}
-                    onChange={(e) => setChildSearch(e.target.value)}
-                  />
-                </div>
-                <div className="mt-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white divide-y">
-                  {childrenList
-                    .filter((c) => c.fullName.toLowerCase().includes(childSearch.trim().toLowerCase()))
-                    .slice(0, 10)
-                    .map((c) => {
-                      const isSelected = String(c.id) === selectedChildId;
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Year</label>
+                <Select value={statsYear} onValueChange={setStatsYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const y = new Date().getFullYear() - i;
                       return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => setSelectedChildId(String(c.id))}
-                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 transition-colors ${
-                            isSelected ? "bg-blue-50 text-blue-700" : "text-gray-800"
-                          }`}
-                        >
-                          {c.fullName}
-                        </button>
+                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
                       );
                     })}
-                  {!childrenLoading && childrenList.filter((c) => c.fullName.toLowerCase().includes(childSearch.trim().toLowerCase())).length === 0 && (
-                    <div className="px-3 py-1.5 text-xs text-gray-500">No matches</div>
-                  )}
-                </div>
-                {selectedChildId && (
-                  <p className="mt-1.5 text-xs text-gray-500">Selected child ID: {selectedChildId}</p>
-                )}
+                  </SelectContent>
+                </Select>
               </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                <Button
-                  className="sm:flex-1 bg-blue-600 hover:bg-blue-700"
-                  disabled={!selectedChildId}
-                  onClick={() => selectedChildId && router.push(`/dashboard/children/${selectedChildId}/observations`)}
-                >
-                  Record Daily Observation
-                </Button>
-                <Button
-                  variant="outline"
-                  className="sm:flex-1"
-                  disabled={!selectedChildId}
-                  onClick={() => selectedChildId && router.push(`/dashboard/children/${selectedChildId}/reports`)}
-                >
-                  View Weekly AI Report
-                </Button>
-              </div>
+              {stats && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Current Children</label>
+                    <div className="text-2xl font-bold">{stats.currentCount}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Left Last Year</label>
+                    <div className="text-2xl font-bold">{stats.leftLastYear}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Joined This Year</label>
+                    <div className="text-2xl font-bold">{stats.joinedThisYear}</div>
+                  </div>
+                </>
+              )}
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Tip: Log observations each day first, then open the weekly AI report to generate the family-friendly summary.
-            </p>
           </CardContent>
         </Card>
+
+        {/* Charts at top */}
+        {stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-purple-600" />
+                  Children by Organization
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <Bar data={orgChartData} options={barOptions} />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-blue-600" />
+                  Children by Site
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <Bar data={siteChartData} options={barOptions} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Users className="h-6 w-6 text-blue-600" />
+                  <div>
+                    <div className="text-sm text-gray-600">Total Children (This Year)</div>
+                    <div className="text-2xl font-bold">{stats.totalThisYear}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Users className="h-6 w-6 text-gray-700" />
+                  <div>
+                    <div className="text-sm text-gray-600">Total Children (Last Year)</div>
+                    <div className="text-2xl font-bold">{stats.totalLastYear}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Users className="h-6 w-6 text-blue-600" />
+                  <div>
+                    <div className="text-sm text-gray-600">Current Year</div>
+                    <div className="text-2xl font-bold">{stats.year}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {stats && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                Terminated Children (Year {stats.year})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats.terminatedInYear?.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Child</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {stats.terminatedInYear.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-sm text-gray-900">{c.fullName}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700">{c.reason}</td>
+                          <td className="px-4 py-2 text-sm text-gray-600 max-w-[280px] truncate" title={c.notes}>{c.notes || '—'}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700">{c.organization}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700">{c.site}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{new Date(c.updatedAt).toLocaleDateString()}</td>
+                          <td className="px-4 py-2 text-sm text-right">
+                            {c.notes && (
+                              <button className="text-blue-600 hover:underline" onClick={() => { setViewTerm({ reason: c.reason, notes: c.notes, fullName: c.fullName }); setViewTermOpen(true); }}>
+                                View
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No terminated children recorded for this year.</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Child AI Reports removed from Report page */}
+
+        {/* Children by Gender before Attendance */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <Card className="lg:col-span-1 w-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChart className="h-5 w-5 text-pink-600" />
+                Children by Gender
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                {childrenByGender.length > 0 ? (
+                  <Pie data={getGenderChartData()} options={pieChartOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No gender data available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filters */}
         <Card className="mb-8">
@@ -630,8 +784,8 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
-        {/* Events Report */}
-        <Card className="col-span-2">
+        {/* Event Participation moved below Attendance */}
+        <Card className="col-span-2 mb-10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-purple-600" />
@@ -674,7 +828,6 @@ export default function ReportPage() {
                       } catch (e) {
                         console.error('Error parsing event date:', e);
                       }
-                        
                       return (
                         <tr key={event.eventId || `event-${index}`} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -715,57 +868,6 @@ export default function ReportPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Children Reports Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Children by Gender */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChart className="h-5 w-5 text-pink-600" />
-                Children by Gender
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                {childrenByGender.length > 0 ? (
-                  <Pie data={getGenderChartData()} options={pieChartOptions} />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                      <p className="text-muted-foreground">No gender data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Children by Organization */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-purple-600" />
-                Children by Organization
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                {childrenByOrganization.length > 0 ? (
-                  <Pie data={getOrganizationChartData()} options={pieChartOptions} />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                      <p className="text-muted-foreground">No organization data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Summary Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -809,7 +911,7 @@ export default function ReportPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Organizations</p>
-                  <p className="text-2xl font-bold">{overview?.totalOrganizations ?? childrenByOrganization.length}</p>
+                  <p className="text-2xl font-bold">{overview?.totalOrganizations ?? (stats?.byOrganization?.length ?? 0)}</p>
                 </div>
               </div>
             </CardContent>
@@ -863,6 +965,35 @@ export default function ReportPage() {
           </Card>
         </div>
       </div>
+
+        {/* View terminated details */}
+        {viewTerm && (
+          <div className={`${viewTermOpen ? '' : 'hidden'}`}>
+            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setViewTermOpen(false)}></div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                <div className="text-lg font-semibold mb-3">Termination Details</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Child</div>
+                    <div className="text-gray-900">{viewTerm.fullName}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Reason</div>
+                    <div className="text-gray-900">{viewTerm.reason}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Notes</div>
+                    <div className="text-gray-800 whitespace-pre-wrap break-words">{viewTerm.notes || '—'}</div>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button variant="outline" onClick={() => setViewTermOpen(false)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }

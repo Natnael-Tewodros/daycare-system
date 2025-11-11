@@ -6,7 +6,7 @@ import { generateWeeklyReport } from '@/lib/ai-report-generator';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { childId, weekStart, weekEnd } = body;
+    const { childId, weekStart, weekEnd, period } = body;
 
     if (!childId) {
       return NextResponse.json({ error: 'Child ID is required' }, { status: 400 });
@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
       observations = [];
     }
 
+    // Determine period label
+    const normalizedPeriod = typeof period === 'string' ? period.toLowerCase() : 'weekly';
+    const periodLabel = normalizedPeriod === 'daily' ? 'Daily' : normalizedPeriod === 'monthly' ? 'Monthly' : 'Weekly';
+
     // Generate the AI report
     const reportContent = generateWeeklyReport({
       child,
@@ -74,15 +78,16 @@ export async function POST(request: NextRequest) {
       observations,
       weekStart: startDate,
       weekEnd: endDate,
+      periodLabel,
     });
 
     // Save the report to database
     const report = await prisma.report.create({
       data: {
         childId: Number(childId),
-        title: `Weekly Report - ${child.fullName} (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`,
+        title: `${periodLabel} Report - ${child.fullName} (${startDate.toLocaleDateString()}${periodLabel === 'Daily' ? '' : ` - ${endDate.toLocaleDateString()}`})`,
         content: reportContent,
-        reportType: 'weekly',
+        reportType: normalizedPeriod === 'daily' ? 'daily' : normalizedPeriod === 'monthly' ? 'monthly' : 'weekly',
         weekStart: startDate,
         weekEnd: endDate,
       },

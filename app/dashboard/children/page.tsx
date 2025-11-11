@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import ChildFormCard from "@/components/children/ChildFormCard";
 import EditChildDialog from "@/components/children/EditChildDialog";
 import type { ChildForm, ParentInfo, ChildRow } from "./types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const EMPTY_FORM: ChildForm = {
   fullName: "", relationship: "", gender: "", dateOfBirth: "", site: "", organization: "", profilePic: null, childInfoFile: null, otherFile: null
@@ -24,6 +26,15 @@ export default function AdminPage() {
   const [editing, setEditing] = useState<ChildRow | null>(null);
   const [editData, setEditData] = useState<ChildForm>(EMPTY_FORM);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  // Termination state
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const [terminateChild, setTerminateChild] = useState<ChildRow | null>(null);
+  const [terminateReason, setTerminateReason] = useState<string>("GRADUATED");
+  const [terminateNotes, setTerminateNotes] = useState<string>("");
+  // View termination details
+  const [viewTerminateOpen, setViewTerminateOpen] = useState(false);
+  const [viewReasonText, setViewReasonText] = useState<string>("");
+  const [viewNotesText, setViewNotesText] = useState<string>("");
 
   const fetchChildren = async () => {
     setLoading(true);
@@ -283,6 +294,7 @@ export default function AdminPage() {
                   <TableHeader>Site</TableHeader>
                   <TableHeader>Organization</TableHeader>
                   <TableHeader>Documents</TableHeader>
+                  <TableHeader>Status</TableHeader>
                   <TableHeader>Actions</TableHeader>
                 </tr>
               </thead>
@@ -371,6 +383,55 @@ export default function AdminPage() {
                         )}
                       </TableCell>
 
+                      {/* Status */}
+                      <TableCell>
+                        {(() => {
+                          const status = (child as any).approvalStatus || "";
+                          const lower = String(status).toLowerCase();
+                          if (lower.startsWith("terminated")) {
+                            // format: terminated:REASON[:notes]
+                            const parts = String(status).split(":");
+                            const rawReason = (parts[1] || "UNKNOWN").toUpperCase();
+                            const reasonMap: Record<string, string> = {
+                              GRADUATED: "Graduated",
+                              PARENT_LEFT_COMPANY: "Parent left company",
+                              TRANSFERRED: "Transferred",
+                              DECEASED: "Death",
+                              OTHER: "Other",
+                              UNKNOWN: "Unknown",
+                            };
+                            const reasonText = reasonMap[rawReason] || rawReason;
+                            const notes = parts.length > 2 ? parts.slice(2).join(":") : "";
+                            return (
+                              <div className="flex flex-col gap-1">
+                                <Badge className="bg-red-100 text-red-700 border-red-200 w-fit">Terminated</Badge>
+                                <span className="text-xs text-gray-700 font-medium">Reason:</span>
+                                <span className="text-xs text-gray-600">{reasonText}</span>
+                                {notes && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-700 font-medium">Notes:</span>
+                                    <span className="text-xs text-gray-500 line-clamp-1" title={notes}>{notes}</span>
+                                    <button
+                                      className="text-xs text-blue-600 hover:underline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewReasonText(reasonText);
+                                        setViewNotesText(notes);
+                                        setViewTerminateOpen(true);
+                                      }}
+                                    >
+                                      View
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          // default non-terminated
+                          return <span className="text-sm text-gray-500">{status || "active"}</span>;
+                        })()}
+                      </TableCell>
+
                       <TableCell>
                         <Button
                           size="sm"
@@ -382,7 +443,24 @@ export default function AdminPage() {
                           className="text-blue-600 hover:bg-blue-50"
                           title="Edit Child"
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Edit3 className="w-4 h-4 mr-1.5" />
+                          <span className="hidden md:inline">Edit</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTerminateChild(child);
+                            setTerminateReason("GRADUATED");
+                            setTerminateNotes("");
+                            setTerminateOpen(true);
+                          }}
+                          className="ml-1 border-red-200 text-red-600 hover:bg-red-50 rounded-full px-3 py-1 transition-colors"
+                          title="Terminate Child"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1.5" />
+                          <span className="hidden md:inline">Terminate</span>
                         </Button>
                       </TableCell>
                     </tr>
@@ -403,6 +481,103 @@ export default function AdminPage() {
         setEditFormData={setEditData}
         onSubmit={editSubmit}
       />
+
+      {/* Terminate Dialog */}
+      <Dialog open={terminateOpen} onOpenChange={setTerminateOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Terminate Child</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Child</Label>
+              <div className="mt-1 text-gray-900 font-medium">{terminateChild?.fullName}</div>
+            </div>
+            <div>
+              <Label htmlFor="terminateReason" className="text-sm font-medium text-gray-700">Reason</Label>
+              <select
+                id="terminateReason"
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2"
+                value={terminateReason}
+                onChange={(e) => setTerminateReason(e.target.value)}
+              >
+                <option value="GRADUATED">Graduate</option>
+                <option value="PARENT_LEFT_COMPANY">Parent left the company</option>
+                <option value="TRANSFERRED">Transferred</option>
+                <option value="DECEASED">Death</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="terminateNotes" className="text-sm font-medium text-gray-700">Notes (optional)</Label>
+              <textarea
+                id="terminateNotes"
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 min-h-[80px]"
+                value={terminateNotes}
+                onChange={(e) => setTerminateNotes(e.target.value)}
+                placeholder="Add any additional details…"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setTerminateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                disabled={loading || !terminateChild}
+                onClick={async () => {
+                  if (!terminateChild) return;
+                  setLoading(true);
+                  try {
+                    const res = await fetch(`/api/children/${terminateChild.id}/terminate`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ reason: terminateReason, notes: terminateNotes })
+                    });
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}));
+                      throw new Error(err.error || "Failed to terminate child");
+                    }
+                    alert("Child terminated successfully");
+                    setTerminateOpen(false);
+                    setTerminateChild(null);
+                    fetchChildren();
+                  } catch (e: any) {
+                    alert(e?.message || "Failed to terminate child");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Confirm Termination
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Termination Details Dialog */}
+      <Dialog open={viewTerminateOpen} onOpenChange={setViewTerminateOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Termination Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <span className="text-sm font-medium text-gray-700">Reason</span>
+              <div className="mt-1 text-gray-900">{viewReasonText || "—"}</div>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-700">Notes</span>
+              <div className="mt-1 text-gray-700 whitespace-pre-wrap break-words">{viewNotesText || "—"}</div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

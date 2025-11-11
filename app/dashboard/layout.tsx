@@ -44,6 +44,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   { name: "Announcements", href: "/dashboard/announcements", icon: Bell },
   { name: "Reports", href: "/dashboard/report", icon: BarChart3 },
+  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Admins", href: "/dashboard/admin-management", icon: Shield },
 ];
 
