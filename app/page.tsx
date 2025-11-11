@@ -214,12 +214,12 @@ export default function HomePage() {
                 transition={{ delay: i * 0.1 }}
                 whileHover={{ y: -4 }}
               >
-                <Card className="p-6 text-center bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-xl shadow-lg">
-                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <Icon className="h-7 w-7" />
+                <Card className="p-6 text-center bg-gradient-to-br from-amber-50 to-rose-50 text-gray-900 rounded-xl shadow-md border-amber-100">
+                  <div className="w-14 h-14 bg-gradient-to-br from-amber-200 to-rose-200 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <Icon className="h-7 w-7 text-amber-700" />
                   </div>
                   <h3 className="font-bold text-lg mb-1">{title}</h3>
-                  <p className="text-blue-100 text-sm">{desc}</p>
+                  <p className="text-gray-600 text-sm">{desc}</p>
                 </Card>
               </motion.div>
             ))}

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Select } from '@/components/ui/select';
 
 type FormData = { 
@@ -86,6 +87,16 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
+          <div className="flex justify-center mb-2">
+            <Image
+              src="/insa.jpeg"
+              alt="INSA logo"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
+          </div>
           <CardTitle className="text-2xl font-bold text-gray-900">Create Account</CardTitle>
           <CardDescription className="text-gray-600">Join our daycare community</CardDescription>
         </CardHeader>

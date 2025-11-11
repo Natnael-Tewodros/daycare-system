@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 type FormData = { email: string; password: string };
 
@@ -139,6 +140,16 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
+          <div className="flex justify-center mb-2">
+            <Image
+              src="/insa.jpeg"
+              alt="INSA logo"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
+          </div>
           <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
           <CardDescription className="text-gray-600">Sign in to your account to continue</CardDescription>
         </CardHeader>

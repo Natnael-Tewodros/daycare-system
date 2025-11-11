@@ -349,6 +349,39 @@ export default function CaregiversPage() {
           </CardContent>
         </Card>
 
+        {/* Children search results showing their caregiver */}
+        {search.trim() && (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="mb-3 text-sm font-medium text-gray-700">
+                Children matching “{search}”
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                {children
+                  .filter(c => (c.fullName || '').toLowerCase().includes(search.toLowerCase()))
+                  .slice(0, 8)
+                  .map(child => {
+                    const caregiver = servants.find(s => s.id?.toString() === child.assignedServantId?.toString());
+                    return (
+                      <div key={child.id} className="flex items-center justify-between rounded-lg border p-3 bg-white">
+                        <div>
+                          <div className="font-medium text-gray-900">{child.fullName}</div>
+                          <div className="text-xs text-gray-500">Caregiver: {caregiver?.fullName || 'Unassigned'}</div>
+                        </div>
+                        <Badge variant={caregiver ? 'default' : 'secondary'} className="whitespace-nowrap">
+                          {caregiver ? 'Assigned' : 'Unassigned'}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                {children.filter(c => (c.fullName || '').toLowerCase().includes(search.toLowerCase())).length === 0 && (
+                  <div className="text-sm text-gray-500">No children found.</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Table */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
