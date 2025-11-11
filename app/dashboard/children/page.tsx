@@ -35,6 +35,11 @@ export default function AdminPage() {
   const [viewTerminateOpen, setViewTerminateOpen] = useState(false);
   const [viewReasonText, setViewReasonText] = useState<string>("");
   const [viewNotesText, setViewNotesText] = useState<string>("");
+  // Pagination
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(children.length / PAGE_SIZE));
+  const paginatedChildren = children.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const fetchChildren = async () => {
     setLoading(true);
@@ -306,7 +311,7 @@ export default function AdminPage() {
                     </td>
                   </tr>
                 ) : (
-                  children.map((child) => (
+                  paginatedChildren.map((child) => (
                     <tr 
                       key={child.id} 
                       className="hover:bg-blue-50/30 transition-colors cursor-pointer"
@@ -469,6 +474,32 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+          {/* Pagination controls */}
+          {children.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                Page {page} of {totalPages}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || loading}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || loading}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
