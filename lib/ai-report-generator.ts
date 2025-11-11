@@ -49,12 +49,6 @@ interface ReportData {
 export function generateWeeklyReport(data: ReportData): string {
   const { child, attendances, observations, weekStart, weekEnd } = data;
   
-  // Calculate attendance metrics
-  const presentDays = attendances.filter(a => a.status.toLowerCase() === 'present' || a.status.toLowerCase() === 'checked-in').length;
-  const absentDays = attendances.filter(a => a.status.toLowerCase() === 'absent').length;
-  const totalDays = attendances.length || 1;
-  const attendancePercentage = Math.round((presentDays / totalDays) * 100);
-
   // Analyze activities
   const allActivities = observations.flatMap(o => o.activities || []);
   const uniqueActivities = [...new Set(allActivities)];
@@ -104,24 +98,11 @@ export function generateWeeklyReport(data: ReportData): string {
 
 ## 1. General Overview
 
-${generateGeneralOverview(child, presentDays, observations.length, engagementText)}
+${generateGeneralOverview(child, observations.length, engagementText)}
 
 ---
 
-## 2. Attendance Report
-
-**Days Present:** ${presentDays} days
-**Days Absent:** ${absentDays} days
-**Attendance Rate:** ${attendancePercentage}%
-
-${presentDays > absentDays 
-  ? `${child.fullName} maintained ${presentDays > 3 ? 'excellent' : 'good'} attendance this week, showing consistent participation in daily activities.`
-  : `We noticed ${child.fullName} was absent for ${absentDays} day${absentDays > 1 ? 's' : ''} this week. We hope to see ${child.gender === 'MALE' ? 'him' : child.gender === 'FEMALE' ? 'her' : 'them'} back soon!`
-}
-
----
-
-## 3. Activities & Learning
+## 2. Activities & Learning
 
 **Activities Participated In:**
 ${uniqueActivities.length > 0 
@@ -143,7 +124,7 @@ ${observations.some(o => o.skillNotes)
 
 ---
 
-## 4. Behavior & Emotional Observation
+## 3. Behavior & Emotional Observation
 
 ${moods.length > 0 || cooperations.length > 0 || socialNotes.length > 0
   ? `**Mood Patterns:** ${getMoodSummary(moods)}\n\n**Cooperation:** ${getCooperationSummary(cooperations)}\n\n**Social Interactions:**\n${socialNotes.length > 0 ? socialNotes.map(n => `• ${n}`).join('\n') : '• Social interactions are developing well'}\n\n${child.fullName} ${getBehaviorSummary(moods, cooperations)} throughout the week.`
@@ -152,7 +133,7 @@ ${moods.length > 0 || cooperations.length > 0 || socialNotes.length > 0
 
 ---
 
-## 5. Health & Hygiene
+## 4. Health & Hygiene
 
 ${healthStatuses.length > 0 || energyLevels.length > 0
   ? `**Health Status:** ${getHealthSummary(healthStatuses)}\n\n**Energy Level:** ${getEnergySummary(energyLevels)}\n\n**Eating Habits:** ${getEatingSummary(eatingHabits)}\n\n${observations.some(o => o.hygieneNotes) 
@@ -164,7 +145,7 @@ ${healthStatuses.length > 0 || energyLevels.length > 0
 
 ---
 
-## 6. Meal & Sleep Pattern
+## 5. Meal & Sleep Pattern
 
 **Meal Consumption:**
 • Breakfast: ${breakfastCount} of ${observations.length || 1} days
@@ -187,7 +168,7 @@ ${avgNapDuration > 0
 
 ---
 
-## 7. Teacher's Notes
+## 6. Teacher's Notes
 
 ${teacherNotesList.length > 0
   ? teacherNotesList.map(note => `• ${note}`).join('\n\n')
@@ -196,12 +177,10 @@ ${teacherNotesList.length > 0
 
 ---
 
-## 8. AI Summary & Suggestions
+## 7. AI Summary & Suggestions
 
 ${generateAISummary(child, {
-  attendancePercentage,
   engagementText,
-  presentDays,
   observations: observations.length,
   avgNapDuration,
   skippedMeals,
@@ -214,19 +193,17 @@ ${generateAISummary(child, {
 ---
 
 *Report generated on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}*
-*This report is based on recorded observations and attendance data for the specified week.*
+*This report is based on recorded observations for the specified week.*
   `.trim();
 
   return report;
 }
 
-function generateGeneralOverview(child: Child, presentDays: number, observationCount: number, engagement: string): string {
+function generateGeneralOverview(child: Child, observationCount: number, engagement: string): string {
   const age = Math.floor((new Date().getTime() - new Date(child.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   
-  return `This week has been ${presentDays >= 4 ? 'a wonderful and productive' : presentDays >= 2 ? 'a good' : 'an interesting'} week for ${child.fullName}${age ? ` (${age} ${age === 1 ? 'year' : 'years'})` : ''}. ${presentDays >= 4 
-    ? `${child.gender === 'MALE' ? 'He' : child.gender === 'FEMALE' ? 'She' : 'They'} showed ${engagement === 'high' ? 'excellent' : engagement === 'medium' ? 'good' : 'steady'} engagement and participated actively in various activities.`
-    : observationCount > 0
-    ? `We've been tracking ${child.gender === 'MALE' ? 'his' : child.gender === 'FEMALE' ? 'her' : 'their'} progress and are pleased with the observations recorded.`
+  return `This week has been a ${engagement === 'high' ? 'wonderful and productive' : engagement === 'medium' ? 'good' : 'meaningful'} week for ${child.fullName}${age ? ` (${age} ${age === 1 ? 'year' : 'years'})` : ''}. ${observationCount > 0
+    ? `${child.gender === 'MALE' ? 'He' : child.gender === 'FEMALE' ? 'She' : 'They'} showed ${engagement === 'high' ? 'excellent' : engagement === 'medium' ? 'good' : 'steady'} engagement and participated actively in activities.`
     : `We're continuing to observe and support ${child.gender === 'MALE' ? 'his' : child.gender === 'FEMALE' ? 'her' : 'their'} development and growth.`
   } ${observationCount > 0 
     ? `Our team has documented ${observationCount} day${observationCount > 1 ? 's' : ''} of detailed observations.`
@@ -349,9 +326,7 @@ function getSleepQualitySummary(sleepQualities: (string | null | undefined)[]): 
 function generateAISummary(
   child: Child,
   metrics: {
-    attendancePercentage: number;
     engagementText: string;
-    presentDays: number;
     observations: number;
     avgNapDuration: number;
     skippedMeals: number;
@@ -361,16 +336,9 @@ function generateAISummary(
     energyLevels: (string | null | undefined)[];
   }
 ): string {
-  const { attendancePercentage, engagementText, presentDays, observations, avgNapDuration, skippedMeals } = metrics;
+  const { engagementText, observations, avgNapDuration, skippedMeals } = metrics;
   
-  let summary = `${child.fullName} has had ${presentDays >= 4 ? 'an excellent' : presentDays >= 2 ? 'a productive' : 'a meaningful'} week at daycare. `;
-  
-  // Attendance feedback
-  if (attendancePercentage >= 80) {
-    summary += `With ${attendancePercentage}% attendance, ${child.gender === 'MALE' ? 'he' : child.gender === 'FEMALE' ? 'she' : 'they'} ${child.gender === 'MALE' ? 'has' : child.gender === 'FEMALE' ? 'has' : 'have'} shown excellent consistency. `;
-  } else if (attendancePercentage >= 60) {
-    summary += `Attendance at ${attendancePercentage}% shows good participation. `;
-  }
+  let summary = `${child.fullName} has had ${engagementText === 'high' ? 'an excellent' : engagementText === 'medium' ? 'a productive' : 'a meaningful'} week at daycare. `;
   
   // Engagement feedback
   if (engagementText === 'high') {
@@ -383,10 +351,6 @@ function generateAISummary(
   summary += `\n\n**Suggestions for Parents:**\n\n`;
   
   const suggestions: string[] = [];
-  
-  if (presentDays < 3) {
-    suggestions.push(`• Continue to encourage regular attendance to help ${child.fullName} maintain routine and build relationships with peers and caregivers.`);
-  }
   
   if (engagementText === 'low' && observations > 0) {
     suggestions.push(`• At home, try engaging ${child.fullName} in similar activities to those at daycare to build interest and familiarity.`);

@@ -59,14 +59,17 @@ export async function POST(request: NextRequest) {
     let type: string | undefined;
     let visibilityDays: number | null | undefined;
     let attachmentPaths: string[] = [];
+    let isActive: boolean | undefined;
 
-    if (contentType.includes('multipart/form-data')) {
+    if (contentType.toLowerCase().includes('multipart/form-data')) {
       const formData = await request.formData();
       title = (formData.get('title') as string) || '';
       content = (formData.get('content') as string) || '';
       type = (formData.get('type') as string) || 'GENERAL';
       const vis = formData.get('visibilityDays') as string | null;
       visibilityDays = vis ? Number.parseInt(vis, 10) : null;
+      const activeStr = formData.get('isActive') as string | null;
+      isActive = activeStr != null ? activeStr === 'true' : undefined;
 
       const files = formData.getAll('attachments') as File[];
       if (files && files.length > 0) {
@@ -82,33 +85,46 @@ export async function POST(request: NextRequest) {
           attachmentPaths.push(`/uploads/${filename}`);
         }
       }
-    } else {
+    } else if (contentType.toLowerCase().includes('application/json')) {
       const body = await request.json();
       title = body.title;
       content = body.content;
       type = body.type || 'GENERAL';
-      visibilityDays = body.visibilityDays ?? null;
-      attachmentPaths = Array.isArray(body.attachments) ? body.attachments : [];
+      visibilityDays = typeof body.visibilityDays === 'number' ? body.visibilityDays : (body.visibilityDays == null ? null : Number.parseInt(String(body.visibilityDays), 10) || null);
+      attachmentPaths = Array.isArray(body.attachments) ? body.attachments.filter((x: any) => typeof x === 'string') : [];
+      if (typeof body.isActive === 'boolean') {
+        isActive = body.isActive;
+      }
+    } else {
+      return NextResponse.json({ error: 'Unsupported content type' }, { status: 415 });
     }
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
+    // Normalize type to enum values
+    const allowedTypes = ['GENERAL', 'IMPORTANT', 'EVENT'] as const;
+    const normalizedType = String(type || 'GENERAL').toUpperCase();
+    const finalType = (allowedTypes as readonly string[]).includes(normalizedType) ? normalizedType : 'GENERAL';
+    // Normalize visibilityDays
+    const finalVisibility = typeof visibilityDays === 'number' && !Number.isNaN(visibilityDays) ? visibilityDays : null;
+
     const announcement = await prisma.announcement.create({
       data: {
         title,
         content,
-        type: (type as any) || 'GENERAL',
-        visibilityDays: visibilityDays || null,
-        attachments: attachmentPaths
+        type: finalType as any,
+        visibilityDays: finalVisibility,
+        attachments: attachmentPaths,
+        isActive: typeof isActive === 'boolean' ? isActive : true
       }
     });
 
     return NextResponse.json(announcement, { status: 201 });
   } catch (error) {
     console.error('Error creating announcement:', error);
-    return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create announcement', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
 

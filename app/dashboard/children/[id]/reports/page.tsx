@@ -183,6 +183,7 @@ export default function ChildReportsPage() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   
   // Date range for new report
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [weekStart, setWeekStart] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() - 6);
@@ -234,6 +235,30 @@ export default function ChildReportsPage() {
       setGenerating(true);
       setError(null);
       
+      // Compute start/end based on selected period
+      let startISO: string | undefined;
+      let endISO: string | undefined;
+      if (period === 'daily') {
+        const d = new Date(weekEnd || new Date().toISOString().split('T')[0]);
+        const start = new Date(d); start.setHours(0,0,0,0);
+        const end = new Date(d); end.setHours(23,59,59,999);
+        startISO = start.toISOString();
+        endISO = end.toISOString();
+      } else if (period === 'weekly') {
+        const s = new Date(weekStart);
+        const e = new Date(weekEnd);
+        s.setHours(0,0,0,0);
+        e.setHours(23,59,59,999);
+        startISO = s.toISOString();
+        endISO = e.toISOString();
+      } else if (period === 'monthly') {
+        const base = new Date(weekEnd || new Date().toISOString().split('T')[0]);
+        const first = new Date(base.getFullYear(), base.getMonth(), 1); first.setHours(0,0,0,0);
+        const last = new Date(base.getFullYear(), base.getMonth() + 1, 0); last.setHours(23,59,59,999);
+        startISO = first.toISOString();
+        endISO = last.toISOString();
+      }
+      
       const res = await fetch("/api/ai-reports/generate", {
         method: "POST",
         headers: {
@@ -241,8 +266,8 @@ export default function ChildReportsPage() {
         },
         body: JSON.stringify({
           childId: Number(childId),
-          weekStart: weekStart ? new Date(weekStart).toISOString() : undefined,
-          weekEnd: weekEnd ? new Date(weekEnd).toISOString() : undefined,
+          weekStart: startISO,
+          weekEnd: endISO,
         }),
       });
 
@@ -365,14 +390,28 @@ export default function ChildReportsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-blue-600" />
-              Generate New Weekly Report
+              Generate New Report
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Week Start Date
+                  Period
+                </label>
+                <select
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as any)}
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {period === 'daily' ? 'Date' : 'Start Date'}
                 </label>
                 <Input
                   type="date"
@@ -383,7 +422,7 @@ export default function ChildReportsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Week End Date
+                  {period === 'daily' ? 'Date' : 'End Date'}
                 </label>
                 <Input
                   type="date"
@@ -413,7 +452,7 @@ export default function ChildReportsPage() {
               </div>
             </div>
             <p className="text-sm text-gray-500">
-              The AI will analyze attendance, activities, behavior, health, meals, and sleep patterns for the selected week.
+              The AI will analyze observations (activities, behavior, health, meals, sleep) for the selected period.
             </p>
           </CardContent>
         </Card>

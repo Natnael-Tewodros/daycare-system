@@ -86,6 +86,7 @@ export default function ReportPage() {
   const [childrenByOrganization, setChildrenByOrganization] = useState<ChildrenByOrganization[]>([]);
   const [eventData, setEventData] = useState<any[]>([]);
   const [childrenList, setChildrenList] = useState<{ id: number; fullName: string }[]>([]);
+  const [childSearch, setChildSearch] = useState<string>("");
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [childrenLoading, setChildrenLoading] = useState(true);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
@@ -359,7 +360,38 @@ export default function ReportPage() {
   };
 
   const exportReport = () => {
-    // Export functionality not implemented; intentionally left blank to avoid noisy logs
+    // Export attendance data to CSV using current filters
+    try {
+      const headers = ['Date','Present','Absent','Late','Total','Period'];
+      const rows = attendanceData.map(item => [
+        item.date,
+        String(item.present ?? 0),
+        String(item.absent ?? 0),
+        String(item.late ?? 0),
+        String(item.total ?? (item.present + item.absent + item.late)),
+        attendancePeriod
+      ]);
+      const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const namePart = attendancePeriod === 'daily'
+        ? selectedDate
+        : attendancePeriod === 'weekly'
+        ? `week_of_${selectedDate}`
+        : attendancePeriod === 'monthly'
+        ? `${selectedYear}-${selectedMonth.padStart(2,'0')}`
+        : selectedYear;
+      a.href = url;
+      a.download = `attendance_report_${attendancePeriod}_${namePart}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed', e);
+      alert('Failed to export CSV.');
+    }
   };
 
   if (loading) {
@@ -404,10 +436,6 @@ export default function ReportPage() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-              <Button onClick={exportReport}>
-                <Download className="h-4 w-4 mr-2" />
-                Export Report
-              </Button>
             </div>
           </div>
         </div>
@@ -427,26 +455,46 @@ export default function ReportPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">Select Child</label>
-                <Select
-                  value={selectedChildId}
-                  onValueChange={setSelectedChildId}
-                  disabled={!childrenList.length || childrenLoading}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue
-                      placeholder={childrenLoading ? "Loading children..." : childrenList.length ? "Choose a child" : "No children available"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {childrenList.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex-1 max-w-sm">
+                <label className="text-xs font-medium mb-1.5 block text-gray-700">Search Child</label>
+                <div className="relative">
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" />
+                  </svg>
+                  <input
+                    type="text"
+                    className="w-full h-9 pl-8 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+                    placeholder={childrenLoading ? "Loading children..." : "Search by name"}
+                    value={childSearch}
+                    onChange={(e) => setChildSearch(e.target.value)}
+                  />
+                </div>
+                <div className="mt-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white divide-y">
+                  {childrenList
+                    .filter((c) => c.fullName.toLowerCase().includes(childSearch.trim().toLowerCase()))
+                    .slice(0, 10)
+                    .map((c) => {
+                      const isSelected = String(c.id) === selectedChildId;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedChildId(String(c.id))}
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 transition-colors ${
+                            isSelected ? "bg-blue-50 text-blue-700" : "text-gray-800"
+                          }`}
+                        >
+                          {c.fullName}
+                        </button>
+                      );
+                    })}
+                  {!childrenLoading && childrenList.filter((c) => c.fullName.toLowerCase().includes(childSearch.trim().toLowerCase())).length === 0 && (
+                    <div className="px-3 py-1.5 text-xs text-gray-500">No matches</div>
+                  )}
+                </div>
+                {selectedChildId && (
+                  <p className="mt-1.5 text-xs text-gray-500">Selected child ID: {selectedChildId}</p>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -482,7 +530,7 @@ export default function ReportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div>
                 <label className="text-sm font-medium mb-2 block">Attendance Period</label>
                 <Select value={attendancePeriod} onValueChange={setAttendancePeriod}>
@@ -547,6 +595,12 @@ export default function ReportPage() {
                     })}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="md:justify-self-end">
+                <Button onClick={exportReport}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
               </div>
             </div>
           </CardContent>
