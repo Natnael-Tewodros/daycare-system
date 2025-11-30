@@ -9,6 +9,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type FormData = { email: string; password: string };
 
@@ -24,10 +26,10 @@ export default function LoginPage() {
         email: (data.email || "").trim(), // can be email or username
         password: (data.password || "").trim(),
       };
-      
+
       // First try admin login
       console.log('Sending login request with payload:', payload);
-      
+
       const adminRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,9 +39,9 @@ export default function LoginPage() {
       let adminResult: any = {};
       try {
         const contentType = adminRes.headers.get('content-type');
-      console.log('Admin login response status:', adminRes.status);
+        console.log('Admin login response status:', adminRes.status);
         console.log('Admin login response content-type:', contentType);
-        
+
         if (contentType && contentType.includes('application/json')) {
           adminResult = await adminRes.json();
           console.log('Admin login result:', adminResult);
@@ -58,7 +60,7 @@ export default function LoginPage() {
         setMessage(`Welcome back!`);
         localStorage.setItem('userId', String(adminResult.user.id));
         localStorage.setItem('userRole', adminResult.user.role);
-        
+
         // Store parent info for parent dashboard
         if (adminResult.user.role === 'PARENT') {
           localStorage.setItem('parentInfo', JSON.stringify({
@@ -67,7 +69,7 @@ export default function LoginPage() {
             children: adminResult.children || [] // Children fetched from login API
           }));
         }
-        
+
         // Redirect based on role
         if (adminResult.user.role === 'ADMIN') {
           router.push("/dashboard");
@@ -115,7 +117,7 @@ export default function LoginPage() {
 
       // Both logins failed - provide specific error messages
       let errorMsg = "Invalid credentials";
-      
+
       if (adminResult?.error && parentResult?.error) {
         errorMsg = "Invalid email or password. Please check your credentials and try again.";
       } else if (adminResult?.error) {
@@ -123,7 +125,7 @@ export default function LoginPage() {
       } else if (parentResult?.error) {
         errorMsg = "Parent login failed. Please check your email and password.";
       }
-      
+
       // Log the actual error details for debugging
       console.error('Login failed - Admin result:', adminResult);
       console.error('Login failed - Parent result:', parentResult);
@@ -137,64 +139,96 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader>
-          <div className="flex justify-center mb-2">
-            <Image
-              src="/insa.jpeg"
-              alt="INSA logo"
-              width={56}
-              height={56}
-              className="h-14 w-14 object-contain"
-              priority
-            />
+    <div className="min-h-screen bg-white text-slate-900 font-sans relative overflow-hidden flex items-center justify-center p-4">
+      {/* Background Grid */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-grid-black/[0.02] bg-[size:50px_50px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-transparent to-white" />
+      </div>
+
+      {/* Glow Effect */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-100 blur-[120px] rounded-full pointer-events-none opacity-50" />
+
+      <Card className="w-full max-w-md shadow-2xl border-slate-200 bg-white/80 backdrop-blur-xl relative z-10">
+        <CardHeader className="space-y-4 pb-6">
+          <Link href="/" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900 transition-colors mb-2">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
+          </Link>
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-sm">
+              <Image
+                src="/Logo_of_Ethiopian_INSA.png"
+                alt="INSA logo"
+                width={64}
+                height={64}
+                className="h-10 w-10 object-contain"
+                priority
+              />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
-          <CardDescription className="text-gray-600">Sign in to your account to continue</CardDescription>
+          <div className="text-center space-y-2">
+            <CardTitle className="text-3xl font-bold text-slate-900">Welcome Back</CardTitle>
+            <CardDescription className="text-slate-500 text-base">
+              Sign in to manage your daycare account
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address</Label>
-              <Input 
-                {...register("email")} 
+              <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email Address</Label>
+              <Input
+                {...register("email")}
                 id="email"
-                type="email" 
-                placeholder="Enter your email address" 
-                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                required 
+                type="email"
+                placeholder="name@example.com"
+                className="h-12 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
-              <Input 
-                {...register("password")} 
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password" className="text-sm font-semibold text-slate-700">Password</Label>
+                <Link href="#" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                {...register("password")}
                 id="password"
-                type="password" 
-                placeholder="Enter your password" 
-                className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                required 
+                type="password"
+                placeholder="••••••••"
+                className="h-12 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
+                required
               />
             </div>
-            <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium">
+            <Button type="submit" className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold text-base shadow-lg shadow-slate-200 transition-all duration-200 rounded-xl">
               Sign In
             </Button>
           </form>
           {message && (
-            <div className="mt-4 p-3 rounded-md bg-red-50 border border-red-200">
-              <p className="text-sm text-red-600 text-center">{message}</p>
+            <div className={`mt-6 p-4 rounded-xl border ${message.includes("Welcome") ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+              <p className="text-sm font-medium text-center flex items-center justify-center gap-2">
+                {message.includes("Welcome") && <Sparkles className="w-4 h-4" />}
+                {message}
+              </p>
             </div>
           )}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-8 text-center space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-slate-400 font-medium">Or continue with</span>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600">
               Don't have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign up here
+              <Link href="/signup" className="text-indigo-600 hover:text-indigo-700 font-bold">
+                Create account
               </Link>
-            </p>
-            <p className="mt-2 text-xs text-gray-500">
-              For parent access, contact the daycare administration to register your child.
             </p>
           </div>
         </CardContent>

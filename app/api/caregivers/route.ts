@@ -55,13 +55,13 @@ export async function POST(request: Request) {
       // Create caregiver in database
       const caregiver = await prisma.caregiver.create({
         data: {
-          fullName: fullName || null,
+          fullName: fullName ?? undefined,
           email: email!,
-          phone: phone || null,
-          medicalReport: medicalReportPath,
-          assignedRoomId: roomId,
-          organizationType: organizationType ? (organizationType as OrganizationType) : null,
-          siteId: site ? parseInt(site, 10) : null,
+          phone: phone ?? undefined,
+          medicalReport: medicalReportPath ?? undefined,
+          assignedRoomId: roomId ?? undefined,
+          organizationType: organizationType ? (organizationType as OrganizationType) : undefined,
+          siteId: site ? parseInt(site, 10) : undefined,
         },
       });
 
@@ -95,9 +95,27 @@ export async function GET() {
       include: {
         assignedRoom: true,
         site: true,
+        children: {
+          select: {
+            id: true
+          }
+        }
       },
     });
-    return NextResponse.json(caregivers);
+
+    // Transform the response to include children count and simplify the structure
+    const formattedCaregivers = caregivers.map(caregiver => ({
+      ...caregiver,
+      childrenCount: caregiver.children.length,
+      assignedRoom: caregiver.assignedRoom ? {
+        id: caregiver.assignedRoom.id,
+        name: caregiver.assignedRoom.name,
+        ageRange: caregiver.assignedRoom.ageRange
+      } : null,
+      children: undefined // Remove the children array as we only need the count
+    }));
+
+    return NextResponse.json(formattedCaregivers);
   } catch (error) {
     console.error('Error fetching caregivers:', error);
     return NextResponse.json(

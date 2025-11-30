@@ -1,23 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || 'daily';
-    const date = searchParams.get('date');
-    const year = searchParams.get('year');
-    const month = searchParams.get('month');
+    const period = searchParams.get("period") || "daily";
+    const date = searchParams.get("date");
+    const year = searchParams.get("year");
+    const month = searchParams.get("month");
 
     let startDate: Date;
     let endDate: Date;
 
     // Calculate date range based on period
-    if (period === 'daily' && date) {
+    if (period === "daily" && date) {
       startDate = new Date(date);
       endDate = new Date(date);
       endDate.setDate(endDate.getDate() + 1);
-    } else if (period === 'weekly') {
+    } else if (period === "weekly") {
       if (date) {
         const selectedDate = new Date(date);
         const dayOfWeek = selectedDate.getDay();
@@ -38,10 +38,10 @@ export async function GET(request: NextRequest) {
         endDate.setDate(startDate.getDate() + 7);
         endDate.setHours(23, 59, 59, 999);
       }
-    } else if (period === 'monthly' && year && month) {
+    } else if (period === "monthly" && year && month) {
       startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
       endDate = new Date(parseInt(year), parseInt(month), 1);
-    } else if (period === 'yearly' && year) {
+    } else if (period === "yearly" && year) {
       startDate = new Date(parseInt(year), 0, 1);
       endDate = new Date(parseInt(year) + 1, 0, 1);
     } else {
@@ -51,7 +51,9 @@ export async function GET(request: NextRequest) {
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     }
 
-    // Fetch attendance data
+    // allow grouping by child (per-child attendance) when requested
+    const groupBy = searchParams.get("groupBy") || "date";
+
     const attendances = await prisma.attendance.findMany({
       where: {
         createdAt: {
@@ -64,27 +66,92 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Group by date and calculate statistics
-    const attendanceMap = new Map<string, { present: number; absent: number; late: number; total: number }>();
+    if (groupBy === "child") {
+      // Group by child id and compute stats per child
+      const childMap = new Map<
+        string,
+        {
+          childId: number;
+          fullName: string;
+          present: number;
+          absent: number;
+          late: number;
+          total: number;
+        }
+      >();
 
-    attendances.forEach(attendance => {
-      const dateKey = attendance.createdAt.toISOString().split('T')[0];
-      
+      attendances.forEach((att) => {
+        const child = att.child;
+        const key = String(child?.id ?? "unknown");
+        if (!childMap.has(key)) {
+          // compute a safe full name without mixing ?? and || in one expression
+          let fullName = child?.fullName;
+          if (!fullName) {
+            const first = child?.firstName ?? "";
+            const last = child?.lastName ?? "";
+            const composed = `${first} ${last}`.trim();
+            fullName = composed || "Unknown";
+          }
+
+          childMap.set(key, {
+            childId: child?.id ?? 0,
+            fullName,
+            present: 0,
+            absent: 0,
+            late: 0,
+            total: 0,
+          });
+        }
+        const stats = childMap.get(key)!;
+        stats.total++;
+        switch (String(att.status).toLowerCase()) {
+          case "present":
+            stats.present++;
+            break;
+          case "absent":
+            stats.absent++;
+            break;
+          case "late":
+            stats.late++;
+            break;
+        }
+      });
+
+      const result = Array.from(childMap.values()).sort(
+        (a, b) => b.total - a.total
+      );
+      return NextResponse.json(result);
+    }
+
+    // Default: Group by date and calculate statistics
+    const attendanceMap = new Map<
+      string,
+      { present: number; absent: number; late: number; total: number }
+    >();
+
+    attendances.forEach((attendance) => {
+      const dateKey = attendance.createdAt.toISOString().split("T")[0];
+
       if (!attendanceMap.has(dateKey)) {
-        attendanceMap.set(dateKey, { present: 0, absent: 0, late: 0, total: 0 });
+        attendanceMap.set(dateKey, {
+          present: 0,
+          absent: 0,
+          late: 0,
+          total: 0,
+        });
       }
 
       const stats = attendanceMap.get(dateKey)!;
       stats.total++;
 
-      switch (attendance.status.toLowerCase()) {
-        case 'present':
+      switch (String(attendance.status).toLowerCase()) {
+        case "present":
           stats.present++;
           break;
-        case 'absent':
+        case "absent":
           stats.absent++;
           break;
-        case 'late':
+        case "late":
           stats.late++;
           break;
       }
@@ -100,7 +167,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching attendance report:', error);
-    return NextResponse.json({ error: 'Failed to fetch attendance report' }, { status: 500 });
+    console.error("Error fetching attendance report:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch attendance report" },
+      { status: 500 }
+    );
   }
 }

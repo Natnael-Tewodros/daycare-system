@@ -5,9 +5,9 @@ import { NextResponse } from "next/server";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const startParam = searchParams.get('start');
-    const endParam = searchParams.get('end');
-    const includeAbsent = searchParams.get('includeAbsent') === 'true';
+    const startParam = searchParams.get("start");
+    const endParam = searchParams.get("end");
+    const includeAbsent = searchParams.get("includeAbsent") === "true";
 
     let start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       where: {
         createdAt: dateFilter,
       },
-      include: { 
+      include: {
         child: {
           select: {
             id: true,
@@ -44,51 +44,83 @@ export async function GET(req: Request) {
 
     // If includeAbsent is true, also get children who didn't check in yesterday
     if (includeAbsent) {
-      const presentChildIds = attendances.map(a => a.childId);
-      
+      const presentChildIds = attendances.map((a) => a.childId);
+
       const absentChildren = await prisma.child.findMany({
         where: {
           id: {
-            notIn: presentChildIds
-          }
+            notIn: presentChildIds,
+          },
         },
         select: {
           id: true,
           fullName: true,
           parentName: true,
           relationship: true,
-        }
+        },
       });
 
       return NextResponse.json({
         attendances,
-        absentChildren
+        absentChildren,
       });
     }
 
     return NextResponse.json(attendances);
   } catch (error) {
     console.error("Error fetching attendance:", error);
-    return NextResponse.json({ error: "Failed to fetch attendance" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch attendance" },
+      { status: 500 }
+    );
   }
 }
 
 // POST new check-in or mark absent
 export async function POST(req: Request) {
   try {
-    const { childId, broughtBy, checkInTime, status = 'present' } = await req.json();
+    const {
+      childId,
+      broughtBy,
+      checkInTime,
+      status = "present",
+    } = await req.json();
 
     // Validation
     if (!childId) {
-      return NextResponse.json({ error: "Invalid input: childId required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid input: childId required" },
+        { status: 400 }
+      );
+    }
+
+    // Determine the effective check-in time (if status indicates present/late)
+    let effectiveCheckIn: Date | null = null;
+    if (status === "present" || status === "late") {
+      effectiveCheckIn = checkInTime ? new Date(checkInTime) : new Date();
+    }
+
+    // Auto-mark as 'late' if the check-in occurs after 09:00 local time
+    let statusToSave = status;
+    if ((status === "present" || status === undefined) && effectiveCheckIn) {
+      const minutesSinceMidnight =
+        effectiveCheckIn.getHours() * 60 + effectiveCheckIn.getMinutes();
+      const lateThresholdMinutes = 9 * 60; // 9:00 AM
+      if (minutesSinceMidnight > lateThresholdMinutes) {
+        statusToSave = "late";
+      }
     }
 
     const attendance = await prisma.attendance.create({
       data: {
         childId: Number(childId),
-        status: status,
+        status: statusToSave,
         broughtBy: broughtBy || null,
-        checkInTime: status === 'present' ? (checkInTime ? new Date(checkInTime) : new Date()) : null,
+        checkInTime:
+          (statusToSave === "present" || statusToSave === "late") &&
+          effectiveCheckIn
+            ? effectiveCheckIn
+            : null,
       },
       include: {
         child: {
@@ -105,7 +137,10 @@ export async function POST(req: Request) {
     return NextResponse.json(attendance, { status: 201 });
   } catch (error) {
     console.error("Error creating attendance:", error);
-    return NextResponse.json({ error: "Failed to create attendance" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create attendance" },
+      { status: 500 }
+    );
   }
 }
 
@@ -116,7 +151,10 @@ export async function PUT(req: Request) {
 
     // Validation
     if (!id) {
-      return NextResponse.json({ error: "Invalid input: id required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid input: id required" },
+        { status: 400 }
+      );
     }
 
     // Check if attendance exists and is open
@@ -124,7 +162,10 @@ export async function PUT(req: Request) {
       where: { id: Number(id) },
     });
     if (!existing || existing.checkOutTime) {
-      return NextResponse.json({ error: "Attendance not found or already checked out" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Attendance not found or already checked out" },
+        { status: 404 }
+      );
     }
 
     const updated = await prisma.attendance.update({
@@ -148,6 +189,9 @@ export async function PUT(req: Request) {
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Error updating attendance:", error);
-    return NextResponse.json({ error: "Failed to update attendance" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update attendance" },
+      { status: 500 }
+    );
   }
 }

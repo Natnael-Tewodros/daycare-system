@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // Update enrollment request status
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: any }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { status } = await request.json();
 
     // Validate status
@@ -53,10 +53,10 @@ export async function PATCH(
 // Get single enrollment request
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: any }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const requestId = parseInt(id);
 
     if (isNaN(requestId)) {
@@ -94,10 +94,10 @@ export async function GET(
 // Delete enrollment request
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: any }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const requestId = parseInt(id);
 
     if (isNaN(requestId)) {

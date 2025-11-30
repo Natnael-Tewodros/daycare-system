@@ -1,10 +1,23 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Save, X } from "lucide-react";
 import type { ChildForm } from "@/app/dashboard/children/types";
 
@@ -42,34 +55,67 @@ export default function EditChildDialog({
               <Input
                 id="edit-fullName"
                 value={editFormData.fullName}
-                onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, fullName: e.target.value })
+                }
                 placeholder="Enter child's full name"
               />
             </div>
             <div>
               <Label htmlFor="edit-relationship">Relationship *</Label>
-              <Input
-                id="edit-relationship"
+              <Select
                 value={editFormData.relationship}
-                onChange={(e) => setEditFormData({ ...editFormData, relationship: e.target.value })}
-                placeholder="e.g., Son, Daughter"
-              />
+                onValueChange={(value) =>
+                  setEditFormData({ ...editFormData, relationship: value })
+                }
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select relationship" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FATHER">Father</SelectItem>
+                  <SelectItem value="MOTHER">Mother</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {editFormData.relationship === "OTHER" && (
+            <div>
+              <Label className="text-sm font-medium text-slate-700">
+                Upload Document for Other (PDF only)
+              </Label>
+              <Input
+                type="file"
+                accept=".pdf"
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    otherFile: e.target.files?.[0] || null,
+                  })
+                }
+                className="mt-1"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="edit-gender">Gender *</Label>
               <Select
                 value={editFormData.gender}
-                onValueChange={(value) => setEditFormData({ ...editFormData, gender: value })}
+                onValueChange={(value) =>
+                  setEditFormData({ ...editFormData, gender: value })
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Male">Male</SelectItem>
-                  <SelectItem value="Female">Female</SelectItem>
+                  <SelectItem value="MALE">Male</SelectItem>
+                  <SelectItem value="FEMALE">Female</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -79,7 +125,12 @@ export default function EditChildDialog({
                 id="edit-dateOfBirth"
                 type="date"
                 value={editFormData.dateOfBirth}
-                onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    dateOfBirth: e.target.value,
+                  })
+                }
               />
             </div>
           </div>
@@ -89,15 +140,16 @@ export default function EditChildDialog({
               <Label htmlFor="edit-site">Site *</Label>
               <Select
                 value={editFormData.site}
-                onValueChange={(value) => setEditFormData({ ...editFormData, site: value })}
+                onValueChange={(value) =>
+                  setEditFormData({ ...editFormData, site: value })
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select site" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="HEADOFFICE">HEADOFFICE</SelectItem>
-                  <SelectItem value="BRANCH1">BRANCH1</SelectItem>
-                  <SelectItem value="BRANCH2">BRANCH2</SelectItem>
+                  <SelectItem value="HEADOFFICE">Head Office</SelectItem>
+                  <SelectItem value="OPERATION">Operation</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -105,14 +157,23 @@ export default function EditChildDialog({
               <Label htmlFor="edit-organization">Organization *</Label>
               <Select
                 value={editFormData.organization}
-                onValueChange={(value) => setEditFormData({ ...editFormData, organization: value })}
+                onValueChange={(value) =>
+                  setEditFormData({ ...editFormData, organization: value })
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="INSA">INSA</SelectItem>
-                  <SelectItem value="OTHER">OTHER</SelectItem>
+                  <SelectItem value="AI">AI</SelectItem>
+                  <SelectItem value="MINISTRY_OF_PEACE">
+                    Ministry of Peace
+                  </SelectItem>
+                  <SelectItem value="FINANCE_SECURITY">
+                    Finance Security
+                  </SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -125,7 +186,12 @@ export default function EditChildDialog({
                 id="edit-profilePic"
                 type="file"
                 accept="image/*"
-                onChange={(e) => setEditFormData({ ...editFormData, profilePic: e.target.files?.[0] || null })}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    profilePic: e.target.files?.[0] || null,
+                  })
+                }
               />
             </div>
             <div>
@@ -134,7 +200,12 @@ export default function EditChildDialog({
                 id="edit-childInfoFile"
                 type="file"
                 accept=".pdf,.doc,.docx"
-                onChange={(e) => setEditFormData({ ...editFormData, childInfoFile: e.target.files?.[0] || null })}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    childInfoFile: e.target.files?.[0] || null,
+                  })
+                }
               />
             </div>
             <div>
@@ -143,7 +214,12 @@ export default function EditChildDialog({
                 id="edit-otherFile"
                 type="file"
                 accept=".pdf,.doc,.docx,.jpg,.png"
-                onChange={(e) => setEditFormData({ ...editFormData, otherFile: e.target.files?.[0] || null })}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    otherFile: e.target.files?.[0] || null,
+                  })
+                }
               />
             </div>
           </div>
@@ -167,6 +243,3 @@ export default function EditChildDialog({
     </Dialog>
   );
 }
-
-
-

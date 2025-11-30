@@ -141,14 +141,39 @@ export async function DELETE(
 ) {
   try {
     const caregiverId = parseInt(params.id);
+    
+    if (isNaN(caregiverId)) {
+      return NextResponse.json(
+        { error: 'Invalid caregiver ID format. Must be a number.' }, 
+        { status: 400 }
+      );
+    }
 
     // Check if caregiver exists
     const caregiver = await prisma.caregiver.findUnique({
-      where: { id: caregiverId }
+      where: { id: caregiverId },
+      include: {
+        children: true,
+        assignedRoom: true
+      }
     });
 
     if (!caregiver) {
-      return NextResponse.json({ error: 'Caregiver not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: `Caregiver with ID ${caregiverId} not found` }, 
+        { status: 404 }
+      );
+    }
+
+    // Check for existing relationships that might prevent deletion
+    if (caregiver.children && caregiver.children.length > 0) {
+      return NextResponse.json({
+        error: 'Cannot delete caregiver with assigned children. Please reassign or remove the children first.',
+        details: {
+          assignedChildrenCount: caregiver.children.length,
+          childrenIds: caregiver.children.map(c => c.id)
+        }
+      }, { status: 400 });
     }
 
     // Delete the caregiver
@@ -156,11 +181,31 @@ export async function DELETE(
       where: { id: caregiverId }
     });
 
-    return NextResponse.json({ message: 'Caregiver deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting caregiver:', error);
     return NextResponse.json({ 
-      error: 'Failed to delete caregiver' 
-    }, { status: 500 });
+      message: 'Caregiver deleted successfully',
+      deletedCaregiver: {
+        id: caregiver.id,
+        name: caregiver.fullName,
+        email: caregiver.email
+      }
+    });
+  } catch (error: any) {
+    console.error('Error deleting caregiver:', error);
+    
+    // Handle Prisma errors
+    if (error.code === 'P2003') {
+      return NextResponse.json({
+        error: 'Cannot delete caregiver due to existing relationships',
+        details: error.meta
+      }, { status: 400 });
+    }
+    
+    // Handle other errors
+    return NextResponse.json({ 
+      error: 'Failed to delete caregiver',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { 
+      status: 500 
+    });
   }
 }

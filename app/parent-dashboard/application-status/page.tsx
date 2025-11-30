@@ -36,6 +36,7 @@ export default function ApplicationStatusPage() {
   const [enrollmentRequests, setEnrollmentRequests] = useState<EnrollmentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -97,14 +98,14 @@ export default function ApplicationStatusPage() {
       if (response.ok) {
         // Remove the request from local state
         setEnrollmentRequests(prev => prev.filter(req => req.id !== requestId));
-        alert('Application cancelled successfully');
+        setSuccessMessage('Application cancelled successfully');
       } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to cancel application');
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.message || errorData.error || 'Failed to cancel application');
       }
     } catch (error) {
       console.error('Error cancelling application:', error);
-      alert('An error occurred while cancelling the application');
+      setError('An error occurred while cancelling the application');
     }
   };
 
@@ -190,6 +191,13 @@ export default function ApplicationStatusPage() {
           <AlertDescription className="text-red-800">
             {error}
           </AlertDescription>
+        </Alert>
+      )}
+      {/* Success Message */}
+      {successMessage && (
+        <Alert className="mb-6 border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
         </Alert>
       )}
 

@@ -2,6 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Baby, CheckCircle, AlertCircle } from "lucide-react";
 import { getRoomIcon, getRoomIconColors, getRoomDisplayName } from "./utils";
 
@@ -12,6 +13,16 @@ type Props = {
 };
 
 export default function RoomCard({ room, caregiverChildren, onClick }: Props) {
+  // Get first two letters of each caregiver's name for avatar fallback
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   return (
     <Card 
       onClick={() => onClick(room)}
@@ -44,27 +55,60 @@ export default function RoomCard({ room, caregiverChildren, onClick }: Props) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-8 pb-8">
+      <CardContent className="pt-6 pb-8">
         <div className="text-center space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-2 text-gray-600">
-              <Users className="h-5 w-5" />
-              <span className="text-sm font-medium">{room.servants?.length || 0} Caregivers</span>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-gray-600">
-              <Baby className="h-5 w-5" />
-              <span className="text-sm font-medium">{room.childrenCount || 0} Children</span>
-            </div>
-            {room.servants && room.servants.length > 0 && (
-              <div className="flex items-center justify-center gap-2 text-green-600">
-                <Users className="h-4 w-4" />
-                <span className="text-xs font-medium">
-                  {room.servants.reduce((sum: number, servant: any) => 
-                    sum + (caregiverChildren[servant.id]?.length || 0), 0
-                  )} Assigned to Caregivers
+          <div className="space-y-4">
+            {/* Caregivers Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 text-gray-600 mb-2">
+                <Users className="h-5 w-5" />
+                <span className="text-sm font-medium">
+                  {room.servants?.length || 0} Caregiver{room.servants?.length !== 1 ? 's' : ''}
                 </span>
               </div>
-            )}
+              
+              {room.servants && room.servants.length > 0 ? (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {room.servants.map((caregiver: any) => (
+                    <div 
+                      key={caregiver.id} 
+                      className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 text-sm"
+                    >
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="text-xs">
+                          {getInitials(caregiver.fullName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-gray-700 font-medium">
+                        {caregiver.fullName.split(' ')[0]}
+                      </span>
+                      <span className="text-xs text-gray-500 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                        {caregiverChildren[caregiver.id]?.length || 0}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No caregivers assigned</p>
+              )}
+            </div>
+
+            {/* Children Count */}
+            <div className="pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-center gap-2 text-gray-600">
+                <Baby className="h-5 w-5" />
+                <span className="text-sm font-medium">
+                  {room.childrenCount || 0} Child{room.childrenCount !== 1 ? 'ren' : ''}
+                </span>
+              </div>
+              {room.servants && room.servants.length > 0 && (
+                <div className="text-xs text-green-600 mt-1">
+                  {room.servants.reduce((sum: number, servant: any) => 
+                    sum + (caregiverChildren[servant.id]?.length || 0), 0
+                  )} assigned to caregivers
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

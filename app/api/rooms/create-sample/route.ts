@@ -8,8 +8,8 @@ export async function POST() {
     const organizations = await prisma.organization.findMany();
 
     if (organizations.length === 0) {
-      return NextResponse.json({ 
-        error: 'No organizations found. Please create organizations first.' 
+      return NextResponse.json({
+        error: 'No organizations found. Please create organizations first.'
       }, { status: 400 });
     }
 
@@ -29,7 +29,7 @@ export async function POST() {
       // Create the three standard rooms
       const room1 = await prisma.room.create({
         data: {
-          name: 'Room 1',
+          name: 'Infant',
           ageRange: '3 months - 1 year',
           organizationId: org.id
         }
@@ -37,7 +37,7 @@ export async function POST() {
 
       const room2 = await prisma.room.create({
         data: {
-          name: 'Room 2',
+          name: 'Toddler',
           ageRange: '1 year - 2 years',
           organizationId: org.id
         }
@@ -45,7 +45,7 @@ export async function POST() {
 
       const room3 = await prisma.room.create({
         data: {
-          name: 'Room 3',
+          name: 'Growing Star',
           ageRange: '2 years - 4 years',
           organizationId: org.id
         }
@@ -55,7 +55,7 @@ export async function POST() {
       console.log(`Created rooms for organization: ${org.name}`);
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: `Created ${createdRooms.length} rooms for ${organizations.length} organization(s)`,
       rooms: createdRooms
@@ -63,7 +63,7 @@ export async function POST() {
 
   } catch (error) {
     console.error('Error creating sample rooms:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to create sample rooms',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

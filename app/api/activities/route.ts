@@ -73,6 +73,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(activities);
   } catch (error) {
     console.error("Error fetching activities:", error);
+    // Prisma returns code 'P1001' when it cannot reach the database server
+    if (error && (error as any).code === 'P1001') {
+      const msg = (error as any).message || 'Cannot reach database server';
+      return NextResponse.json({ error: `Database connection error: ${msg}` }, { status: 503 });
+    }
     return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
   }
 }
