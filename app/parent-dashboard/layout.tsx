@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { 
-  Home, 
-  Users, 
-  FileText, 
+import {
+  Home,
+  Users,
+  FileText,
   User,
   LogOut,
   Baby,
@@ -15,7 +15,7 @@ import {
   PanelLeftOpen,
   Settings,
   Camera,
-  Bell
+  Bell,
 } from "lucide-react";
 
 interface ParentLayoutProps {
@@ -35,7 +35,7 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
 
   useEffect(() => {
     // Get parent info from localStorage (set during login)
-    const storedParentInfo = localStorage.getItem('parentInfo');
+    const storedParentInfo = localStorage.getItem("parentInfo");
     if (storedParentInfo) {
       const parent = JSON.parse(storedParentInfo);
       setParentInfo(parent);
@@ -47,12 +47,12 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
       setLoading(false);
     } else {
       // Redirect to login if no parent info
-      router.push('/login');
+      router.push("/login");
     }
 
     // Refresh notification count every 30 seconds
     const interval = setInterval(() => {
-      const storedParentInfo = localStorage.getItem('parentInfo');
+      const storedParentInfo = localStorage.getItem("parentInfo");
       if (storedParentInfo) {
         const parent = JSON.parse(storedParentInfo);
         const email = parent.email || parent.parentEmail;
@@ -86,11 +86,11 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
 
   const fetchProfileImage = async () => {
     try {
-      const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem("userId");
       if (userId) {
-        const response = await fetch('/api/users/me', {
+        const response = await fetch("/api/users/me", {
           headers: {
-            'x-user-id': userId,
+            "x-user-id": userId,
           },
         });
         if (response.ok) {
@@ -99,24 +99,26 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
         }
       }
     } catch (error) {
-      console.error('Error fetching profile image:', error);
+      console.error("Error fetching profile image:", error);
     }
   };
 
-  const handleProfileImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfileImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
       const formData = new FormData();
-      formData.append('profileImage', file);
+      formData.append("profileImage", file);
 
-      const userId = localStorage.getItem('userId');
-      const response = await fetch('/api/users/me/avatar', {
-        method: 'POST',
+      const userId = localStorage.getItem("userId");
+      const response = await fetch("/api/users/me/avatar", {
+        method: "POST",
         headers: {
-          'x-user-id': userId || '',
+          "x-user-id": userId || "",
         },
         body: formData,
       });
@@ -126,16 +128,19 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
         setProfileImage(result.profileImage);
         // Update parentInfo in localStorage as well
         if (parentInfo) {
-          const updatedParentInfo = { ...parentInfo, profileImage: result.profileImage };
+          const updatedParentInfo = {
+            ...parentInfo,
+            profileImage: result.profileImage,
+          };
           setParentInfo(updatedParentInfo);
-          localStorage.setItem('parentInfo', JSON.stringify(updatedParentInfo));
+          localStorage.setItem("parentInfo", JSON.stringify(updatedParentInfo));
         }
       } else {
-        alert('Failed to upload profile image');
+        alert("Failed to upload profile image");
       }
     } catch (error) {
-      console.error('Error uploading profile image:', error);
-      alert('Error uploading profile image');
+      console.error("Error uploading profile image:", error);
+      alert("Error uploading profile image");
     } finally {
       setIsUploading(false);
     }
@@ -144,17 +149,17 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
   const handleLogout = async (): Promise<void> => {
     try {
       setIsLoggingOut(true);
-      localStorage.removeItem('parentInfo');
-      localStorage.removeItem('token');
-      localStorage.removeItem('userId');
-      sessionStorage.removeItem('token');
+      localStorage.removeItem("parentInfo");
+      localStorage.removeItem("token");
+      localStorage.removeItem("userId");
+      sessionStorage.removeItem("token");
       // Expire cookie set by login route
       document.cookie = "userId=; Max-Age=0; path=/";
-      await new Promise(resolve => setTimeout(resolve, 500));
-      router.push('/');
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      router.push("/");
       router.refresh();
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     } finally {
       setIsLoggingOut(false);
     }
@@ -173,53 +178,57 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
 
   const navigation = [
     {
-      name: 'Dashboard',
-      href: '/parent-dashboard',
+      name: "Dashboard",
+      href: "/parent-dashboard",
       icon: Home,
-      current: pathname === '/parent-dashboard'
+      current: pathname === "/parent-dashboard",
     },
     {
-      name: 'My Children',
-      href: '/parent-dashboard/children',
+      name: "My Children",
+      href: "/parent-dashboard/children",
       icon: Baby,
-      current: pathname === '/parent-dashboard/children'
+      current: pathname === "/parent-dashboard/children",
     },
     {
-      name: 'Notifications',
-      href: '/parent-dashboard/notifications',
+      name: "Notifications",
+      href: "/parent-dashboard/notifications",
       icon: Bell,
-      current: pathname === '/parent-dashboard/notifications',
-      badge: unreadCount
+      current: pathname === "/parent-dashboard/notifications",
+      badge: unreadCount,
     },
     {
-      name: 'My Reports',
-      href: '/parent-dashboard/reports',
+      name: "My Reports",
+      href: "/parent-dashboard/reports",
       icon: FileText,
-      current: pathname.startsWith('/parent-dashboard/reports')
+      current: pathname.startsWith("/parent-dashboard/reports"),
     },
     {
-      name: 'Application Status',
-      href: '/parent-dashboard/application-status',
+      name: "Application Status",
+      href: "/parent-dashboard/application-status",
       icon: FileText,
-      current: pathname === '/parent-dashboard/application-status'
+      current: pathname === "/parent-dashboard/application-status",
     },
     {
-      name: 'New Request',
-      href: '/parent-dashboard/request',
+      name: "New Request",
+      href: "/parent-dashboard/request",
       icon: Users,
-      current: pathname === '/parent-dashboard/request'
-    }
+      current: pathname === "/parent-dashboard/request",
+    },
   ];
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className={`bg-[#1A202C] text-white border-r border-gray-700 transition-all duration-300 flex flex-col ${
-        isCollapsed ? "w-16" : "w-64"
-      }`}>
-        <div className={`p-4 border-b border-gray-700 flex items-center ${
-          isCollapsed ? "justify-center" : "justify-between"
-        }`}>
+      <aside
+        className={`bg-[#1A202C] text-white border-r border-gray-700 transition-all duration-300 flex flex-col ${
+          isCollapsed ? "w-16" : "w-64"
+        }`}
+      >
+        <div
+          className={`p-4 border-b border-gray-700 flex items-center ${
+            isCollapsed ? "justify-center" : "justify-between"
+          }`}
+        >
           {!isCollapsed ? (
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1">
@@ -248,8 +257,8 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
                   isCollapsed ? "justify-center" : "gap-3"
                 } ${
                   item.current
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
@@ -295,7 +304,7 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
                 {getPageTitle(pathname)}
               </h1>
             </div>
-            
+
             {/* Right Side - User Menu */}
             <div className="relative">
               <details className="group">
@@ -331,7 +340,10 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
                       disabled={isUploading}
                     />
                   </label>
-                  <Link href="/parent-dashboard/settings" className="flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-gray-50">
+                  <Link
+                    href="/parent-dashboard/settings"
+                    className="flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-gray-50"
+                  >
                     <Settings className="w-4 h-4" />
                     <span>Settings</span>
                   </Link>
@@ -351,9 +363,7 @@ export default function ParentLayout({ children }: ParentLayoutProps) {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-6">
-            {children}
-          </div>
+          <div className="p-6">{children}</div>
         </main>
       </div>
     </div>
@@ -367,13 +377,15 @@ function getPageTitle(pathname: string): string {
     { name: "My Children", href: "/parent-dashboard/children" },
     { name: "Notifications", href: "/parent-dashboard/notifications" },
     { name: "My Reports", href: "/parent-dashboard/reports" },
-    { name: "Application Status", href: "/parent-dashboard/application-status" },
-    { name: "New Request", href: "/parent-dashboard/request" }
+    {
+      name: "Application Status",
+      href: "/parent-dashboard/application-status",
+    },
+    { name: "New Request", href: "/parent-dashboard/request" },
   ];
-  
-  const item = navigation.find(item => 
-    pathname === item.href || pathname.startsWith(item.href + '/')
+
+  const item = navigation.find(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/")
   );
   return item?.name || "Parent Dashboard";
 }
-

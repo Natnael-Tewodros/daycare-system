@@ -4,6 +4,13 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,12 +21,12 @@ import { useRouter } from "next/navigation";
 type ChildEntry = { childName: string; childAge: number | "" };
 
 type FormData = {
-  parentFullName: string;
+  parentName: string;
   email: string;
-  phoneNumber: string;
+  phone: string;
   organization?: string;
   site?: string;
-  description?: string;
+  notes?: string;
   parentGender?: string;
 };
 
@@ -37,6 +44,10 @@ export default function ParentApplicationPage() {
   const [children, setChildren] = useState<ChildEntry[]>([
     { childName: "", childAge: "" },
   ]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [orgSelectValue, setOrgSelectValue] = useState<string>("ALL");
+  const [siteSelectValue, setSiteSelectValue] = useState<string>("ALL");
 
   useEffect(() => {
     (async () => {
@@ -46,11 +57,30 @@ export default function ParentApplicationPage() {
         });
         if (!res.ok) return;
         const user = await res.json();
-        if (user?.name) setValue("parentFullName", user.name);
+        if (user?.name) setValue("parentName", user.name);
         if (user?.email) setValue("email", user.email);
-        if (user?.phoneNumber) setValue("phoneNumber", user.phoneNumber);
+        if (user?.phoneNumber) setValue("phone", user.phoneNumber);
         if (user?.gender) setValue("parentGender", user.gender);
       } catch {}
+    })();
+    // load organizations and sites for dropdowns
+    (async () => {
+      try {
+        const [orgRes, siteRes] = await Promise.all([
+          fetch("/api/organization"),
+          fetch("/api/sites"),
+        ]);
+        if (orgRes.ok) {
+          const data = await orgRes.json();
+          setOrganizations(Array.isArray(data) ? data : []);
+        }
+        if (siteRes.ok) {
+          const data = await siteRes.json();
+          setSites(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.error("Failed to load organizations/sites:", e);
+      }
     })();
   }, [setValue]);
 
@@ -86,11 +116,11 @@ export default function ParentApplicationPage() {
       const payload = {
         childName: children[0].childName.trim(),
         childAge: Number(children[0].childAge),
-        parentName: (data.parentFullName || "").trim(),
+        parentName: (data.parentName || "").trim(),
         email: (data.email || "").trim().toLowerCase(),
-        phone: (data.phoneNumber || "").trim(),
-        notes: `${(data.description || "").trim()}${
-          data.description ? "\n\n" : ""
+        phone: (data.phone || "").trim(),
+        notes: `${(data.notes || "").trim()}${
+          data.notes ? "\n\n" : ""
         }Organization: ${data.organization || "N/A"}\nSite: ${
           data.site || "N/A"
         }\nParent Gender: ${
@@ -178,18 +208,18 @@ export default function ParentApplicationPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="parentFullName">Parent Full Name *</Label>
+                    <Label htmlFor="parentName">Parent Full Name *</Label>
                     <Input
-                      id="parentFullName"
+                      id="parentName"
                       type="text"
                       placeholder="Enter your full name"
-                      {...register("parentFullName", {
+                      {...register("parentName", {
                         required: "Parent full name is required",
                       })}
                     />
-                    {errors.parentFullName && (
+                    {errors.parentName && (
                       <p className="text-sm text-red-600">
-                        {errors.parentFullName.message}
+                        {errors.parentName.message}
                       </p>
                     )}
                   </div>
@@ -215,39 +245,67 @@ export default function ParentApplicationPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">Phone Number *</Label>
+                  <Label htmlFor="phone">Phone Number *</Label>
                   <Input
-                    id="phoneNumber"
+                    id="phone"
                     type="tel"
                     placeholder="Enter phone number"
-                    {...register("phoneNumber", {
+                    {...register("phone", {
                       required: "Phone number is required",
                     })}
                   />
-                  {errors.phoneNumber && (
+                  {errors.phone && (
                     <p className="text-sm text-red-600">
-                      {errors.phoneNumber.message}
+                      {errors.phone.message}
                     </p>
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="organization">Organization</Label>
-                    <Input
-                      id="organization"
-                      type="text"
-                      placeholder="Enter organization"
-                      {...register("organization")}
-                    />
+                    <Select
+                      value={orgSelectValue}
+                      onValueChange={(v) => {
+                        setOrgSelectValue(v);
+                        setValue("organization", v === "ALL" ? "" : v);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={"ALL"}>
+                          Select organization
+                        </SelectItem>
+                        {organizations.map((org) => (
+                          <SelectItem key={org.id} value={org.name}>
+                            {org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="site">Site</Label>
-                    <Input
-                      id="site"
-                      type="text"
-                      placeholder="Enter site"
-                      {...register("site")}
-                    />
+                    <Select
+                      value={siteSelectValue}
+                      onValueChange={(v) => {
+                        setSiteSelectValue(v);
+                        setValue("site", v === "ALL" ? "" : v);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={"ALL"}>Select site</SelectItem>
+                        {sites.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="parentGender">Parent Gender</Label>
@@ -264,12 +322,12 @@ export default function ParentApplicationPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="notes">Description</Label>
                   <Textarea
-                    id="description"
+                    id="notes"
                     placeholder="Any additional information that can help us"
                     rows={4}
-                    {...register("description")}
+                    {...register("notes")}
                   />
                 </div>
               </div>
@@ -320,7 +378,7 @@ export default function ParentApplicationPage() {
                         <Input
                           type="number"
                           min="1"
-                          max="18"
+                          max="12"
                           value={c.childAge}
                           onChange={(e) =>
                             setChildren((prev) =>

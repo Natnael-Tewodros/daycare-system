@@ -1,10 +1,18 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Fetch all children with their gender
+    const { searchParams } = new URL(request.url);
+    const orgParam = searchParams.get("organizationId");
+    const orgId =
+      orgParam && !Number.isNaN(Number(orgParam))
+        ? Number(orgParam)
+        : undefined;
+
+    // Fetch children optionally scoped to organization
     const children = await prisma.child.findMany({
+      where: orgId ? { organizationId: orgId } : {},
       select: {
         gender: true,
       },
@@ -12,7 +20,7 @@ export async function GET() {
 
     // Count by gender
     const genderCount = children.reduce((acc, child) => {
-      const gender = child.gender.toLowerCase();
+      const gender = (child.gender || "").toLowerCase();
       acc[gender] = (acc[gender] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -27,7 +35,10 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching children by gender report:', error);
-    return NextResponse.json({ error: 'Failed to fetch children by gender report' }, { status: 500 });
+    console.error("Error fetching children by gender report:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch children by gender report" },
+      { status: 500 }
+    );
   }
 }

@@ -377,7 +377,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Registration blocked: fathers may not register children under 1 year old.",
+            "Registration blocked: fathers may only register children aged 1 year old or older.",
         },
         { status: 400 }
       );

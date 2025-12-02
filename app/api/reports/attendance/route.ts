@@ -8,6 +8,11 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date");
     const year = searchParams.get("year");
     const month = searchParams.get("month");
+    const orgParam = searchParams.get("organizationId");
+    const orgId =
+      orgParam && !Number.isNaN(Number(orgParam))
+        ? Number(orgParam)
+        : undefined;
 
     let startDate: Date;
     let endDate: Date;
@@ -54,12 +59,14 @@ export async function GET(request: NextRequest) {
     // allow grouping by child (per-child attendance) when requested
     const groupBy = searchParams.get("groupBy") || "date";
 
+    // include optional organization filter via child's organizationId
     const attendances = await prisma.attendance.findMany({
       where: {
         createdAt: {
           gte: startDate,
           lt: endDate,
         },
+        ...(orgId ? { child: { organizationId: orgId } } : {}),
       },
       include: {
         child: true,

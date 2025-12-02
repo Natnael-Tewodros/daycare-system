@@ -131,23 +131,30 @@ export default function ApplicationStatusPage() {
   };
 
   const handleDeleteRequest = async (requestId: number) => {
-    if (!confirm('Are you sure you want to cancel this application? This action cannot be undone.')) return;
+    if (
+      !confirm(
+        "Are you sure you want to cancel this application? This action cannot be undone."
+      )
+    )
+      return;
 
     try {
       const response = await fetch(`/api/enrollment-requests/${requestId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (response.ok) {
-        setRequests(prev => prev.filter(r => r.id !== requestId));
-        setSuccessMessage('Application cancelled successfully');
+        setRequests((prev) => prev.filter((r) => r.id !== requestId));
+        setSuccessMessage("Application cancelled successfully");
       } else {
         const errorData = await response.json().catch(() => ({}));
-        setError(errorData.message || errorData.error || 'Failed to cancel application');
+        setError(
+          errorData.message || errorData.error || "Failed to cancel application"
+        );
       }
     } catch (err) {
-      console.error('Error cancelling application:', err);
-      setError('An error occurred while cancelling the application');
+      console.error("Error cancelling application:", err);
+      setError("An error occurred while cancelling the application");
     }
   };
 
@@ -212,7 +219,9 @@ export default function ApplicationStatusPage() {
         {/* Success Message */}
         {successMessage && (
           <Alert className="mb-6 border-green-200 bg-green-50">
-            <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
+            <AlertDescription className="text-green-800">
+              {successMessage}
+            </AlertDescription>
           </Alert>
         )}
 

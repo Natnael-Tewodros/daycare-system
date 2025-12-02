@@ -151,7 +151,13 @@ export default function HomePage() {
     any[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [searchQuery, setSearchQuery] = useState("");
+  const [positionInfo, setPositionInfo] = useState<{
+    index: number | null;
+    before: number;
+    beforeList: any[];
+  } | null>(null);
+  const [searchMatches, setSearchMatches] = useState<any[]>([]);
   // Carousel state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
@@ -163,77 +169,244 @@ export default function HomePage() {
     "/daycare4.jpg",
   ];
 
-  // Fetch data
+  // Fetch rooms and pending enrollment requests
   useEffect(() => {
-    const fetchData = async () => {
+    let mounted = true;
+    const load = async () => {
       try {
-        // Fetch rooms
-        const roomsResponse = await fetch("/api/rooms");
-        if (roomsResponse.ok) {
-          const roomsData = await roomsResponse.json();
+        // rooms
+        const roomsResp = await fetch("/api/rooms");
+        if (roomsResp.ok) {
+          const roomsData = await roomsResp.json();
+          if (!mounted) return;
           setRooms(
             roomsData.map((room: any) => ({
               id: room.id,
               name: room.name,
-              ageRange: room.name?.toLowerCase().includes("growing")
-                ? "2 years - 4 years"
-                : room.ageRange || "All ages",
+              ageRange: room.ageRange || "All ages",
               current: room.childrenCount || 0,
-              max: 30,
+              max: room.maxCapacity || 30,
               color: getRoomColor(room.name),
               icon: getRoomIcon(room.name),
             }))
           );
         }
 
-        // Fetch pending requests (store full objects so we can show details)
-        const pendingResponse = await fetch(
-          "/api/enrollment-requests?status=pending"
+        // pending enrollment requests (FIFO)
+        const pendingResp = await fetch(
+          "/api/enrollment-requests?status=pending&sort=asc&prioritizeWomen=true"
         );
-        if (pendingResponse.ok) {
-          const pendingData = await pendingResponse.json();
-          setPendingEnrollmentRequests(pendingData?.data || []);
+        if (pendingResp.ok) {
+          const pendingJson = await pendingResp.json();
+          if (!mounted) return;
+          const list = pendingJson?.data || [];
+          console.debug(
+            "Loaded pending enrollment requests:",
+            list.length,
+            list?.slice(0, 3)
+          );
+          setPendingEnrollmentRequests(list);
+        } else {
+          console.warn(
+            "Failed to load pending enrollment requests, status:",
+            pendingResp.status
+          );
         }
-      } catch (error) {
-        console.error("Error fetching data:", error);
+      } catch (err) {
+        console.error("Error loading homepage data:", err);
       } finally {
-        setIsLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
 
-    fetchData();
+    load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Auto-advance carousel
-  useEffect(() => {
-    if (!isAutoPlaying || isFullscreen) return;
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) =>
-        prev === images.length - 1 ? 0 : prev + 1
+  // Allow retrying pending requests fetch from the UI for debugging
+  const reloadPending = async () => {
+    try {
+      const resp = await fetch(
+        "/api/enrollment-requests?status=pending&sort=asc&prioritizeWomen=true"
       );
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, isFullscreen, images.length]);
-
-  // Close fullscreen on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
-
-  // Carousel functions
-  const nextImage = () =>
-    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+      if (!resp.ok) {
+        console.warn("reloadPending failed status", resp.status);
+        return;
+      }
+      const json = await resp.json();
+      console.debug("reloadPending loaded", json?.data?.length);
+      setPendingEnrollmentRequests(json?.data || []);
+    } catch (e) {
+      console.error("reloadPending error", e);
+    }
+  };
+  function PositionLookup({
+    positionInfo,
+  }: {
+    positionInfo: {
+      index: number | null;
+      before: number;
+      beforeList: any[];
+    } | null;
+  }) {
+    return (
+      <div className="bg-white border border-slate-100 p-4 rounded-lg">
+        {positionInfo ? (
+          positionInfo.index === null ? (
+            <div className="text-sm text-gray-600">
+              No pending request found for that query.
+            </div>
+          ) : (
+            <div>
+              <div className="text-sm text-gray-700 mb-2">
+                There are{" "}
+                <span className="font-medium">{positionInfo.before}</span>{" "}
+                people ahead of you in the queue.
+              </div>
+              {positionInfo.beforeList.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          #
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Parent
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Child
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Phone
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-100">
+                      {positionInfo.beforeList.map((r, i) => (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {i + 1}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900">
+                            {r.parentName}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.childName}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.email}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.phone || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="text-sm text-gray-600">
+            Enter a search above to find your place in the queue.
+          </div>
+        )}
+      </div>
+    );
+  }
   const prevImage = () =>
     setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  const nextImage = () =>
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
   const goToImage = (index: number) => setCurrentImageIndex(index);
   const toggleAutoPlay = () => setIsAutoPlaying(!isAutoPlaying);
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
     if (!isFullscreen) setIsAutoPlaying(false);
+  };
+
+  const handleSearch = () => {
+    console.debug("handleSearch called", {
+      searchQuery,
+      pendingCount: pendingEnrollmentRequests.length,
+    });
+    const qRaw = String(searchQuery || "").trim();
+    if (!qRaw) {
+      setPositionInfo(null);
+      return;
+    }
+
+    // normalize and prepare tokens
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const q = normalize(qRaw);
+    const qDigits = q.replace(/\D/g, "");
+    const qTokens = q.split(" ").filter(Boolean);
+
+    const matchedList: any[] = [];
+
+    for (let i = 0; i < pendingEnrollmentRequests.length; i++) {
+      const r = pendingEnrollmentRequests[i];
+      const parent = normalize(String(r.parentName || ""));
+      const email = normalize(String(r.email || ""));
+      const child = normalize(String(r.childName || ""));
+      const phone = String(r.phone || "").replace(/\D/g, "");
+      const notes = normalize(String(r.notes || ""));
+
+      let matched = false;
+
+      // direct digit match for phone
+      if (qDigits && phone.includes(qDigits)) matched = true;
+
+      // direct contains
+      if (
+        !matched &&
+        (parent.includes(q) ||
+          email.includes(q) ||
+          child.includes(q) ||
+          notes.includes(q))
+      )
+        matched = true;
+
+      // token match: every token should appear in one of the fields (loose AND)
+      if (!matched && qTokens.length > 0) {
+        const allTokensFound = qTokens.every(
+          (t) =>
+            parent.includes(t) ||
+            email.includes(t) ||
+            child.includes(t) ||
+            notes.includes(t)
+        );
+        if (allTokensFound) matched = true;
+      }
+
+      if (matched) matchedList.push({ _idx: i, ...r });
+    }
+
+    if (matchedList.length === 0) {
+      setSearchMatches([]);
+      setPositionInfo({ index: null, before: 0, beforeList: [] });
+    } else {
+      // build list of matched items (preserve original order)
+      setSearchMatches(matchedList);
+      // auto-select the earliest match so user sees immediate result
+      const idx = matchedList[0]._idx as number;
+      const beforeList = pendingEnrollmentRequests.slice(0, idx);
+      setPositionInfo({ index: idx, before: idx, beforeList });
+    }
   };
 
   const RoomCard = ({ room }: { room: Room }) => {
@@ -299,6 +472,118 @@ export default function HomePage() {
     );
   };
 
+  // Helper to parse parent gender from notes text
+  const parseParentGender = (notes: string | null | undefined) => {
+    if (!notes) return "N/A";
+    try {
+      const txt = String(notes).toUpperCase();
+      const m = txt.match(
+        /PARENT\s*GENDER\s*[:\-]?\s*(MALE|FEMALE|OTHER|PREFER_NOT|PREFER_NOT_TO_SAY|PREFER_NOT_TO_SAY|PREFER_NOT|PREFER_NOT_TO)/i
+      );
+      if (m && m[1]) {
+        const v = String(m[1]).toUpperCase();
+        if (v === "MALE") return "Male";
+        if (v === "FEMALE") return "Female";
+        if (v === "OTHER") return "Other";
+        if (v.startsWith("PREFER")) return "Prefer not to say";
+        return v.charAt(0) + v.slice(1).toLowerCase();
+      }
+
+      // fallback heuristics
+      if (
+        txt.includes("MOTHER") ||
+        txt.includes("WOMAN") ||
+        txt.includes("WOMEN")
+      )
+        return "Female";
+      if (txt.includes("FATHER") || txt.includes("MAN")) return "Male";
+      return "N/A";
+    } catch {
+      return "N/A";
+    }
+  };
+
+  // Position lookup display component (search box moved above table)
+  function PositionLookup({
+    positionInfo,
+  }: {
+    positionInfo: {
+      index: number | null;
+      before: number;
+      beforeList: any[];
+    } | null;
+  }) {
+    return (
+      <div className="bg-white border border-slate-100 p-4 rounded-lg">
+        {positionInfo ? (
+          positionInfo.index === null ? (
+            <div className="text-sm text-gray-600">
+              No pending request found for that query.
+            </div>
+          ) : (
+            <div>
+              <div className="text-sm text-gray-700 mb-2">
+                There are{" "}
+                <span className="font-medium">{positionInfo.before}</span>{" "}
+                people ahead of you in the queue.
+              </div>
+              {positionInfo.beforeList.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          #
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Parent
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Child
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Phone
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-100">
+                      {positionInfo.beforeList.map((r, i) => (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {i + 1}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900">
+                            {r.parentName}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.childName}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.email}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">
+                            {r.phone || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="text-sm text-gray-600">
+            Enter a search above to find your place in the queue.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans overflow-x-hidden">
       {/* Background Grid */}
@@ -340,7 +625,7 @@ export default function HomePage() {
                     transition={{ duration: 0.8 }}
                     className="text-4xl md:text-6xl font-bold mb-4 drop-shadow-2xl"
                   >
-                    Welcome to Insa Daycare
+                    Welcome to INSA Daycare
                   </motion.h1>
                   <motion.p
                     initial={{ y: -30, opacity: 0 }}
@@ -535,7 +820,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="max-w-md">
+            <div className="w-full">
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
@@ -546,69 +831,182 @@ export default function HomePage() {
                       {pendingEnrollmentRequests.length}
                     </p>
                   </div>
-                  <Link
-                    href="/dashboard/enrollment-requests"
-                    className="text-sm font-medium text-indigo-600 hover:underline"
-                  >
-                    View all
-                  </Link>
                 </div>
 
-                {pendingEnrollmentRequests.length > 0 ? (
-                  <ul className="mt-4 divide-y divide-slate-100">
-                    {pendingEnrollmentRequests.slice(0, 5).map((r: any) => {
-                      const created = r.createdAt
-                        ? new Date(r.createdAt)
-                        : null;
-                      const preferred = r.preferredStartDate
-                        ? new Date(r.preferredStartDate)
-                        : null;
-                      const isNew = created
-                        ? Date.now() - created.getTime() < 1000 * 60 * 60 * 24
-                        : false; // within 24 hours
+                {/* Search input for finding position by name/email/phone/child */}
+                <div className="mt-4 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, phone, or child name"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSearch();
+                      }
+                    }}
+                    className="w-64 md:w-80 px-2 py-2 border border-gray-200 rounded-md text-sm"
+                  />
+                  <Button onClick={() => handleSearch()}>Find</Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setPositionInfo(null);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  {!isLoading && pendingEnrollmentRequests.length === 0 && (
+                    <div className="ml-2">
+                      <div className="text-sm text-gray-500">
+                        No pending requests loaded.
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="link"
+                        onClick={() => reloadPending()}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-                      return (
-                        <li
-                          key={r.id}
-                          className="py-3 flex items-start justify-between"
+                {/* Matches dropdown: show multiple possible matches for the query */}
+                {searchMatches && searchMatches.length > 0 && (
+                  <div className="mt-3 border border-slate-100 rounded-md bg-white p-2 shadow-sm">
+                    <div className="text-sm text-slate-600 mb-2">
+                      Multiple matches found. Choose the correct request:
+                    </div>
+                    <div className="space-y-1 max-h-44 overflow-auto">
+                      {searchMatches.map((m: any) => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            const idx = m._idx as number;
+                            const beforeList = pendingEnrollmentRequests.slice(
+                              0,
+                              idx
+                            );
+                            setPositionInfo({
+                              index: idx,
+                              before: idx,
+                              beforeList,
+                            });
+                            // hide matches after selection
+                            setSearchMatches([]);
+                          }}
+                          className="w-full text-left px-2 py-2 rounded hover:bg-slate-50 flex items-center justify-between"
                         >
                           <div>
-                            <div className="font-medium text-slate-900">
-                              {r.parentName}
+                            <div className="text-sm font-medium text-slate-900">
+                              {m.parentName}{" "}
+                              <span className="text-xs text-slate-500">
+                                — {m.childName}
+                              </span>
                             </div>
-                            <div className="text-sm text-slate-600">
-                              {r.childName} • {r.childAge} yr
-                              {r.childAge !== 1 ? "s" : ""}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1">
-                              {r.email}
-                              {r.phone ? ` • ${r.phone}` : ""}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1">
-                              {preferred
-                                ? `Preferred: ${preferred.toLocaleDateString()}`
-                                : ""}
+                            <div className="text-xs text-slate-500">
+                              {m.email || m.phone || "—"}
                             </div>
                           </div>
-                          <div className="text-right">
-                            {isNew && (
-                              <div className="mb-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
-                                New
-                              </div>
-                            )}
-                            <div className="text-xs text-slate-400">
-                              {created ? created.toLocaleString() : ""}
-                            </div>
+                          <div className="text-xs text-slate-400">
+                            position {m._idx + 1}
                           </div>
-                        </li>
-                      );
-                    })}
-                    {pendingEnrollmentRequests.length > 5 && (
-                      <li className="py-2 text-sm text-slate-500 text-center">
-                        Showing 5 of {pendingEnrollmentRequests.length}
-                      </li>
-                    )}
-                  </ul>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {pendingEnrollmentRequests.length > 0 ? (
+                  <div className="mt-4">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-100">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              #
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Parent
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Parent Gender
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Child
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Age
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Email
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Phone
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Preferred Start
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Requested At
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-100">
+                          {pendingEnrollmentRequests.map(
+                            (r: any, idx: number) => {
+                              const created = r.createdAt
+                                ? new Date(r.createdAt)
+                                : null;
+                              const preferred = r.preferredStartDate
+                                ? new Date(r.preferredStartDate)
+                                : null;
+                              return (
+                                <tr key={r.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-900">
+                                    {r.parentName}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {parseParentGender(r.notes)}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {r.childName}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {r.childAge}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {r.email}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {r.phone || "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {preferred
+                                      ? preferred.toLocaleDateString()
+                                      : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-500">
+                                    {created ? created.toLocaleString() : ""}
+                                  </td>
+                                </tr>
+                              );
+                            }
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4">
+                      <PositionLookup positionInfo={positionInfo} />
+                    </div>
+                  </div>
                 ) : (
                   <div className="mt-4 text-sm text-slate-500">
                     No pending enrollment requests.

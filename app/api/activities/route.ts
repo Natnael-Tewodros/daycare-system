@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         : undefined;
 
     let filter: any = {};
-    
+
     // Initialize filter conditions
     const filterConditions = [];
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (parentId) {
       filterConditions.push({ parentId });
     }
-    
+
     // If parentEmail is provided, add it to the filter
     if (parentEmail) {
       filterConditions.push(
@@ -38,20 +38,20 @@ export async function GET(request: NextRequest) {
         { recipients: { has: parentEmail } }
       );
     }
-    
+
     // If we have any filter conditions, combine them with OR
     if (filterConditions.length > 0) {
       filter.OR = filterConditions;
     }
-    
+
     // Filter by sender type if provided
     if (senderType) {
       filter.senderType = senderType;
     } else if (parentId || parentEmail) {
       // If parent is specified but no senderType, default to parent
-      filter.senderType = 'parent';
+      filter.senderType = "parent";
     }
-    
+
     // Filter activities by recipient notification state if provided
     if (recipientEmail) {
       filter.notifications = {
@@ -61,8 +61,6 @@ export async function GET(request: NextRequest) {
         },
       };
     }
-
-    
 
     const activities = await prisma.activity.findMany({
       where: filter,
@@ -74,11 +72,17 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching activities:", error);
     // Prisma returns code 'P1001' when it cannot reach the database server
-    if (error && (error as any).code === 'P1001') {
-      const msg = (error as any).message || 'Cannot reach database server';
-      return NextResponse.json({ error: `Database connection error: ${msg}` }, { status: 503 });
+    if (error && (error as any).code === "P1001") {
+      const msg = (error as any).message || "Cannot reach database server";
+      return NextResponse.json(
+        { error: `Database connection error: ${msg}` },
+        { status: 503 }
+      );
     }
-    return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch activities" },
+      { status: 500 }
+    );
   }
 }
 
@@ -91,11 +95,15 @@ export async function POST(request: NextRequest) {
     const recipientsJson = formData.get("recipients") as string;
     const attachments = formData.getAll("attachments") as File[];
 
-    if (!subject) return NextResponse.json({ error: "Subject required" }, { status: 400 });
+    if (!subject)
+      return NextResponse.json({ error: "Subject required" }, { status: 400 });
 
     const recipients = JSON.parse(recipientsJson || "[]");
     if (!Array.isArray(recipients) || recipients.length === 0) {
-      return NextResponse.json({ error: "Select at least one recipient" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Select at least one recipient" },
+        { status: 400 }
+      );
     }
 
     // Upload attachments
@@ -112,21 +120,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get parent information from headers
-    const parentEmail = request.headers.get('x-parent-email');
-    const parentId = request.headers.get('x-parent-id');
-    
+    const parentEmail = request.headers.get("x-parent-email");
+    const parentId = request.headers.get("x-parent-id");
+
     // Determine if this is a parent submission
-    const formSenderType = formData.get('senderType') as string;
-    const isParentSubmission = formSenderType === 'parent' || 
-                             parentEmail || 
-                             (subject?.toLowerCase().includes('absence') || 
-                              subject?.toLowerCase().includes('sick') ||
-                              description?.toLowerCase().includes('child:') ||
-                              description?.toLowerCase().includes('reason:'));
+    const formSenderType = formData.get("senderType") as string;
+    const isParentSubmission =
+      formSenderType === "parent" ||
+      parentEmail ||
+      subject?.toLowerCase().includes("absence") ||
+      subject?.toLowerCase().includes("sick") ||
+      description?.toLowerCase().includes("child:") ||
+      description?.toLowerCase().includes("reason:");
 
     // If this is a parent submission, ensure admin is in recipients
-    if (isParentSubmission && !recipients.includes('admin@daycare.com')) {
-      recipients.push('admin@daycare.com');
+    if (isParentSubmission && !recipients.includes("admin@daycare.com")) {
+      recipients.push("admin@daycare.com");
     }
 
     // Create activity data with proper sender type and parent info
@@ -136,8 +145,8 @@ export async function POST(request: NextRequest) {
       recipients,
       attachments: attachmentPaths,
       senderType: isParentSubmission ? "parent" : "admin",
-      parentEmail: isParentSubmission ? (parentEmail || null) : null,
-      parentId: isParentSubmission ? (parentId || null) : null
+      parentEmail: isParentSubmission ? parentEmail || null : null,
+      parentId: isParentSubmission ? parentId || null : null,
     };
 
     // Create activity
@@ -163,7 +172,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, activity });
   } catch (error) {
     console.error("Error creating activity:", error);
-    return NextResponse.json({ error: "Failed to create activity" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create activity" },
+      { status: 500 }
+    );
   }
 }
 
@@ -174,7 +186,11 @@ export async function PATCH(request: NextRequest) {
     const pathParts = url.pathname.split("/");
     const id = parseInt(pathParts[pathParts.length - 1]);
 
-    if (!id) return NextResponse.json({ error: "Activity ID is required" }, { status: 400 });
+    if (!id)
+      return NextResponse.json(
+        { error: "Activity ID is required" },
+        { status: 400 }
+      );
 
     const { subject, description } = await request.json();
 
@@ -197,7 +213,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, activity: updatedActivity });
   } catch (error) {
     console.error("Error updating activity:", error);
-    return NextResponse.json({ error: "Failed to update activity" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update activity" },
+      { status: 500 }
+    );
   }
 }
 
@@ -218,14 +237,14 @@ export async function DELETE(request: NextRequest) {
       where: { id: Number(id) },
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "Activity deleted successfully" 
+    return NextResponse.json({
+      success: true,
+      message: "Activity deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting activity:", error);
     return NextResponse.json(
-      { error: "Failed to delete activity" }, 
+      { error: "Failed to delete activity" },
       { status: 500 }
     );
   }

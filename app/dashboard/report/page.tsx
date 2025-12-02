@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +123,9 @@ export default function ReportPage() {
   const [statsYear, setStatsYear] = useState<string>(
     new Date().getFullYear().toString()
   );
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [selectedOrganizationId, setSelectedOrganizationId] =
+    useState<string>("ALL");
   const [viewTermOpen, setViewTermOpen] = useState(false);
   const [viewTerm, setViewTerm] = useState<{
     reason: string;
@@ -155,6 +158,22 @@ export default function ReportPage() {
   const [activeParentTab, setActiveParentTab] = useState<"MOTHER" | "FATHER">(
     "MOTHER"
   );
+
+  // terminated counts by reason (including ALL)
+  const terminatedList = stats?.terminatedInYear || [];
+  const terminationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    // initialize with known reasons
+    TERMINATION_REASONS.forEach((r) => (counts[r.value] = 0));
+    counts["ALL"] = 0;
+    (terminatedList || []).forEach((c: any) => {
+      const key = normalizeReason(c.reason) || "OTHER";
+      if (counts[key] === undefined) counts[key] = 0;
+      counts[key] = (counts[key] || 0) + 1;
+      counts["ALL"] = (counts["ALL"] || 0) + 1;
+    });
+    return counts;
+  }, [terminatedList]);
 
   const orgChartData = stats
     ? {
@@ -379,9 +398,15 @@ export default function ReportPage() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(
-          `/api/reports/children-stats?year=${encodeURIComponent(statsYear)}`
-        );
+        let url = `/api/reports/children-stats?year=${encodeURIComponent(
+          statsYear
+        )}`;
+        if (selectedOrganizationId && selectedOrganizationId !== "ALL") {
+          url += `&organizationId=${encodeURIComponent(
+            selectedOrganizationId
+          )}`;
+        }
+        const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to load stats");
         const data = await res.json();
         setStats(data);
@@ -392,7 +417,22 @@ export default function ReportPage() {
       }
     };
     loadStats();
-  }, [statsYear]);
+  }, [statsYear, selectedOrganizationId]);
+
+  // Load organizations for organization filter
+  useEffect(() => {
+    const loadOrgs = async () => {
+      try {
+        const res = await fetch("/api/organization");
+        if (!res.ok) throw new Error("Failed to load organizations");
+        const data = await res.json();
+        setOrganizations(data || []);
+      } catch (e) {
+        console.error("Failed to fetch organizations:", e);
+      }
+    };
+    loadOrgs();
+  }, []);
 
   const fetchAllReports = async () => {
     try {
@@ -400,14 +440,22 @@ export default function ReportPage() {
       setError(null);
 
       // Fetch all reports in parallel
+      const orgQuery =
+        selectedOrganizationId && selectedOrganizationId !== "ALL"
+          ? `organizationId=${encodeURIComponent(selectedOrganizationId)}`
+          : null;
       const [eventRes, attendanceRes, genderRes, overviewRes] =
         await Promise.all([
-          fetch("/api/reports/events"),
+          fetch(`/api/reports/events${orgQuery ? `?${orgQuery}` : ""}`),
           fetch(
-            `/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}&groupBy=${attendanceView}`
+            `/api/reports/attendance?period=${attendancePeriod}&date=${selectedDate}&year=${selectedYear}&month=${selectedMonth}&groupBy=${attendanceView}${
+              orgQuery ? `&${orgQuery}` : ""
+            }`
           ),
-          fetch("/api/reports/children-by-gender"),
-          fetch("/api/dashboard/overview"),
+          fetch(
+            `/api/reports/children-by-gender${orgQuery ? `?${orgQuery}` : ""}`
+          ),
+          fetch(`/api/dashboard/overview${orgQuery ? `?${orgQuery}` : ""}`),
         ]);
 
       // Process the responses
@@ -808,6 +856,27 @@ export default function ReportPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Organization
+                </label>
+                <Select
+                  value={selectedOrganizationId}
+                  onValueChange={setSelectedOrganizationId}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={"ALL"}>All</SelectItem>
+                    {organizations.map((org) => (
+                      <SelectItem key={org.id} value={String(org.id)}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {stats && (
                 <>
                   <div>
@@ -852,7 +921,19 @@ export default function ReportPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar data={orgChartData} options={barOptions} />
+                  {orgChartData.labels && orgChartData.labels.length > 0 ? (
+                    <Bar data={orgChartData} options={barOptions} />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                        <p className="text-muted-foreground max-w-xs mx-auto">
+                          No organizations registered yet. Add organizations to
+                          see a breakdown by organization in this chart.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -865,7 +946,19 @@ export default function ReportPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar data={siteChartData} options={barOptions} />
+                  {siteChartData.labels && siteChartData.labels.length > 0 ? (
+                    <Bar data={siteChartData} options={barOptions} />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                        <p className="text-muted-foreground max-w-xs mx-auto">
+                          No sites registered yet. Add sites to see a breakdown
+                          by site in this chart.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -952,6 +1045,27 @@ export default function ReportPage() {
                   <span className="font-medium">
                     {getReasonLabel(terminatedReasonFilter)}
                   </span>
+                </div>
+              </div>
+
+              {/* Quick numeric breakdown by termination reason */}
+              <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {TERMINATION_REASONS.map((r) => (
+                  <div
+                    key={r.value}
+                    className="bg-white border border-slate-100 rounded-lg p-3 flex flex-col"
+                  >
+                    <div className="text-xs text-slate-500">{r.label}</div>
+                    <div className="text-xl font-bold text-slate-900">
+                      {terminationCounts[r.value] ?? 0}
+                    </div>
+                  </div>
+                ))}
+                <div className="bg-white border border-slate-100 rounded-lg p-3 flex flex-col">
+                  <div className="text-xs text-slate-500">Total</div>
+                  <div className="text-xl font-bold text-slate-900">
+                    {terminationCounts["ALL"] ?? 0}
+                  </div>
                 </div>
               </div>
 
@@ -1106,7 +1220,19 @@ export default function ReportPage() {
                 </div>
               ) : (
                 <div className="h-64">
-                  <Pie data={parentChartData} options={parentChartOptions} />
+                  {parentReports && parentReports.length > 0 ? (
+                    <Pie data={parentChartData} options={parentChartOptions} />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <ClipboardList className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                        <p className="text-muted-foreground max-w-xs mx-auto">
+                          No parent relationship data available. Parent reports
+                          will appear here when data is collected.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mt-4 text-center text-sm text-muted-foreground">
