@@ -61,7 +61,7 @@ export async function GET(req: Request) {
         parentEmail: true,
       });
 
-    // After creating attendance, check for long absence (>= 60 days)
+      // After creating attendance, check for long absence (>= 60 days)
       return NextResponse.json({
         attendances,
         absentChildren,
@@ -170,73 +170,77 @@ export async function PUT(req: Request) {
       );
     }
 
-            (async () => {
-              try {
-                const prev = await prisma.attendance.findFirst({
-                  where: {
-                    childId: Number(childId),
-                    id: { not: attendance.id },
+    (async () => {
+      try {
+        const prev = await prisma.attendance.findFirst({
+          where: {
+            childId: Number(childId),
+            id: { not: attendance.id },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (prev) {
+          const diffMs =
+            attendance.createdAt.getTime() - prev.createdAt.getTime();
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          if (diffDays >= 60) {
+            // Attempt to suspend/flag the child's approvalStatus and notify the parent
+            try {
+              // Build a suspension reason and update child status
+              const note = `suspended:ABSENT_TOO_LONG:${new Date().toISOString()}`;
+              await prisma.child.update({
+                where: { id: Number(childId) },
+                data: { approvalStatus: note },
+              });
+
+              // Create an activity and notifications for parent + admin
+              const parentEmail = attendance.child?.parentEmail || null;
+              const recipients = [] as string[];
+              if (parentEmail) recipients.push(parentEmail);
+              // ensure admin is included so staff see the event
+              recipients.push("admin@daycare.com");
+
+              const subject = `Child returned after long absence: ${attendance.child?.fullName}`;
+              const description = `The child ${attendance.child?.fullName} was last seen ${diffDays} days ago and has now checked in. The account has been temporarily suspended pending review.`;
+
+              const activity = await prisma.activity.create({
+                data: {
+                  subject,
+                  description,
+                  recipients,
+                  attachments: [],
+                  senderType: "admin",
+                },
+              });
+
+              const notifPromises = recipients.map((email) =>
+                prisma.notification.create({
+                  data: {
+                    activityId: activity.id,
+                    parentEmail: email,
+                    title: subject,
+                    message: description,
+                    type: "info",
+                    isRead: false,
                   },
-                  orderBy: { createdAt: "desc" },
-                });
+                })
+              );
+              await Promise.all(notifPromises);
+            } catch (innerErr) {
+              console.error(
+                "Failed to create suspension notifications:",
+                innerErr
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error checking previous attendance:", err);
+      }
+    })();
 
-                if (prev) {
-                  const diffMs = attendance.createdAt.getTime() - prev.createdAt.getTime();
-                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                  if (diffDays >= 60) {
-                    // Attempt to suspend/flag the child's approvalStatus and notify the parent
-                    try {
-                      // Build a suspension reason and update child status
-                      const note = `suspended:ABSENT_TOO_LONG:${new Date().toISOString()}`;
-                      await prisma.child.update({
-                        where: { id: Number(childId) },
-                        data: { approvalStatus: note },
-                      });
-
-                      // Create an activity and notifications for parent + admin
-                      const parentEmail = attendance.child?.parentEmail || null;
-                      const recipients = [] as string[];
-                      if (parentEmail) recipients.push(parentEmail);
-                      // ensure admin is included so staff see the event
-                      recipients.push("admin@daycare.com");
-
-                      const subject = `Child returned after long absence: ${attendance.child?.fullName}`;
-                      const description = `The child ${attendance.child?.fullName} was last seen ${diffDays} days ago and has now checked in. The account has been temporarily suspended pending review.`;
-
-                      const activity = await prisma.activity.create({
-                        data: {
-                          subject,
-                          description,
-                          recipients,
-                          attachments: [],
-                          senderType: "admin",
-                        },
-                      });
-
-                      const notifPromises = recipients.map((email) =>
-                        prisma.notification.create({
-                          data: {
-                            activityId: activity.id,
-                            parentEmail: email,
-                            title: subject,
-                            message: description,
-                            type: "info",
-                            isRead: false,
-                          },
-                        })
-                      );
-                      await Promise.all(notifPromises);
-                    } catch (innerErr) {
-                      console.error("Failed to create suspension notifications:", innerErr);
-                    }
-                  }
-                }
-              } catch (err) {
-                console.error("Error checking previous attendance:", err);
-              }
-            })();
-
-            return NextResponse.json(attendance, { status: 201 });
+    return NextResponse.json(attendance, { status: 201 });
     const updated = await prisma.attendance.update({
       where: { id: Number(id) },
       data: {

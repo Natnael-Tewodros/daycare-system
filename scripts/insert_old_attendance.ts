@@ -6,7 +6,9 @@ import { prisma } from "../lib/prisma";
 async function main() {
   const args = process.argv.slice(2);
   if (args.length < 2) {
-    console.error("Usage: node ./scripts/insert_old_attendance.ts <childId> <daysAgo> [status]");
+    console.error(
+      "Usage: node ./scripts/insert_old_attendance.ts <childId> <daysAgo> [status]"
+    );
     process.exit(1);
   }
   const childId = Number(args[0]);
