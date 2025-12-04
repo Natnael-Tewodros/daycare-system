@@ -36,6 +36,7 @@ export default function ApplicationStatusPage() {
   const [enrollmentRequests, setEnrollmentRequests] = useState<
     EnrollmentRequest[]
   >([]);
+  const [rawResults, setRawResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -60,11 +61,19 @@ export default function ApplicationStatusPage() {
       const response = await fetch("/api/enrollment-requests");
       if (response.ok) {
         const data = await response.json();
+        // Keep raw API results for debugging when parents report missing entries
+        setRawResults(Array.isArray(data.data) ? data.data : []);
+        console.debug("/api/enrollment-requests raw data:", data);
         // Filter requests for this parent
-        const userRequests: EnrollmentRequest[] = (data.data || []).filter(
-          (req: EnrollmentRequest) =>
-            req.email.toLowerCase() === parentEmail.toLowerCase()
-        );
+        const userRequests: EnrollmentRequest[] = (data.data || [])
+          .filter(
+            (req: EnrollmentRequest) =>
+              req.email.toLowerCase() === parentEmail.toLowerCase()
+          )
+          .map((r: any) => ({
+            ...r,
+            status: String(r.status || "pending").toLowerCase(),
+          }));
         // Group by same-day submissions (avoid duplicates from multi-child forms)
         const byDayKey = (d: string) => new Date(d).toISOString().slice(0, 10);
         const grouped = new Map<string, EnrollmentRequest>();
@@ -230,6 +239,27 @@ export default function ApplicationStatusPage() {
             <p className="text-gray-600 mb-6">
               You haven't submitted any daycare applications yet.
             </p>
+            {rawResults && rawResults.length > 0 && (
+              <div className="mt-4 text-sm text-gray-600">
+                <p className="font-medium">
+                  Debug: API returned applications for these emails:
+                </p>
+                <div className="mt-2 text-xs text-gray-700">
+                  {Array.from(
+                    new Set(
+                      rawResults.map((r: any) =>
+                        String(r.email || "").toLowerCase()
+                      )
+                    )
+                  )
+                    .filter(Boolean)
+                    .slice(0, 20)
+                    .map((e: string) => (
+                      <div key={e}>{e}</div>
+                    ))}
+                </div>
+              </div>
+            )}
             <Button
               onClick={() => router.push("/parent-application")}
               size="lg"

@@ -32,16 +32,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Normalize email and ensure status set to pending by default
+    const normalizedEmail = String(email || "")
+      .toLowerCase()
+      .trim();
     const enrollmentRequest = await prisma.enrollmentRequest.create({
       data: {
         parentName,
         childName,
         childAge: parseInt(childAge.toString()),
-        email,
+        email: normalizedEmail,
         phone,
         preferredStartDate: preferredStartDate
           ? new Date(preferredStartDate)
           : null,
+        status: "pending",
         notes: notes
           ? `${notes}\n\nAddress: ${address}\nCare Needed: ${careNeeded}`
           : `Address: ${address}\nCare Needed: ${careNeeded}`,
@@ -82,7 +87,10 @@ export async function GET(request: NextRequest) {
 
     const where: any = {};
     if (status && ["pending", "approved", "rejected"].includes(status)) {
-      where.status = status;
+      // Use case-insensitive matching for stored status values.
+      // (EnrollmentRequest.status is non-nullable in the schema, so
+      // checking for null is invalid and causes a Prisma validation error.)
+      where.status = { equals: status, mode: "insensitive" };
     }
 
     const orderDirection: "asc" | "desc" = sort === "asc" ? "asc" : "desc";
@@ -90,6 +98,16 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { createdAt: orderDirection },
     });
+
+    // Normalize returned records to ensure UI consumers always receive
+    // predictable `status` (lowercase) and normalized `email` values.
+    enrollmentRequests = enrollmentRequests.map((r) => ({
+      ...r,
+      status: String((r as any).status || "pending").toLowerCase(),
+      email: String((r as any).email || "")
+        .toLowerCase()
+        .trim(),
+    }));
 
     // If requested, prioritize requests where parent gender is female.
     // Parent gender may be stored inside `notes` (from older forms), e.g. "Parent Gender: FEMALE".

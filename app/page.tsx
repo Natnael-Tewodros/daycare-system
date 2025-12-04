@@ -150,6 +150,9 @@ export default function HomePage() {
   const [pendingEnrollmentRequests, setPendingEnrollmentRequests] = useState<
     any[]
   >([]);
+  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [enrollmentPage, setEnrollmentPage] = useState(1);
+  const enrollmentPageSize = 10;
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [positionInfo, setPositionInfo] = useState<{
@@ -169,16 +172,48 @@ export default function HomePage() {
     "/daycare4.jpg",
   ];
 
-  // Fetch rooms and pending enrollment requests
+  // Fetch rooms and enrollment requests (supports filter & dedup)
+  const fetchRequests = async () => {
+    try {
+      setIsLoading(true);
+      // fetch pending/filtered enrollment requests
+      const params = new URLSearchParams();
+      if (filter === "pending") params.set("status", "pending");
+      params.set("sort", "asc");
+      // prioritize women where requested by default
+      params.set("prioritizeWomen", "true");
+      const resp = await fetch(`/api/enrollment-requests?${params.toString()}`);
+      if (resp.ok) {
+        const json = await resp.json();
+        // Use full API list (no deduplication) and normalize email/status
+        const list = (json?.data || []).map((r: any) => ({
+          ...r,
+          status: String(r.status || "pending").toLowerCase(),
+          email: String(r.email || "")
+            .toLowerCase()
+            .trim(),
+        }));
+        setPendingEnrollmentRequests(list);
+      } else {
+        console.warn("Failed to load enrollment requests", resp.status);
+        setPendingEnrollmentRequests([]);
+      }
+    } catch (err) {
+      console.error("Error loading enrollment requests:", err);
+      setPendingEnrollmentRequests([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // load rooms once and requests
     let mounted = true;
-    const load = async () => {
+    const loadRooms = async () => {
       try {
-        // rooms
         const roomsResp = await fetch("/api/rooms");
-        if (roomsResp.ok) {
+        if (roomsResp.ok && mounted) {
           const roomsData = await roomsResp.json();
-          if (!mounted) return;
           setRooms(
             roomsData.map((room: any) => ({
               id: room.id,
@@ -191,56 +226,27 @@ export default function HomePage() {
             }))
           );
         }
-
-        // pending enrollment requests (FIFO)
-        const pendingResp = await fetch(
-          "/api/enrollment-requests?status=pending&sort=asc&prioritizeWomen=true"
-        );
-        if (pendingResp.ok) {
-          const pendingJson = await pendingResp.json();
-          if (!mounted) return;
-          const list = pendingJson?.data || [];
-          console.debug(
-            "Loaded pending enrollment requests:",
-            list.length,
-            list?.slice(0, 3)
-          );
-          setPendingEnrollmentRequests(list);
-        } else {
-          console.warn(
-            "Failed to load pending enrollment requests, status:",
-            pendingResp.status
-          );
-        }
       } catch (err) {
-        console.error("Error loading homepage data:", err);
-      } finally {
-        if (mounted) setIsLoading(false);
+        console.error("Error loading rooms:", err);
       }
     };
 
-    load();
+    loadRooms();
+    fetchRequests();
     return () => {
       mounted = false;
     };
   }, []);
 
+  // reload when filter changes
+  useEffect(() => {
+    setEnrollmentPage(1);
+    fetchRequests();
+  }, [filter]);
+
   // Allow retrying pending requests fetch from the UI for debugging
   const reloadPending = async () => {
-    try {
-      const resp = await fetch(
-        "/api/enrollment-requests?status=pending&sort=asc&prioritizeWomen=true"
-      );
-      if (!resp.ok) {
-        console.warn("reloadPending failed status", resp.status);
-        return;
-      }
-      const json = await resp.json();
-      console.debug("reloadPending loaded", json?.data?.length);
-      setPendingEnrollmentRequests(json?.data || []);
-    } catch (e) {
-      console.error("reloadPending error", e);
-    }
+    await fetchRequests();
   };
   function PositionLookup({
     positionInfo,
@@ -261,9 +267,13 @@ export default function HomePage() {
           ) : (
             <div>
               <div className="text-sm text-gray-700 mb-2">
-                There are{" "}
-                <span className="font-medium">{positionInfo.before}</span>{" "}
-                people ahead of you in the queue.
+                {positionInfo.before === 0 ? null : (
+                  <>
+                    There are{" "}
+                    <span className="font-medium">{positionInfo.before}</span>{" "}
+                    people ahead of you in the queue.
+                  </>
+                )}
               </div>
               {positionInfo.beforeList.length > 0 && (
                 <div className="overflow-x-auto">
@@ -503,86 +513,84 @@ export default function HomePage() {
     }
   };
 
-  // Position lookup display component (search box moved above table)
-  function PositionLookup({
-    positionInfo,
-  }: {
-    positionInfo: {
-      index: number | null;
-      before: number;
-      beforeList: any[];
-    } | null;
-  }) {
-    return (
-      <div className="bg-white border border-slate-100 p-4 rounded-lg">
-        {positionInfo ? (
-          positionInfo.index === null ? (
-            <div className="text-sm text-gray-600">
-              No pending request found for that query.
-            </div>
-          ) : (
-            <div>
-              <div className="text-sm text-gray-700 mb-2">
-                There are{" "}
-                <span className="font-medium">{positionInfo.before}</span>{" "}
-                people ahead of you in the queue.
-              </div>
-              {positionInfo.beforeList.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          #
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Parent
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Child
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Email
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Phone
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-100">
-                      {positionInfo.beforeList.map((r, i) => (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 text-sm text-gray-700">
-                            {i + 1}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-gray-900">
-                            {r.parentName}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-gray-700">
-                            {r.childName}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-gray-700">
-                            {r.email}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-gray-700">
-                            {r.phone || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )
-        ) : (
-          <div className="text-sm text-gray-600">
-            Enter a search above to find your place in the queue.
-          </div>
-        )}
-      </div>
-    );
-  }
+  // Normalize helper reused by search
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const matchesQuery = (r: any, q: string) => {
+    const qRaw = String(q || "").trim();
+    if (!qRaw) return true;
+    const qNorm = normalize(qRaw);
+    const qDigits = qNorm.replace(/\D/g, "");
+    const qTokens = qNorm.split(" ").filter(Boolean);
+
+    const parent = normalize(String(r.parentName || ""));
+    const email = normalize(String(r.email || ""));
+    const child = normalize(String(r.childName || ""));
+    const phone = String(r.phone || "").replace(/\D/g, "");
+    const notes = normalize(String(r.notes || ""));
+
+    // direct digit match for phone
+    if (qDigits && phone.includes(qDigits)) return true;
+
+    // direct contains
+    if (
+      parent.includes(qNorm) ||
+      email.includes(qNorm) ||
+      child.includes(qNorm) ||
+      notes.includes(qNorm)
+    )
+      return true;
+
+    // token match: every token should appear in one of the fields (loose AND)
+    if (qTokens.length > 0) {
+      const allTokensFound = qTokens.every(
+        (t) =>
+          parent.includes(t) ||
+          email.includes(t) ||
+          child.includes(t) ||
+          notes.includes(t)
+      );
+      if (allTokensFound) return true;
+    }
+
+    return false;
+  };
+
+  // Run search automatically when `searchQuery` or `pendingEnrollmentRequests` changes
+  useEffect(() => {
+    const qRaw = String(searchQuery || "").trim();
+    if (!qRaw) {
+      setSearchMatches([]);
+      setPositionInfo(null);
+      setEnrollmentPage(1);
+      return;
+    }
+
+    const matchedList: any[] = [];
+    for (let i = 0; i < pendingEnrollmentRequests.length; i++) {
+      const r = pendingEnrollmentRequests[i];
+      if (matchesQuery(r, qRaw)) matchedList.push({ _idx: i, ...r });
+    }
+
+    if (matchedList.length === 0) {
+      setSearchMatches([]);
+      setPositionInfo({ index: null, before: 0, beforeList: [] });
+    } else {
+      setSearchMatches(matchedList);
+      const idx = matchedList[0]._idx as number;
+      const beforeList = pendingEnrollmentRequests.slice(0, idx);
+      setPositionInfo({ index: idx, before: idx, beforeList });
+      // when there are matches, show the page containing the earliest match
+      const pageForMatch = Math.floor(idx / enrollmentPageSize) + 1;
+      setEnrollmentPage(pageForMatch);
+    }
+  }, [searchQuery, pendingEnrollmentRequests]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans overflow-x-hidden">
@@ -834,21 +842,37 @@ export default function HomePage() {
                 </div>
 
                 {/* Search input for finding position by name/email/phone/child */}
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex rounded-md border border-blue-200 overflow-hidden">
+                    <button
+                      className={`px-3 py-1 text-sm ${
+                        filter === "pending"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white text-blue-600"
+                      }`}
+                      onClick={() => setFilter("pending")}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-sm ${
+                        filter === "all"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white text-blue-600"
+                      }`}
+                      onClick={() => setFilter("all")}
+                    >
+                      All
+                    </button>
+                  </div>
+
                   <input
                     type="text"
                     placeholder="Search by name, email, phone, or child name"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSearch();
-                      }
-                    }}
                     className="w-64 md:w-80 px-2 py-2 border border-gray-200 rounded-md text-sm"
                   />
-                  <Button onClick={() => handleSearch()}>Find</Button>
                   <Button
                     variant="ghost"
                     onClick={() => {
@@ -874,51 +898,7 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* Matches dropdown: show multiple possible matches for the query */}
-                {searchMatches && searchMatches.length > 0 && (
-                  <div className="mt-3 border border-slate-100 rounded-md bg-white p-2 shadow-sm">
-                    <div className="text-sm text-slate-600 mb-2">
-                      Multiple matches found. Choose the correct request:
-                    </div>
-                    <div className="space-y-1 max-h-44 overflow-auto">
-                      {searchMatches.map((m: any) => (
-                        <button
-                          key={m.id}
-                          onClick={() => {
-                            const idx = m._idx as number;
-                            const beforeList = pendingEnrollmentRequests.slice(
-                              0,
-                              idx
-                            );
-                            setPositionInfo({
-                              index: idx,
-                              before: idx,
-                              beforeList,
-                            });
-                            // hide matches after selection
-                            setSearchMatches([]);
-                          }}
-                          className="w-full text-left px-2 py-2 rounded hover:bg-slate-50 flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-slate-900">
-                              {m.parentName}{" "}
-                              <span className="text-xs text-slate-500">
-                                — {m.childName}
-                              </span>
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {m.email || m.phone || "—"}
-                            </div>
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            position {m._idx + 1}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Search now directly filters the table like the admin view; no matches dropdown */}
 
                 {pendingEnrollmentRequests.length > 0 ? (
                   <div className="mt-4">
@@ -934,6 +914,9 @@ export default function HomePage() {
                             </th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Parent Gender
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Queue
                             </th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Child
@@ -956,55 +939,132 @@ export default function HomePage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-100">
-                          {pendingEnrollmentRequests.map(
-                            (r: any, idx: number) => {
-                              const created = r.createdAt
-                                ? new Date(r.createdAt)
-                                : null;
-                              const preferred = r.preferredStartDate
-                                ? new Date(r.preferredStartDate)
-                                : null;
-                              return (
-                                <tr key={r.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-900">
-                                    {r.parentName}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {parseParentGender(r.notes)}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {r.childName}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {r.childAge}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {r.email}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {r.phone || "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-700">
-                                    {preferred
-                                      ? preferred.toLocaleDateString()
-                                      : "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-500">
-                                    {created ? created.toLocaleString() : ""}
-                                  </td>
-                                </tr>
-                              );
-                            }
-                          )}
+                          {(
+                            (searchQuery
+                              ? pendingEnrollmentRequests
+                                  .map((r: any, i: number) => ({
+                                    ...r,
+                                    _idx: i,
+                                  }))
+                                  .filter((r: any) =>
+                                    matchesQuery(r, searchQuery)
+                                  )
+                              : pendingEnrollmentRequests.slice(
+                                  (enrollmentPage - 1) * enrollmentPageSize,
+                                  enrollmentPage * enrollmentPageSize
+                                )) as any[]
+                          ).map((r: any, idx: number) => {
+                            const created = r.createdAt
+                              ? new Date(r.createdAt)
+                              : null;
+                            const preferred = r.preferredStartDate
+                              ? new Date(r.preferredStartDate)
+                              : null;
+                            // compute absolute position in the full pending list
+                            const absoluteIdx = searchQuery
+                              ? r._idx !== undefined
+                                ? r._idx
+                                : idx
+                              : (enrollmentPage - 1) * enrollmentPageSize + idx;
+                            const isPriority =
+                              parseParentGender(r.notes) === "Female";
+                            return (
+                              <tr key={r.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {searchQuery
+                                    ? r._idx !== undefined
+                                      ? r._idx + 1
+                                      : idx + 1
+                                    : (enrollmentPage - 1) *
+                                        enrollmentPageSize +
+                                      idx +
+                                      1}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900">
+                                  {r.parentName}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {parseParentGender(r.notes)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {isPriority
+                                    ? "Priority"
+                                    : `Queue ${absoluteIdx + 1}`}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {r.childName}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {r.childAge}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {r.email}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {r.phone || "—"}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {preferred
+                                    ? preferred.toLocaleDateString()
+                                    : "—"}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-500">
+                                  {created ? created.toLocaleString() : ""}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
 
-                    <div className="mt-4">
-                      <PositionLookup positionInfo={positionInfo} />
+                    <div className="mt-4 flex items-center justify-end">
+                      {pendingEnrollmentRequests.length >
+                        enrollmentPageSize && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              setEnrollmentPage((p) => Math.max(1, p - 1))
+                            }
+                            disabled={enrollmentPage === 1}
+                          >
+                            Prev
+                          </Button>
+
+                          <div className="text-sm">
+                            Page {enrollmentPage} /{" "}
+                            {Math.ceil(
+                              pendingEnrollmentRequests.length /
+                                enrollmentPageSize
+                            )}
+                          </div>
+
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              setEnrollmentPage((p) =>
+                                Math.min(
+                                  Math.ceil(
+                                    pendingEnrollmentRequests.length /
+                                      enrollmentPageSize
+                                  ),
+                                  p + 1
+                                )
+                              )
+                            }
+                            disabled={
+                              enrollmentPage ===
+                              Math.ceil(
+                                pendingEnrollmentRequests.length /
+                                  enrollmentPageSize
+                              )
+                            }
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (

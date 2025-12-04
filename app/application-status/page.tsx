@@ -69,13 +69,17 @@ export default function ApplicationStatusPage() {
       const response = await fetch("/api/enrollment-requests");
       if (response.ok) {
         const data = await response.json();
-        const userRequests =
-          data.data?.filter(
+        const userRequests = (data.data || [])
+          .filter(
             (req: EnrollmentRequest) =>
               req.email.toLowerCase() === searchEmail.toLowerCase()
-          ) || [];
+          )
+          .map((r: any) => ({
+            ...r,
+            status: String(r.status || "pending").toLowerCase(),
+          }));
 
-        setRequests(userRequests);
+        setRequests(userRequests as EnrollmentRequest[]);
 
         if (userRequests.length === 0) {
           setError("No applications found for this email address");

@@ -61,7 +61,7 @@ export default function ParentApplicationPage() {
         if (user?.email) setValue("email", user.email);
         if (user?.phoneNumber) setValue("phone", user.phoneNumber);
         if (user?.gender) setValue("parentGender", user.gender);
-      } catch {}
+      } catch { }
     })();
     // load organizations and sites for dropdowns
     (async () => {
@@ -119,13 +119,10 @@ export default function ParentApplicationPage() {
         parentName: (data.parentName || "").trim(),
         email: (data.email || "").trim().toLowerCase(),
         phone: (data.phone || "").trim(),
-        notes: `${(data.notes || "").trim()}${
-          data.notes ? "\n\n" : ""
-        }Organization: ${data.organization || "N/A"}\nSite: ${
-          data.site || "N/A"
-        }\nParent Gender: ${
-          data.parentGender || "N/A"
-        }\n\nChildren:\n${childrenLines}`,
+        notes: `${(data.notes || "").trim()}${data.notes ? "\n\n" : ""
+          }Organization: ${data.organization || "N/A"}\nSite: ${data.site || "N/A"
+          }\nParent Gender: ${data.parentGender || "N/A"
+          }\n\nChildren:\n${childrenLines}`,
       } as any;
 
       const res = await fetch("/api/enrollment-requests", {
@@ -385,12 +382,12 @@ export default function ParentApplicationPage() {
                               prev.map((it, i) =>
                                 i === idx
                                   ? {
-                                      ...it,
-                                      childAge:
-                                        e.target.value === ""
-                                          ? ""
-                                          : Number(e.target.value),
-                                    }
+                                    ...it,
+                                    childAge:
+                                      e.target.value === ""
+                                        ? ""
+                                        : Number(e.target.value),
+                                  }
                                   : it
                               )
                             )

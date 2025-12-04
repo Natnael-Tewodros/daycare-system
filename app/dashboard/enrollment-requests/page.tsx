@@ -16,6 +16,24 @@ import {
   User,
   RefreshCw,
 } from "lucide-react";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 interface EnrollmentRequest {
   id: number;
@@ -38,6 +56,11 @@ export default function AdminEnrollmentRequestsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<EnrollmentRequest | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const pageSize = 10;
 
   useEffect(() => {
     fetchRequests();
@@ -48,19 +71,26 @@ export default function AdminEnrollmentRequestsPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/enrollment-requests");
+      // Request server-side filtering when admin wants only pending items
+      const params = new URLSearchParams();
+      if (filter === "pending") params.set("status", "pending");
+      // keep newest first by default
+      params.set("sort", "desc");
+      const response = await fetch(
+        `/api/enrollment-requests?${params.toString()}`
+      );
       if (response.ok) {
         const data = await response.json();
-        const list: EnrollmentRequest[] = data.data || [];
-        // Group multiple same-day submissions by same parent email
-        const byDayKey = (d: string) => new Date(d).toISOString().slice(0, 10);
-        const grouped = new Map<string, EnrollmentRequest>();
-        for (const r of list) {
-          const email = (r.email || "").toLowerCase();
-          const key = `${byDayKey(r.createdAt)}|${email}`;
-          if (!grouped.has(key)) grouped.set(key, r);
-        }
-        setRequests(Array.from(grouped.values()));
+        // Use the full list returned by the API; do not deduplicate here so
+        // admins can see every enrollment request.
+        const list: EnrollmentRequest[] = (data.data || []).map((r: any) => ({
+          ...r,
+          status: String(r.status || "pending").toLowerCase(),
+          email: String(r.email || "")
+            .toLowerCase()
+            .trim(),
+        }));
+        setRequests(list as EnrollmentRequest[]);
       } else {
         setError("Failed to fetch enrollment requests");
       }
@@ -83,7 +113,6 @@ export default function AdminEnrollmentRequestsPage() {
         },
       });
       if (!res.ok) {
-        // try to parse json error first
         let errText = "Failed to delete request";
         try {
           const j = await res.json();
@@ -95,7 +124,8 @@ export default function AdminEnrollmentRequestsPage() {
         }
         throw new Error(errText);
       }
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      // Refresh the list from server to ensure consistent state (and notifications)
+      await fetchRequests();
       setSuccessMessage("Enrollment request deleted");
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("notifications:updated"));
@@ -123,14 +153,8 @@ export default function AdminEnrollmentRequestsPage() {
       });
 
       if (response.ok) {
-        // Update the local state
-        setRequests((prev) =>
-          prev.map((req) =>
-            req.id === requestId
-              ? { ...req, status, updatedAt: new Date().toISOString() }
-              : req
-          )
-        );
+        // Refresh from server to keep list and any notifications accurate
+        await fetchRequests();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("notifications:updated"));
         }
@@ -172,6 +196,31 @@ export default function AdminEnrollmentRequestsPage() {
     }
   };
 
+  // Parse parent gender from notes heuristics to determine priority
+  const parseParentGender = (notes?: string | null) => {
+    if (!notes) return "N/A";
+    try {
+      const txt = String(notes).toUpperCase();
+      if (txt.includes("PARENT GENDER") && txt.includes("FEMALE"))
+        return "Female";
+      if (
+        txt.includes("MOTHER") ||
+        txt.includes("WOMAN") ||
+        txt.includes("WOMEN")
+      )
+        return "Female";
+      if (txt.includes("FATHER") || txt.includes("MAN")) return "Male";
+      return "N/A";
+    } catch {
+      return "N/A";
+    }
+  };
+
+  const getRequestType = (r: EnrollmentRequest) => {
+    const g = parseParentGender(r.notes);
+    return g === "Female" ? "Priority" : "Ordinary";
+  };
+
   const getStatusCounts = () => {
     const counts = requests.reduce((acc, req) => {
       acc[req.status] = (acc[req.status] || 0) + 1;
@@ -187,6 +236,36 @@ export default function AdminEnrollmentRequestsPage() {
   };
 
   const statusCounts = getStatusCounts();
+
+  const filtered = requests.filter((r) => {
+    if (filter === "pending" && r.status !== "pending") return false;
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      (r.parentName || "").toLowerCase().includes(s) ||
+      (r.email || "").toLowerCase().includes(s) ||
+      (r.phone || "").toLowerCase().includes(s) ||
+      (r.childName || "").toLowerCase().includes(s)
+    );
+  });
+
+  // pagination: reset page on filter/search change
+  useEffect(() => {
+    setPage(1);
+  }, [filter, search, requests]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const openView = (r: EnrollmentRequest) => {
+    setSelected(r);
+    setDialogOpen(true);
+  };
+
+  const closeView = () => {
+    setDialogOpen(false);
+    setSelected(null);
+  };
 
   if (loading) {
     return (
@@ -319,6 +398,13 @@ export default function AdminEnrollmentRequestsPage() {
               All
             </button>
           </div>
+          <div className="flex-1 max-w-sm">
+            <Input
+              placeholder="Search by parent, email, phone, child..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <Button
             onClick={fetchRequests}
             variant="outline"
@@ -329,205 +415,254 @@ export default function AdminEnrollmentRequestsPage() {
           </Button>
         </div>
 
-        {/* Requests List */}
-        {(() => {
-          const visible =
-            filter === "pending"
-              ? requests.filter((r) => r.status === "pending")
-              : requests;
-          return visible.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {filter === "pending"
-                    ? "No Pending Requests"
-                    : "No Enrollment Requests"}
-                </h3>
-                <p className="text-gray-600">
-                  {filter === "pending"
-                    ? "All caught up for now."
-                    : "There are no enrollment requests to review at this time."}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {visible.map((request) => (
-                <Card
-                  key={request.id}
-                  className="hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <User className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-xl">
-                            {request.parentName}
-                          </CardTitle>
-                        </div>
-                      </div>
-                      <Badge className={getStatusBadgeColor(request.status)}>
-                        {getStatusIcon(request.status)}
-                        <span className="ml-1 capitalize">
-                          {request.status}
-                        </span>
-                      </Badge>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Application Details (Parent first) */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">
-                              Parent Name
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm">{request.parentName}</p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">
-                              Email
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm">{request.email}</p>
-                            </div>
-                          </div>
-
-                          {request.phone && (
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">
-                                Phone
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4 text-gray-400" />
-                                <p className="text-sm">{request.phone}</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-3">
-                          {/* Organization and Site parsed from notes if present */}
-                          {request.notes &&
-                            request.notes.includes("Organization:") && (
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">
-                                  Organization & Site
-                                </p>
-                                <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md whitespace-pre-line">
-                                  {request.notes
-                                    .split("\n")
-                                    .filter(Boolean)
-                                    .filter(
-                                      (l) =>
-                                        l.startsWith("Organization:") ||
-                                        l.startsWith("Site:")
-                                    )
-                                    .join("\n")}
-                                </div>
-                              </div>
-                            )}
-
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">
-                              Application Date
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm">
-                                {new Date(
-                                  request.createdAt
-                                ).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">
-                              Last Updated
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm">
-                                {new Date(
-                                  request.updatedAt
-                                ).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {request.notes && (
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">
-                            Description
-                          </p>
-                          <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md whitespace-pre-line">
-                            {request.notes}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      {request.status === "pending" && (
-                        <div className="flex gap-3 pt-4 border-t">
+        {/* Table list */}
+        {filtered.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No Enrollment Requests
+              </h3>
+              <p className="text-gray-600">
+                There are no enrollment requests that match your filters.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <TableHead className="w-32">Date</TableHead>
+                    <TableHead>Parent</TableHead>
+                    <TableHead>Child</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Queue</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-48">Actions</TableHead>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        {new Date(r.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{r.parentName}</TableCell>
+                      <TableCell>{r.childName || "-"}</TableCell>
+                      <TableCell>{r.email}</TableCell>
+                      <TableCell>{r.phone || "-"}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const isPriority =
+                            parseParentGender(r.notes) === "Female";
+                          const absoluteIdx =
+                            (page - 1) * pageSize + paginated.indexOf(r);
+                          return isPriority
+                            ? "Priority"
+                            : `Queue ${absoluteIdx + 1}`;
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusBadgeColor(r.status)}>
+                          {r.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
                           <Button
                             onClick={() =>
-                              updateRequestStatus(request.id, "approved")
+                              updateRequestStatus(r.id, "approved")
                             }
-                            disabled={actionLoading === request.id}
+                            disabled={
+                              actionLoading === r.id || r.status !== "pending"
+                            }
+                            size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white"
                           >
-                            {actionLoading === request.id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            ) : (
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                            )}
                             Approve
                           </Button>
                           <Button
                             onClick={() =>
-                              updateRequestStatus(request.id, "rejected")
+                              updateRequestStatus(r.id, "rejected")
                             }
-                            disabled={actionLoading === request.id}
+                            disabled={
+                              actionLoading === r.id || r.status !== "pending"
+                            }
+                            size="sm"
                             variant="destructive"
                           >
-                            {actionLoading === request.id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            ) : (
-                              <XCircle className="h-4 w-4 mr-2" />
-                            )}
                             Reject
                           </Button>
                           <Button
-                            onClick={() => deleteRequest(request.id)}
-                            disabled={actionLoading === request.id}
+                            onClick={() => openView(r)}
+                            size="sm"
                             variant="outline"
-                            className="text-red-700 border-red-200 hover:bg-red-50"
                           >
-                            Delete
+                            View
                           </Button>
+                          {filter === "all" ? (
+                            <Button
+                              onClick={() => deleteRequest(r.id)}
+                              disabled={actionLoading === r.id}
+                              size="sm"
+                              variant="outline"
+                              className="text-red-700 border-red-200"
+                            >
+                              Delete
+                            </Button>
+                          ) : null}
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+        {/* Pagination controls */}
+        {filtered.length > pageSize && (
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing {(page - 1) * pageSize + 1}–
+              {Math.min(page * pageSize, filtered.length)} of {filtered.length}
             </div>
-          );
-        })()}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Prev
+              </Button>
+              <div className="text-sm">
+                Page {page} / {totalPages}
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Details dialog */}
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeView();
+            else setDialogOpen(open);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enrollment Request</DialogTitle>
+            </DialogHeader>
+            {selected ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Parent</p>
+                  <p className="text-base text-gray-900">
+                    {selected.parentName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Child</p>
+                  <p className="text-base text-gray-900">
+                    {selected.childName || "-"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Email</p>
+                    <p className="text-sm text-gray-900">{selected.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Phone</p>
+                    <p className="text-sm text-gray-900">
+                      {selected.phone || "-"}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Status</p>
+                  <Badge className={getStatusBadgeColor(selected.status)}>
+                    {selected.status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Submitted</p>
+                  <p className="text-sm text-gray-900">
+                    {new Date(selected.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">
+                    Last updated
+                  </p>
+                  <p className="text-sm text-gray-900">
+                    {new Date(selected.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+                {selected.notes && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Notes</p>
+                    <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md whitespace-pre-line">
+                      {selected.notes}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p>No request selected</p>
+            )}
+            <DialogFooter>
+              <div className="flex items-center gap-2">
+                {selected && selected.status === "pending" && (
+                  <>
+                    <Button
+                      onClick={() => {
+                        if (selected)
+                          updateRequestStatus(selected.id, "approved");
+                      }}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        if (selected)
+                          updateRequestStatus(selected.id, "rejected");
+                      }}
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {filter === "all" && selected && (
+                  <Button
+                    variant="outline"
+                    className="text-red-700 border-red-200"
+                    onClick={() => {
+                      if (selected) deleteRequest(selected.id);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button onClick={closeView}>Close</Button>
+                </DialogClose>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
