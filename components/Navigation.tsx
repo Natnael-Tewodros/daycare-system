@@ -119,7 +119,7 @@ export default function Navigation() {
     { name: "Rooms", href: "#room-availability", icon: Building },
     {
       name: "Enrollment",
-      href: "/dashboard/enrollment-requests",
+      href: "#pending-status",
       icon: UserPlus,
       showCount: true,
     },
@@ -131,7 +131,7 @@ export default function Navigation() {
       showCount: true,
     },
     { name: "Requirements", href: "#requirements", icon: FileText },
-    { name: "Contact", href: "#contact", icon: Users },
+    { name: "Contact", href: "#contact-info", icon: Users },
   ];
 
   const toggleMenu = () => {

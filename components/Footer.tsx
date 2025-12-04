@@ -102,7 +102,7 @@ export default function Footer() {
           </div>
 
           {/* Contact Info */}
-          <div>
+          <div id="contact-info">
             <h4 className="text-slate-900 text-sm font-bold uppercase tracking-wider mb-4">Contact Info</h4>
             <div className="space-y-3">
               <div className="flex items-start space-x-3">

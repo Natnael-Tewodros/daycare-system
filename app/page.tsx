@@ -459,11 +459,10 @@ export default function HomePage() {
             </div>
 
             <div
-              className={`text-xs font-medium px-2 py-1 rounded-full ${
-                percentage >= 100
+              className={`text-xs font-medium px-2 py-1 rounded-full ${percentage >= 100
                   ? "bg-red-50 text-red-600"
                   : "bg-green-50 text-green-600"
-              }`}
+                }`}
             >
               {percentage >= 100 ? "Full" : "Available"}
             </div>
@@ -471,9 +470,8 @@ export default function HomePage() {
 
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-1000 ${
-                percentage >= 90 ? "bg-red-500" : "bg-indigo-500"
-              }`}
+              className={`h-full rounded-full transition-all duration-1000 ${percentage >= 90 ? "bg-red-500" : "bg-indigo-500"
+                }`}
               style={{ width: `${percentage}%` }}
             />
           </div>
@@ -670,11 +668,10 @@ export default function HomePage() {
                       <button
                         key={index}
                         onClick={() => goToImage(index)}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          index === currentImageIndex
+                        className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex
                             ? "bg-white"
                             : "bg-white/50 hover:bg-white/70"
-                        }`}
+                          }`}
                       />
                     ))}
                   </div>
@@ -762,11 +759,10 @@ export default function HomePage() {
                       <button
                         key={index}
                         onClick={() => goToImage(index)}
-                        className={`w-3 h-3 rounded-full transition-all ${
-                          index === currentImageIndex
+                        className={`w-3 h-3 rounded-full transition-all ${index === currentImageIndex
                             ? "bg-white"
                             : "bg-white/50 hover:bg-white/70"
-                        }`}
+                          }`}
                       />
                     ))}
                   </div>
@@ -806,18 +802,18 @@ export default function HomePage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               {isLoading
                 ? [1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-64 bg-slate-100 rounded-2xl animate-pulse border border-slate-200"
-                    />
-                  ))
+                  <div
+                    key={i}
+                    className="h-64 bg-slate-100 rounded-2xl animate-pulse border border-slate-200"
+                  />
+                ))
                 : rooms.map((room) => <RoomCard key={room.id} room={room} />)}
             </div>
           </div>
         </section>
 
         {/* Pending Enrollment */}
-        <section id="pending-enrollment" className="py-8 px-6">
+        <section id="pending-status" className="py-8 px-6">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-slate-900">
@@ -845,21 +841,19 @@ export default function HomePage() {
                 <div className="mt-4 flex items-center gap-3">
                   <div className="flex rounded-md border border-blue-200 overflow-hidden">
                     <button
-                      className={`px-3 py-1 text-sm ${
-                        filter === "pending"
+                      className={`px-3 py-1 text-sm ${filter === "pending"
                           ? "bg-blue-600 text-white"
                           : "bg-white text-blue-600"
-                      }`}
+                        }`}
                       onClick={() => setFilter("pending")}
                     >
                       Pending
                     </button>
                     <button
-                      className={`px-3 py-1 text-sm ${
-                        filter === "all"
+                      className={`px-3 py-1 text-sm ${filter === "all"
                           ? "bg-blue-600 text-white"
                           : "bg-white text-blue-600"
-                      }`}
+                        }`}
                       onClick={() => setFilter("all")}
                     >
                       All
@@ -942,17 +936,17 @@ export default function HomePage() {
                           {(
                             (searchQuery
                               ? pendingEnrollmentRequests
-                                  .map((r: any, i: number) => ({
-                                    ...r,
-                                    _idx: i,
-                                  }))
-                                  .filter((r: any) =>
-                                    matchesQuery(r, searchQuery)
-                                  )
+                                .map((r: any, i: number) => ({
+                                  ...r,
+                                  _idx: i,
+                                }))
+                                .filter((r: any) =>
+                                  matchesQuery(r, searchQuery)
+                                )
                               : pendingEnrollmentRequests.slice(
-                                  (enrollmentPage - 1) * enrollmentPageSize,
-                                  enrollmentPage * enrollmentPageSize
-                                )) as any[]
+                                (enrollmentPage - 1) * enrollmentPageSize,
+                                enrollmentPage * enrollmentPageSize
+                              )) as any[]
                           ).map((r: any, idx: number) => {
                             const created = r.createdAt
                               ? new Date(r.createdAt)
@@ -976,9 +970,9 @@ export default function HomePage() {
                                       ? r._idx + 1
                                       : idx + 1
                                     : (enrollmentPage - 1) *
-                                        enrollmentPageSize +
-                                      idx +
-                                      1}
+                                    enrollmentPageSize +
+                                    idx +
+                                    1}
                                 </td>
                                 <td className="px-4 py-2 text-sm text-gray-900">
                                   {r.parentName}
@@ -1021,50 +1015,50 @@ export default function HomePage() {
                     <div className="mt-4 flex items-center justify-end">
                       {pendingEnrollmentRequests.length >
                         enrollmentPageSize && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() =>
-                              setEnrollmentPage((p) => Math.max(1, p - 1))
-                            }
-                            disabled={enrollmentPage === 1}
-                          >
-                            Prev
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                setEnrollmentPage((p) => Math.max(1, p - 1))
+                              }
+                              disabled={enrollmentPage === 1}
+                            >
+                              Prev
+                            </Button>
 
-                          <div className="text-sm">
-                            Page {enrollmentPage} /{" "}
-                            {Math.ceil(
-                              pendingEnrollmentRequests.length /
-                                enrollmentPageSize
-                            )}
-                          </div>
-
-                          <Button
-                            size="sm"
-                            onClick={() =>
-                              setEnrollmentPage((p) =>
-                                Math.min(
-                                  Math.ceil(
-                                    pendingEnrollmentRequests.length /
-                                      enrollmentPageSize
-                                  ),
-                                  p + 1
-                                )
-                              )
-                            }
-                            disabled={
-                              enrollmentPage ===
-                              Math.ceil(
+                            <div className="text-sm">
+                              Page {enrollmentPage} /{" "}
+                              {Math.ceil(
                                 pendingEnrollmentRequests.length /
+                                enrollmentPageSize
+                              )}
+                            </div>
+
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                setEnrollmentPage((p) =>
+                                  Math.min(
+                                    Math.ceil(
+                                      pendingEnrollmentRequests.length /
+                                      enrollmentPageSize
+                                    ),
+                                    p + 1
+                                  )
+                                )
+                              }
+                              disabled={
+                                enrollmentPage ===
+                                Math.ceil(
+                                  pendingEnrollmentRequests.length /
                                   enrollmentPageSize
-                              )
-                            }
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
+                                )
+                              }
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        )}
                     </div>
                   </div>
                 ) : (
