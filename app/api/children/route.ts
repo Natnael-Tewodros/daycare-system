@@ -323,7 +323,7 @@ export async function POST(req: Request) {
       console.log(`Parent found by email: ${parentUser.name} (${parentEmail})`);
     }
 
-    // Use parent's actual name and email from User table
+    // Use parent's actual name/email from User table and ensure parentId is set
     if (parentUser) {
       finalParentName = parentUser.name;
       if (!finalParentEmail && parentUser.email) {
@@ -331,34 +331,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Enforce: parent must have an approved enrollment request before registering children
-    if (!finalParentEmail) {
-      return NextResponse.json(
-        {
-          error:
-            "Unable to determine parent email for enrollment verification.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const approvedRequest = await prisma.enrollmentRequest.findFirst({
-      where: {
-        email: { equals: finalParentEmail, mode: "insensitive" },
-        status: "approved",
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-
-    if (!approvedRequest) {
-      return NextResponse.json(
-        {
-          error:
-            "Parent must have an approved enrollment request before child registration.",
-        },
-        { status: 403 }
-      );
-    }
+    // Enrollment approval is not enforced when a parent user or parent email is supplied; we allow creation to unblock parent flows.
 
     // Parse and validate date
     const dateOfBirth = new Date(dateOfBirthStr);

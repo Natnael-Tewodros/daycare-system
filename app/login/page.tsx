@@ -176,12 +176,12 @@ export default function LoginPage() {
         <CardContent>
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email Address</Label>
+              <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email or Username</Label>
               <Input
                 {...register("email")}
                 id="email"
-                type="email"
-                placeholder="name@example.com"
+                type="text"
+                placeholder="name@example.com or username"
                 className="h-12 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
                 required
               />

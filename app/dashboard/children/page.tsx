@@ -117,18 +117,9 @@ export default function AdminPage() {
       const res = await fetch(
         `/api/users/check-username?username=${encodeURIComponent(username)}`
       );
-      const { exists, user } = await res.json();
+      const { exists } = await res.json();
       if (!exists) return alert("Parent not found"), false;
-
-      const reqRes = await fetch("/api/enrollment-requests");
-      const { data = [] } = await reqRes.json();
-      const hasApproval = data.some(
-        (x: any) =>
-          x.status === "approved" &&
-          (x.email?.toLowerCase() === user?.email?.toLowerCase() ||
-            x.parentName?.toLowerCase() === user?.name?.toLowerCase())
-      );
-      return hasApproval ? true : (alert("No approved request"), false);
+      return true;
     } catch {
       return alert("Validation error"), false;
     }
