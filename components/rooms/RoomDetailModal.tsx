@@ -121,7 +121,12 @@ export default function RoomDetailModal({ selectedRoom, onClose, caregiverChildr
                         </SelectTrigger>
                         <SelectContent>
                           {(() => {
-                            const roomChildren = allChildren.filter((child: any) => (child.room?.id === selectedRoom.id) || (child.roomId === selectedRoom.id));
+                            // Use all original room IDs so merged rooms still surface their children
+                            const validRoomIds = (selectedRoom.originalIds && Array.isArray(selectedRoom.originalIds) ? selectedRoom.originalIds : [selectedRoom.id]) as number[];
+                            const roomChildren = allChildren.filter((child: any) => {
+                              const childRoomId = child.room?.id ?? child.roomId;
+                              return childRoomId && validRoomIds.includes(childRoomId);
+                            });
                             const unassignedChildren = roomChildren.filter((child: any) => !child.servant || child.servant === null || child.servant.id === null);
                             const { infant, toddler, growingStar } = categorizeChildrenByAge(unassignedChildren);
                             return (
