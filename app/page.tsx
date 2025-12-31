@@ -166,10 +166,12 @@ export default function HomePage() {
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const images = [
-    "/daycare1.jpg",
-    "/daycare2.jpg",
-    "/daycare3.jpg",
-    "/daycare4.jpg",
+    "/IMG_7.JPG",
+    "/IMG_1.JPG",
+    "/IMG_3.JPG",
+    "/IMG_4.JPG",
+    "/IMG_5.JPG",
+    "/IMG_6.JPG",
   ];
 
   // Fetch rooms and enrollment requests (supports filter & dedup)
@@ -341,6 +343,17 @@ export default function HomePage() {
     setIsFullscreen(!isFullscreen);
     if (!isFullscreen) setIsAutoPlaying(false);
   };
+
+  // Auto-advance carousel when enabled and not in fullscreen
+  useEffect(() => {
+    if (!isAutoPlaying || isFullscreen) return;
+
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [isAutoPlaying, isFullscreen, images.length]);
 
   const handleSearch = () => {
     console.debug("handleSearch called", {
