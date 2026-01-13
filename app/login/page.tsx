@@ -10,7 +10,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Eye, EyeOff, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 type FormData = { email: string; password: string };
 
