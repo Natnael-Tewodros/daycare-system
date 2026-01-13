@@ -167,7 +167,6 @@ export default function HomePage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const images = [
     "/IMG_7.JPG",
-    "/IMG_1.JPG",
     "/IMG_3.JPG",
     "/IMG_4.JPG",
     "/IMG_5.JPG",
